@@ -15,6 +15,8 @@ import {
 const STORAGE_KEY = 'snack-ladder-adventure-v1';
 const EXTRA_BULLET_SQUARES = [61, 77] as const;
 const MYSTERY_BOX_SQUARES = [14, 35, 51, 76] as const;
+const MOVEMENT_STEP_DELAY_MS = 220;
+type WalkingPiece = { playerId: string; position: number };
 
 function readGame(): GameState {
   try {
@@ -203,7 +205,7 @@ function SnakeArt({ from, to, color, index }: { from: number; to: number; color:
   );
 }
 
-function Board({ game }: { game: GameState }) {
+function Board({ game, walking }: { game: GameState; walking: WalkingPiece | null }) {
   const cells = useMemo(() => Array.from({ length: 100 }, (_, i) => {
     const row = Math.floor(i / 10);
     const col = i % 10;
@@ -251,15 +253,19 @@ function Board({ game }: { game: GameState }) {
           <Crown />
           <span>100</span>
         </div>
-        {game.players.map((player, index) => (
-          <div
-            key={player.id}
-            className={`board-piece ${player.color === 'blue' ? 'blue-piece' : 'coral-piece'} ${game.players.some((other, i) => i !== index && other.position === player.position) ? 'stacked' : ''}`}
-            style={pieceStyle(player.position, index)}
-            data-testid={`piece-${player.id}`}
-            aria-label={`${player.name} on square ${player.position || 'home'}`}
-          >{index + 1}</div>
-        ))}
+        {game.players.map((player, index) => {
+          const position = walking?.playerId === player.id ? walking.position : player.position;
+          const stacked = game.players.some((other, otherIndex) => otherIndex !== index && other.position === position);
+          return (
+            <div
+              key={player.id}
+              className={`board-piece ${player.color === 'blue' ? 'blue-piece' : 'coral-piece'} ${stacked ? 'stacked' : ''}`}
+              style={pieceStyle(position, index)}
+              data-testid={`piece-${player.id}`}
+              aria-label={`${player.name} on square ${position || 'home'}`}
+            >{index + 1}</div>
+          );
+        })}
       </div>
       <svg className="home-roof" viewBox="0 0 100 75" aria-hidden="true">
         <path d="M6 42 50 7l44 35-8 9-36-28L14 51z" fill="#df4e36" stroke="#ffd77a" strokeWidth="5" strokeLinejoin="round" />
@@ -275,6 +281,7 @@ function App() {
   const [game, setGame] = useState<GameState>(readGame);
   const [rolling, setRolling] = useState(false);
   const [diceFace, setDiceFace] = useState<number | null>(game.lastRoll);
+  const [walking, setWalking] = useState<WalkingPiece | null>(null);
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(game)); } catch { /* Local play remains available without storage. */ }
@@ -283,21 +290,46 @@ function App() {
   const currentPlayer = game.players[game.currentPlayerIndex];
   const winner = game.players.find(player => player.id === game.winnerId);
 
-  const rollDice = () => {
+  const rollDice = async () => {
     if (rolling || game.winnerId) return;
     setRolling(true);
-    let frames = 0;
-    const animation = window.setInterval(() => {
-      setDiceFace(1 + Math.floor(Math.random() * 6));
-      frames += 1;
-      if (frames >= 7) {
-        window.clearInterval(animation);
-        const result = 1 + Math.floor(Math.random() * 6);
-        setDiceFace(result);
-        setGame(previous => playTurn(previous, result));
-        window.setTimeout(() => setRolling(false), 220);
+    try {
+      const result = await new Promise<number>(resolve => {
+        let frames = 0;
+        const animation = window.setInterval(() => {
+          setDiceFace(1 + Math.floor(Math.random() * 6));
+          frames += 1;
+          if (frames >= 7) {
+            window.clearInterval(animation);
+            const settledRoll = 1 + Math.floor(Math.random() * 6);
+            setDiceFace(settledRoll);
+            resolve(settledRoll);
+          }
+        }, 85);
+      });
+
+      const player = game.players[game.currentPlayerIndex];
+      const destination = player.position + result;
+      const blockedByGate = player.keys === 0 && (LOCKED_SQUARES as readonly number[]).some(
+        square => square > player.position && square <= destination,
+      );
+
+      if (destination <= 100 && !blockedByGate) {
+        const firstStep = Math.max(1, player.position + 1);
+        const stepDelay = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          ? 45
+          : MOVEMENT_STEP_DELAY_MS;
+        for (let position = firstStep; position <= destination; position += 1) {
+          setWalking({ playerId: player.id, position });
+          await new Promise<void>(resolve => window.setTimeout(resolve, stepDelay));
+        }
       }
-    }, 85);
+
+      setGame(previous => playTurn(previous, result));
+    } finally {
+      setWalking(null);
+      window.setTimeout(() => setRolling(false), 220);
+    }
   };
 
   const startNewGame = () => {
@@ -323,7 +355,7 @@ function App() {
         </header>
 
         <div className="game-columns">
-          <Board game={game} />
+          <Board game={game} walking={walking} />
           <section className="side-panel" aria-label="Game controls and player status">
             <div className="turn-card">
               <div className="eyebrow" data-testid="turn-number">TURN {String(game.turnNumber).padStart(2, '0')}</div>

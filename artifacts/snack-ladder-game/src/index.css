@@ -133,7 +133,7 @@
 .crown-tile { position:absolute; z-index:4; top:0; left:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0; background:linear-gradient(145deg,#f4bf36,#c85d16); border:2px solid #ffe578; color:#fff1a5; width:10%; aspect-ratio:1; border-radius:12%; filter:drop-shadow(0 2px 3px #301607); }
 .crown-tile svg { width:48%; height:48%; margin-bottom:-2px; }
 .crown-tile span { font:700 clamp(9px,1.1vw,15px)/1 'Fredoka',sans-serif; color:#fff8d4; text-shadow:0 1px 2px #8a3514; }
-.board-piece { position:absolute; z-index:6; width:7.5%; aspect-ratio:1; border-radius:50%; border:2px solid #fff6db; display:grid; place-items:center; font:700 clamp(8px,1vw,12px) 'Fredoka',sans-serif; color:white; box-shadow:0 3px 5px #21150d99, inset 0 2px 3px #ffffff9c; transform:translate(-50%,-50%); transition:left .48s cubic-bezier(.2,.8,.2,1),top .48s cubic-bezier(.2,.8,.2,1); }
+.board-piece { position:absolute; z-index:6; width:7.5%; aspect-ratio:1; border-radius:50%; border:2px solid #fff6db; display:grid; place-items:center; font:700 clamp(8px,1vw,12px) 'Fredoka',sans-serif; color:white; box-shadow:0 3px 5px #21150d99, inset 0 2px 3px #ffffff9c; transform:translate(-50%,-50%); transition:left .16s cubic-bezier(.2,.8,.2,1),top .16s cubic-bezier(.2,.8,.2,1); }
 .board-piece.blue-piece { background:radial-gradient(circle at 35% 25%,#81e7ff,#1694d0 64%,#075179); }
 .board-piece.coral-piece { background:radial-gradient(circle at 35% 25%,#ffdb94,#ee6945 64%,#a63231); }
 .board-piece.stacked { margin-left: 8%; margin-top:-8%; }
