@@ -84,21 +84,71 @@ function SnakeArt({ from, to, color, index }: { from: number; to: number; color:
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const bend = index % 2 ? 30 : -30;
-  const d = `M ${a.x} ${a.y} C ${a.x + dx * .28 + bend} ${a.y + dy * .22}, ${a.x + dx * .72 - bend} ${a.y + dy * .78}, ${b.x} ${b.y}`;
-  const colors: Record<string, string> = { violet: '#9951d4', green: '#43ae4b', red: '#eb4b3e', blue: '#278de3', orange: '#ed9129' };
-  const fill = colors[color] || '#7d5bce';
+  const c1 = { x: a.x + dx * .28 + bend, y: a.y + dy * .22 };
+  const c2 = { x: a.x + dx * .72 - bend, y: a.y + dy * .78 };
+  const d = `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`;
+  const palettes: Record<string, { base: string; light: string; shade: string; belly: string }> = {
+    violet: { base: '#74309d', light: '#d3a0ea', shade: '#32154d', belly: '#d9b6c9' },
+    green: { base: '#267747', light: '#a6d17a', shade: '#123b2a', belly: '#c4d1a0' },
+    red: { base: '#b63232', light: '#f0a06b', shade: '#541d26', belly: '#e5c097' },
+    blue: { base: '#176da6', light: '#80c9df', shade: '#12304b', belly: '#bfd3c8' },
+    orange: { base: '#ba601f', light: '#ffd27d', shade: '#5a2d1b', belly: '#e8c08c' },
+  };
+  const palette = palettes[color] || palettes.violet;
+  const outlinePoints = Array.from({ length: 33 }, (_, i) => {
+    const t = i / 32;
+    const u = 1 - t;
+    const x = u ** 3 * a.x + 3 * u ** 2 * t * c1.x + 3 * u * t ** 2 * c2.x + t ** 3 * b.x;
+    const y = u ** 3 * a.y + 3 * u ** 2 * t * c1.y + 3 * u * t ** 2 * c2.y + t ** 3 * b.y;
+    const tx = 3 * u ** 2 * (c1.x - a.x) + 6 * u * t * (c2.x - c1.x) + 3 * t ** 2 * (b.x - c2.x);
+    const ty = 3 * u ** 2 * (c1.y - a.y) + 6 * u * t * (c2.y - c1.y) + 3 * t ** 2 * (b.y - c2.y);
+    const length = Math.hypot(tx, ty) || 1;
+    const radius = 1.8 + 7.2 * (1 - t ** 3);
+    const nx = -ty / length;
+    const ny = tx / length;
+    return {
+      upper: `${x + nx * radius} ${y + ny * radius}`,
+      lower: `${x - nx * radius} ${y - ny * radius}`,
+    };
+  });
+  const silhouette = `M ${outlinePoints[0].upper} ${outlinePoints.slice(1).map(point => `L ${point.upper}`).join(' ')} ${outlinePoints.slice(0, -1).reverse().map(point => `L ${point.lower}`).join(' ')} Z`;
+  const skinId = `snake-scales-${from}`;
+  const glossId = `snake-gloss-${from}`;
+  const headRotation = Math.atan2(dy, dx) * 180 / Math.PI;
   return (
     <g data-testid={`snake-art-${from}-${to}`}>
-      <path d={d} className="snake-body" stroke={fill} />
-      <path d={d} className="snake-highlight" />
-      <g transform={`translate(${a.x} ${a.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI + 90})`}>
-        <ellipse className="snake-head" cx="0" cy="0" rx="12" ry="11" fill={fill} />
-        <ellipse className="snake-eye" cx="-4" cy="-3" rx="3.2" ry="3.7" />
-        <ellipse className="snake-eye" cx="4" cy="-3" rx="3.2" ry="3.7" />
-        <circle className="snake-pupil" cx="-3.6" cy="-2.7" r="1.5" />
-        <circle className="snake-pupil" cx="4.4" cy="-2.7" r="1.5" />
-        <path d="M-3 5q3 3 6 0" fill="none" stroke="#fff4cd" strokeWidth="1.5" strokeLinecap="round" />
-        <path d="M-7-10l-3-5m17 5 3-5" stroke={fill} strokeWidth="3" strokeLinecap="round" />
+      <defs>
+        <pattern id={skinId} width="12" height="10" patternUnits="userSpaceOnUse">
+          <rect width="12" height="10" fill={palette.base} />
+          <path d="M-3 0 Q2 5 7 0 M3 5 Q8 10 13 5" fill="none" stroke={palette.shade} strokeWidth="1.1" opacity=".62" />
+          <path d="M-2 1 Q2 4 6 1 M4 6 Q8 9 12 6" fill="none" stroke={palette.light} strokeWidth=".8" opacity=".72" />
+        </pattern>
+        <linearGradient id={glossId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={palette.light} stopOpacity=".76" />
+          <stop offset=".34" stopColor={palette.light} stopOpacity=".18" />
+          <stop offset=".62" stopColor={palette.shade} stopOpacity=".06" />
+          <stop offset="1" stopColor={palette.shade} stopOpacity=".55" />
+        </linearGradient>
+      </defs>
+      <path d={silhouette} fill={`url(#${skinId})`} stroke={palette.shade} strokeWidth="2.6" className="snake-silhouette" />
+      <path d={silhouette} fill={`url(#${glossId})`} className="snake-glaze" />
+      <path d={d} className="snake-back-highlight" />
+      <g transform={`translate(${a.x} ${a.y}) rotate(${headRotation})`}>
+        <path
+          className="snake-head"
+          d="M-17 0 C-14-6-8-9 0-8 C8-8 15-5 20 0 C14 5 7 8-1 8 C-9 8-14 5-17 0Z"
+          fill={`url(#${glossId})`}
+          style={{ color: palette.base, stroke: palette.shade }}
+        />
+        <path d="M-11 2 Q0 6 13 2" className="snake-jaw" stroke={palette.belly} />
+        <path d="M-7-4 Q-3-7 2-5 M3-5 Q7-7 11-3" className="snake-brow" stroke={palette.shade} />
+        <ellipse cx="-2" cy="-5" rx="2.5" ry="1.4" className="snake-eye" />
+        <ellipse cx="5" cy="5" rx="2.2" ry="1.2" className="snake-eye" />
+        <ellipse cx="-2" cy="-5" rx=".65" ry="1.25" className="snake-pupil" />
+        <ellipse cx="5" cy="5" rx=".6" ry="1.1" className="snake-pupil" />
+        <circle cx="-13" cy="-2" r=".9" className="snake-nostril" />
+        <circle cx="-13" cy="2" r=".7" className="snake-nostril" />
+        <path d="M-16 0 Q-22 1-26-2 M-22 1l-4 4" className="snake-tongue" />
       </g>
     </g>
   );
