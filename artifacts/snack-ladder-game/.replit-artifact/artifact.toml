@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Snake & Ladder Adventure"
+description = "A colorful, playable 1–100 snake-and-ladder adventure inspired by the supplied board image, with dice turns, collectible keys, and torch-locked squares."
+version = "1.0.0"
+id = "artifacts/snack-ladder-game"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25734
+
+[services.development]
+run = "pnpm --filter @workspace/snack-ladder-game run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/snack-ladder-game", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/snack-ladder-game/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25734"
+BASE_PATH = "/"
