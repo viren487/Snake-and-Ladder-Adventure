@@ -13,6 +13,8 @@ import {
 } from './game-engine';
 
 const STORAGE_KEY = 'snack-ladder-adventure-v1';
+const EXTRA_BULLET_SQUARES = [61, 77] as const;
+const MYSTERY_BOX_SQUARES = [14, 35, 51, 76] as const;
 
 function readGame(): GameState {
   try {
@@ -36,13 +38,26 @@ function centerOf(square: number) {
   return { x: 50, y: 950 };
 }
 
-function BulletIcon() {
+function BulletIcon({ square }: { square: number }) {
   return (
-    <svg viewBox="0 0 48 48" aria-hidden="true" className="bullet-glyph">
+    <svg viewBox="0 0 48 48" aria-hidden="true" className="bullet-glyph" data-testid={`bullet-square-${square}`}>
       <path d="M24 5C18 12 14 18 14 25v8h20v-8C34 18 30 12 24 5Z" fill="#dce6e9" stroke="#59401d" strokeWidth="2.5" />
       <path d="M14 27h20v8H14z" fill="#e3a934" stroke="#59401d" strokeWidth="2" />
       <path d="M16 31h16" stroke="#fff0ad" strokeWidth="2" strokeLinecap="round" />
       <path d="M21 14c1-2 2-4 3-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" opacity=".8" />
+    </svg>
+  );
+}
+
+function MysteryBoxIcon({ square }: { square: number }) {
+  return (
+    <svg viewBox="0 0 56 56" aria-hidden="true" className="mystery-box-glyph" data-testid={`mystery-box-square-${square}`}>
+      <path d="M7 18 28 7l21 11-21 12Z" fill="#f5c85b" stroke="#53351e" strokeWidth="2.2" strokeLinejoin="round" />
+      <path d="M7 18 28 30v21L7 39Z" fill="#a34e9d" stroke="#53351e" strokeWidth="2.2" strokeLinejoin="round" />
+      <path d="M49 18 28 30v21l21-12Z" fill="#633b91" stroke="#3a2852" strokeWidth="2.2" strokeLinejoin="round" />
+      <path d="M25 9 30 11v38l-5 2Z" fill="#f4d374" opacity=".94" />
+      <path d="M8 18 28 29l20-11" fill="none" stroke="#ffe6a1" strokeWidth="2" />
+      <text x="38.5" y="43" textAnchor="middle" fill="#fff0a7" stroke="#482d62" strokeWidth=".7" paintOrder="stroke" fontSize="15" fontWeight="900" fontFamily="Fredoka, sans-serif">?</text>
     </svg>
   );
 }
@@ -195,13 +210,16 @@ function Board({ game }: { game: GameState }) {
     const number = squareAt(row, col);
     const locked = (LOCKED_SQUARES as readonly number[]).includes(number);
     const key = (KEY_SQUARES as readonly number[]).includes(number);
+    const bullet = key || (EXTRA_BULLET_SQUARES as readonly number[]).includes(number);
+    const mysteryBox = (MYSTERY_BOX_SQUARES as readonly number[]).includes(number);
     const gun = number === 94 || number === 95 || number === 96;
     const boom = number === BOOM_SQUARE;
     const tone = locked ? 'locked' : key ? 'key-square' : number % 3 === 0 ? 'blue' : (row + col) % 2 === 0 ? 'green' : 'cream';
     return (
-      <div className={`board-cell ${tone} ${locked || key ? 'special' : ''}`} key={number} data-testid={`board-square-${number}`} aria-label={`Square ${number}${key ? ', bullet pickup' : ''}${gun ? ', gun' : ''}${boom ? ', boom trap' : ''}`}>
+      <div className={`board-cell ${tone} ${locked || key ? 'special' : ''}`} key={number} data-testid={`board-square-${number}`} aria-label={`Square ${number}${bullet ? key ? ', bullet pickup' : ', bullet' : ''}${mysteryBox ? ', mystery box' : ''}${gun ? ', gun' : ''}${boom ? ', boom trap' : ''}`}>
         <span className="cell-number" data-testid={`square-number-${number}`}>{number}</span>
-        {key && <BulletIcon />}
+        {bullet && <BulletIcon square={number} />}
+        {mysteryBox && <MysteryBoxIcon square={number} />}
         {gun && <GunIcon />}
         {boom && <BoomIcon />}
         {locked && <>
