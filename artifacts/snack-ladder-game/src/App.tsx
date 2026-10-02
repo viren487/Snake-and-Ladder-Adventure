@@ -62,9 +62,19 @@ function GunIcon() {
 function BoomIcon() {
   return (
     <svg viewBox="0 0 64 64" aria-hidden="true" className="boom-glyph" data-testid={`boom-square-${BOOM_SQUARE}`}>
-      <path d="m32 2 6 12 12-8-3 14 15 2-12 9 10 11-15 0-1 15-10-11-10 11-1-15-15 0 10-11-12-9 15-2-3-14 12 8z" fill="#ef632d" stroke="#71331d" strokeWidth="2" strokeLinejoin="round" />
-      <path d="m32 12 5 13 12-6-6 12 13 4-13 4 5 13-12-7-4 13-4-13-12 7 5-13-13-4 13-4-6-12 12 6z" fill="#ffd451" stroke="#a84a21" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="m32 23 4 8 8 2-8 4-2 9-4-8-9-2 8-4z" fill="#fff3a8" />
+      <defs>
+        <radialGradient id="boom-bomb-shell" cx="32%" cy="26%" r="76%">
+          <stop offset="0" stopColor="#55575d" />
+          <stop offset=".38" stopColor="#292a2f" />
+          <stop offset="1" stopColor="#090a0d" />
+        </radialGradient>
+      </defs>
+      <circle cx="29" cy="39" r="19" fill="url(#boom-bomb-shell)" stroke="#101115" strokeWidth="2.5" />
+      <ellipse cx="21" cy="29" rx="6.5" ry="3.5" fill="#8a8d91" opacity=".55" transform="rotate(-34 21 29)" />
+      <path d="M42 25 49 16" fill="none" stroke="#17181c" strokeWidth="6" strokeLinecap="round" />
+      <path d="M47 17q1-7 7-8" fill="none" stroke="#765338" strokeWidth="3.5" strokeLinecap="round" />
+      <path d="m55 3 1.6 4.2L61 9l-4 2.2-.5 4.6-3-3.2-4.4 1.2 2.4-3.9-2.4-3.9 4.5 1z" fill="#ffd34e" stroke="#e77b28" strokeWidth="1.4" strokeLinejoin="round" />
+      <circle cx="51" cy="9" r="1.2" fill="#fff4b0" />
     </svg>
   );
 }
