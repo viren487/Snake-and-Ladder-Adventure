@@ -35,12 +35,25 @@ function centerOf(square: number) {
   return { x: 50, y: 950 };
 }
 
-function KeyIcon() {
+function BulletIcon() {
   return (
-    <svg viewBox="0 0 48 48" aria-hidden="true" className="key-glyph">
-      <circle cx="16" cy="17" r="8" fill="none" stroke="currentColor" strokeWidth="5" />
-      <path d="M22 22 40 40m-7-7 5-5m-10 0 5-5" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="m8 11 4-4" stroke="#fff2b2" strokeWidth="2" strokeLinecap="round" />
+    <svg viewBox="0 0 48 48" aria-hidden="true" className="bullet-glyph">
+      <path d="M24 5C18 12 14 18 14 25v8h20v-8C34 18 30 12 24 5Z" fill="#dce6e9" stroke="#59401d" strokeWidth="2.5" />
+      <path d="M14 27h20v8H14z" fill="#e3a934" stroke="#59401d" strokeWidth="2" />
+      <path d="M16 31h16" stroke="#fff0ad" strokeWidth="2" strokeLinecap="round" />
+      <path d="M21 14c1-2 2-4 3-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" opacity=".8" />
+    </svg>
+  );
+}
+
+function GunIcon() {
+  return (
+    <svg viewBox="0 0 64 48" aria-hidden="true" className="gun-glyph">
+      <path d="M7 14q0-4 4-4h29l19 5v10H37l-5 5h-3l-5 12H12l4-15-7-3q-2-1-2-4Z" fill="#3d4550" stroke="#24232a" strokeWidth="2.5" strokeLinejoin="round" />
+      <path d="M13 13h27l13 4H17Z" fill="#d5aa4b" stroke="#63451f" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M27 29h10l-5 10h-9Z" fill="#9a5b32" stroke="#50351f" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M29 25v3q0 5 6 4" fill="none" stroke="#e8d6a5" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="13" cy="18" r="1.5" fill="#f4cc69" />
     </svg>
   );
 }
@@ -161,11 +174,13 @@ function Board({ game }: { game: GameState }) {
     const number = squareAt(row, col);
     const locked = (LOCKED_SQUARES as readonly number[]).includes(number);
     const key = (KEY_SQUARES as readonly number[]).includes(number);
+    const gun = number === 94 || number === 95 || number === 96;
     const tone = locked ? 'locked' : key ? 'key-square' : number % 3 === 0 ? 'blue' : (row + col) % 2 === 0 ? 'green' : 'cream';
     return (
-      <div className={`board-cell ${tone} ${locked || key ? 'special' : ''}`} key={number} data-testid={`board-square-${number}`}>
+      <div className={`board-cell ${tone} ${locked || key ? 'special' : ''}`} key={number} data-testid={`board-square-${number}`} aria-label={`Square ${number}${key ? ', bullet pickup' : ''}${gun ? ', gun' : ''}`}>
         <span className="cell-number" data-testid={`square-number-${number}`}>{number}</span>
-        {key && <KeyIcon />}
+        {key && <BulletIcon />}
+        {gun && <GunIcon />}
         {locked && <>
           <span className="lock-caption">TORCH KEY<br />REQUIRED</span>
           <KeyRound className="locked-glyph" strokeWidth={2.2} />
