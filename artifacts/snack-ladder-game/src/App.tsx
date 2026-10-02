@@ -6,6 +6,7 @@ import {
   squareAt,
   SNAKES,
   LADDERS,
+  BOOM_SQUARE,
   KEY_SQUARES,
   LOCKED_SQUARES,
   type GameState,
@@ -54,6 +55,16 @@ function GunIcon() {
       <path d="M27 29h10l-5 10h-9Z" fill="#9a5b32" stroke="#50351f" strokeWidth="1.5" strokeLinejoin="round" />
       <path d="M29 25v3q0 5 6 4" fill="none" stroke="#e8d6a5" strokeWidth="1.8" strokeLinecap="round" />
       <circle cx="13" cy="18" r="1.5" fill="#f4cc69" />
+    </svg>
+  );
+}
+
+function BoomIcon() {
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true" className="boom-glyph" data-testid={`boom-square-${BOOM_SQUARE}`}>
+      <path d="m32 2 6 12 12-8-3 14 15 2-12 9 10 11-15 0-1 15-10-11-10 11-1-15-15 0 10-11-12-9 15-2-3-14 12 8z" fill="#ef632d" stroke="#71331d" strokeWidth="2" strokeLinejoin="round" />
+      <path d="m32 12 5 13 12-6-6 12 13 4-13 4 5 13-12-7-4 13-4-13-12 7 5-13-13-4 13-4-6-12 12 6z" fill="#ffd451" stroke="#a84a21" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="m32 23 4 8 8 2-8 4-2 9-4-8-9-2 8-4z" fill="#fff3a8" />
     </svg>
   );
 }
@@ -175,12 +186,14 @@ function Board({ game }: { game: GameState }) {
     const locked = (LOCKED_SQUARES as readonly number[]).includes(number);
     const key = (KEY_SQUARES as readonly number[]).includes(number);
     const gun = number === 94 || number === 95 || number === 96;
+    const boom = number === BOOM_SQUARE;
     const tone = locked ? 'locked' : key ? 'key-square' : number % 3 === 0 ? 'blue' : (row + col) % 2 === 0 ? 'green' : 'cream';
     return (
-      <div className={`board-cell ${tone} ${locked || key ? 'special' : ''}`} key={number} data-testid={`board-square-${number}`} aria-label={`Square ${number}${key ? ', bullet pickup' : ''}${gun ? ', gun' : ''}`}>
+      <div className={`board-cell ${tone} ${locked || key ? 'special' : ''}`} key={number} data-testid={`board-square-${number}`} aria-label={`Square ${number}${key ? ', bullet pickup' : ''}${gun ? ', gun' : ''}${boom ? ', boom trap' : ''}`}>
         <span className="cell-number" data-testid={`square-number-${number}`}>{number}</span>
         {key && <BulletIcon />}
         {gun && <GunIcon />}
+        {boom && <BoomIcon />}
         {locked && <>
           <span className="lock-caption">TORCH KEY<br />REQUIRED</span>
           <KeyRound className="locked-glyph" strokeWidth={2.2} />
