@@ -4,6 +4,9 @@
   "files": [],
   "references": [
     {
+      "path": "./lib/game-core"
+    },
+    {
       "path": "./lib/db"
     },
     {

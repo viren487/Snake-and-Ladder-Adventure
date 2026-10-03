@@ -31,6 +31,9 @@ import { isSavedGame } from "@/lib/saved-game";
 import { ShotAnimation, SHOT_DURATION_MS, type Shot } from "@/components/ShotAnimation";
 import { PowerControls } from "@/components/PowerControls";
 import { RulesDrawer } from "@/components/RulesDrawer";
+import { OnlinePanel } from "@/components/OnlinePanel";
+import { useOnlineGame } from "@/hooks/useOnlineGame";
+import type { OnlineAction } from "@workspace/api-client-react";
 import {
   BOOM_SQUARE,
   KEY_SQUARES,
@@ -653,6 +656,23 @@ export default function GameScreen() {
   const latestGame = useRef(game);
   latestGame.current = game;
   const screenMounted = useRef(true);
+  const online = useOnlineGame({ ready: hydrated, gameRef: latestGame, setGame, setDiceFace, setWalking,
+    setShot, setRolling, setFiring, setSelectedTargets, sounds,
+    focus: (section) => scrollRef.current?.scrollTo({
+      y: Math.max(0, (section === "board" ? boardTop.current : controlsTop.current) - topInset), animated: false,
+    }),
+  });
+  const remoteDisabled = online.loadingSession || online.busy || (!!online.session && !online.canAct);
+  const leaveOnline = () => {
+    const message = "If connected, leaving ends this room for both players. Your local saved round stays intact.";
+    if (Platform.OS === "web") {
+      if (window.confirm(message)) void online.leave();
+    } else {
+      Alert.alert("Leave online play?", message, [
+        { text: "Stay", style: "cancel" }, { text: "Leave", style: "destructive", onPress: () => { void online.leave(); } },
+      ]);
+    }
+  };
   useEffect(() => {
     screenMounted.current = true;
     return () => { screenMounted.current = false; };
@@ -695,7 +715,7 @@ export default function GameScreen() {
   }, []);
 
   useEffect(() => {
-    if (!hydrated || saveBlocked) return;
+    if (!hydrated || saveBlocked || online.session || online.loadingSession) return;
     let active = true;
     const serialized = JSON.stringify(game);
     saveQueue.current = saveQueue.current.catch(() => undefined)
@@ -710,12 +730,16 @@ export default function GameScreen() {
     return () => {
       active = false;
     };
-  }, [game, hydrated, saveBlocked]);
+  }, [game, hydrated, saveBlocked, online.session, online.loadingSession]);
 
   const currentPlayer = game.players[game.currentPlayerIndex];
   const waitingToFire = game.pendingFireForPlayerId === currentPlayer.id;
-  const busy = rolling || firing;
+  const busy = rolling || firing || remoteDisabled;
   const fireAt = async () => {
+    if (online.session) {
+      if (online.canAct && selectedTargets.length) await online.action({ type: "shoot", targets: [...selectedTargets] });
+      return;
+    }
     if (!hydrated || rollInFlight.current || !waitingToFire || !selectedTargets.length) return;
     rollInFlight.current = true;
     setFiring(true);
@@ -741,6 +765,7 @@ export default function GameScreen() {
     }
   };
   const passShot = () => {
+    if (online.session) { if (online.canAct) void online.action({ type: "pass" }); return; }
     if (rollInFlight.current || !waitingToFire) return;
     setGame(passFire(game));
     setSelectedTargets([]);
@@ -749,7 +774,8 @@ export default function GameScreen() {
   const boardSize = Math.min(Math.max(width - 42, 300), 440);
   const topInset = Platform.OS === "web" ? 67 : Math.max(insets.top, 12) + 8;
   const bottomInset = Platform.OS === "web" ? 34 : Math.max(insets.bottom, 12) + 8;
-  const applyPower = (command: (state: GameState) => GameState) => {
+  const applyPower = (command: (state: GameState) => GameState, action?: OnlineAction) => {
+    if (online.session) { if (online.canAct && action) void online.action(action); return; }
     if (!hydrated || rollInFlight.current) return;
     try {
       const next = command(latestGame.current);
@@ -759,7 +785,8 @@ export default function GameScreen() {
       Alert.alert("Power not available", error instanceof Error ? error.message : "Please try again.");
     }
   };
-  const applyAnimatedPower = async (command: (state: GameState) => TurnResolution, movingId?: string) => {
+  const applyAnimatedPower = async (command: (state: GameState) => TurnResolution, movingId?: string, action?: OnlineAction) => {
+    if (online.session) { if (online.canAct && action) await online.action(action); return; }
     if (!hydrated || rollInFlight.current) return;
     rollInFlight.current = true;
     setRolling(true);
@@ -802,6 +829,7 @@ export default function GameScreen() {
   };
 
   const rollDice = async () => {
+    if (online.session) { if (online.canAct) await online.action({ type: "roll" }); return; }
     if (!hydrated || rollInFlight.current || latestGame.current.winnerId ||
       latestGame.current.pendingFireForPlayerId || latestGame.current.pendingChoice) return;
     rollInFlight.current = true;
@@ -937,9 +965,15 @@ export default function GameScreen() {
           </Pressable>
           <View style={[styles.modeChip, { backgroundColor: colors.secondary }]}>
             <View style={[styles.liveDot, { backgroundColor: colors.accent }]} />
-            <Text style={[styles.modeText, { color: colors.secondaryForeground }]}>PASS &amp; PLAY</Text>
+            <Text style={[styles.modeText, { color: colors.secondaryForeground }]}>{online.session ? "ONLINE" : "PASS & PLAY"}</Text>
           </View>
         </View>
+
+        <OnlinePanel room={online.room} resumeCode={online.session?.code}
+          busy={online.busy || rolling || firing || online.loadingSession} connected={online.connected}
+          error={online.error} onCreate={online.create} onJoin={online.join} onLeave={leaveOnline}
+          onRematch={() => { void online.action({ type: "rematch" }); }}
+          onRetry={() => { void online.retry(); }} />
 
         <View style={styles.turnHeading}>
           <View>
@@ -953,7 +987,7 @@ export default function GameScreen() {
           {winner ? (
             <MaterialCommunityIcons name="trophy" size={28} color={colors.primary} />
           ) : (
-            <Text style={[styles.turnHint, { color: colors.mutedForeground }]}>LOCAL GAME</Text>
+            <Text style={[styles.turnHint, { color: colors.mutedForeground }]}>{online.session ? online.room?.yourPlayerId === currentPlayer.id ? "YOUR TURN" : "FRIEND'S TURN" : "LOCAL GAME"}</Text>
           )}
         </View>
 
@@ -985,19 +1019,20 @@ export default function GameScreen() {
           playerName={currentPlayer.name}
           powers={currentPlayer.powers} pending={game.pendingChoice}
           extraRollCredits={currentPlayer.extraRollCredits}
-          busy={busy} actionsEnabled={!winner && !waitingToFire && !game.pendingChoice}
+          busy={busy} actionsEnabled={!remoteDisabled && !winner && !waitingToFire && !game.pendingChoice}
           bombs={game.bombs.map((bomb) => ({ ...bomb,
             ownerName: game.players.find((player) => player.id === bomb.ownerId)!.name,
             owned: bomb.ownerId === currentPlayer.id,
             ready: bomb.armed && game.players.some((player) => player.id !== bomb.ownerId && player.position === bomb.square),
           }))}
-          onChoose={(power) => applyPower((state) => choosePower(state, power))}
-          onDefense={(use) => { void applyAnimatedPower((state) => resolveDefense(state, use)); }}
-          onPlant={(square) => applyPower((state) => plantBomb(state, square))}
-          onExtraDice={() => applyPower(useExtraDice)}
+          onChoose={(power) => applyPower((state) => choosePower(state, power), { type: "choose", power })}
+          onDefense={(use) => { void applyAnimatedPower((state) => resolveDefense(state, use), undefined, { type: "defense", use }); }}
+          onPlant={(square) => applyPower((state) => plantBomb(state, square), { type: "plant", square })}
+          onExtraDice={() => applyPower(useExtraDice, { type: "extraDice" })}
           onDetonate={(id) => { void applyAnimatedPower(
             (state) => ({ state: detonateBomb(state, id), path: [], effect: "boom" }),
             game.players.find((player) => player.id !== currentPlayer.id)!.id,
+            { type: "detonate", bombId: id },
           ); }}
         />
         </View>
@@ -1109,7 +1144,7 @@ export default function GameScreen() {
           </Text>
         )}
 
-        <Pressable
+        {!online.session && <Pressable
           onPress={startNewGame}
           disabled={busy}
           accessibilityRole="button"
@@ -1125,7 +1160,7 @@ export default function GameScreen() {
         >
           <MaterialCommunityIcons name="refresh" size={17} color={colors.foreground} />
           <Text style={[styles.newGameText, { color: colors.foreground }]}>New game</Text>
-        </Pressable>
+        </Pressable>}
       </ScrollView>
     </View>
   );

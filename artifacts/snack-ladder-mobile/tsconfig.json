@@ -17,6 +17,9 @@
   ],
   "references": [
     {
+      "path": "../../lib/game-core"
+    },
+    {
       "path": "../../lib/api-client-react"
     }
   ]

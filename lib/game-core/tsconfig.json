@@ -4,10 +4,9 @@
     "composite": true,
     "declarationMap": true,
     "emitDeclarationOnly": true,
+    "allowImportingTsExtensions": true,
     "outDir": "dist",
-    "rootDir": "src",
-    "lib": ["dom", "dom.iterable", "es2022"]
+    "rootDir": "src"
   },
-  "include": ["src"],
-  "references": [{ "path": "../game-core" }]
+  "include": ["src"]
 }

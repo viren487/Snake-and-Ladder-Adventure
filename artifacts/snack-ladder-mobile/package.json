@@ -11,6 +11,7 @@
     "test:engine": "node --experimental-strip-types --test scripts/game-engine.test.mjs"
   },
   "devDependencies": {
+    "@workspace/game-core": "workspace:*",
     "@babel/core": "^7.25.2",
     "@expo-google-fonts/inter": "^0.4.0",
     "@expo-google-fonts/nunito": "^0.4.2",

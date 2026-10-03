@@ -32,6 +32,9 @@ import { useGameSounds } from './use-game-sounds';
 import { ShotAnimation } from './ShotAnimation';
 import { PowerControls } from './PowerControls';
 import { DicePips } from './DicePips';
+import { OnlinePanel } from './OnlinePanel';
+import { useOnlineGame } from './use-online-game';
+import type { OnlineAction } from '@workspace/api-client-react';
 
 const STORAGE_KEY = 'snack-ladder-adventure-v5';
 const QUEST_STORAGE_KEY = 'snack-ladder-adventure-v4';
@@ -489,6 +492,12 @@ function App() {
   const rollInFlight = useRef(false);
   const fireInFlight = useRef(false);
   const screenMounted = useRef(true);
+  const online = useOnlineGame({ gameRef: latestGame, setGame, setDiceFace, setWalking,
+    setShot, setRolling, setFiring, setSelectedTargets, sounds });
+  const remoteDisabled = online.loadingSession || online.busy || (!!online.session && !online.canAct);
+  const leaveOnline = () => {
+    if (window.confirm('Leave online play? If connected, this ends the room for both players. Your local saved round will stay intact.')) void online.leave();
+  };
 
   useEffect(() => {
     screenMounted.current = true;
@@ -496,14 +505,14 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (saveBlocked) return;
+    if (saveBlocked || online.session || online.loadingSession) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(game));
       setStorageError(null);
     } catch {
       setStorageError('This round could not be saved in this browser. Keep this tab open to continue playing.');
     }
-  }, [game, saveBlocked]);
+  }, [game, saveBlocked, online.session, online.loadingSession]);
 
   const currentPlayer = game.players[game.currentPlayerIndex];
   const winner = game.players.find(player => player.id === game.winnerId);
@@ -511,7 +520,8 @@ function App() {
   const availableTargets = SHOOTABLE_SNAKE_SQUARES.filter(
     (square) => currentPlayer.snakeStuns[square] === 0,
   );
-  const applyPower = (command: (state: GameState) => GameState) => {
+  const applyPower = (command: (state: GameState) => GameState, action?: OnlineAction) => {
+    if (online.session) { if (online.canAct && action) void online.action(action); return; }
     if (rollInFlight.current || fireInFlight.current) return;
     try {
       const next = command(latestGame.current);
@@ -522,7 +532,8 @@ function App() {
       setPowerError(error instanceof Error ? error.message : 'This power could not be used.');
     }
   };
-  const applyAnimatedPower = async (command: (state: GameState) => TurnResolution, movingId?: string) => {
+  const applyAnimatedPower = async (command: (state: GameState) => TurnResolution, movingId?: string, action?: OnlineAction) => {
+    if (online.session) { if (online.canAct && action) await online.action(action); return; }
     if (rollInFlight.current || fireInFlight.current) return;
     rollInFlight.current = true;
     setRolling(true);
@@ -570,13 +581,17 @@ function App() {
   };
 
   const selectTarget = (square: ShootableSnakeSquare) => {
-    if (firing || !waitingToFire || !availableTargets.includes(square)) return;
+    if (remoteDisabled || firing || !waitingToFire || !availableTargets.includes(square)) return;
     setSelectedTargets((targets) => targets.includes(square)
       ? targets.filter((target) => target !== square)
       : currentPlayer.bullets === 1 ? [square] : [...targets, square]);
   };
 
   const fireAt = async () => {
+    if (online.session) {
+      if (online.canAct && selectedTargets.length) await online.action({ type: 'shoot', targets: [...selectedTargets] });
+      return;
+    }
     if (fireInFlight.current || !waitingToFire || selectedTargets.length === 0) return;
     const nextGame = shootSnakes(game, selectedTargets);
     const targets = [...selectedTargets];
@@ -606,12 +621,14 @@ function App() {
   };
 
   const passShot = () => {
+    if (online.session) { if (online.canAct) void online.action({ type: 'pass' }); return; }
     if (fireInFlight.current) return;
     setGame(passFire(game));
     setSelectedTargets([]);
   };
 
   const rollDice = async () => {
+    if (online.session) { if (online.canAct) await online.action({ type: 'roll' }); return; }
     if (rollInFlight.current || fireInFlight.current || latestGame.current.winnerId ||
       latestGame.current.pendingFireForPlayerId || latestGame.current.pendingChoice) return;
     rollInFlight.current = true;
@@ -718,12 +735,17 @@ function App() {
             >
               {sounds.muted ? <VolumeX size={19} /> : <Volume2 size={19} />}
             </button>
-            <div className="top-chip" data-testid="game-mode"><i /> LOCAL · PASS &amp; PLAY</div>
+            <div className="top-chip" data-testid="game-mode"><i /> {online.session ? 'ONLINE · TWO DEVICES' : 'LOCAL · PASS & PLAY'}</div>
           </div>
         </header>
+        <OnlinePanel room={online.room} resumeCode={online.session?.code}
+          busy={online.busy || rolling || firing || online.loadingSession} connected={online.connected}
+          error={online.error} onCreate={online.create} onJoin={online.join}
+          onLeave={leaveOnline} onRematch={() => { void online.action({ type: 'rematch' }); }}
+          onRetry={() => { void online.retry(); }} />
 
         <div className="game-columns">
-          <Board game={game} walking={walking} aiming={waitingToFire} selectedTargets={selectedTargets} shot={shot} firing={firing} onAimTarget={selectTarget} />
+          <Board game={game} walking={walking} aiming={waitingToFire && !remoteDisabled} selectedTargets={selectedTargets} shot={shot} firing={firing} onAimTarget={selectTarget} />
           <section className="side-panel" aria-label="Game controls and player status" data-testid="game-controls">
             <div className="quest-card" data-testid="quest-status">
               <div className="quest-title">QUEST · STAGE {!currentPlayer.hasTorch ? 1 : currentPlayer.crownKeyRoom === null ? 2 : 3}/3</div>
@@ -784,19 +806,20 @@ function App() {
               playerName={currentPlayer.name}
               powers={currentPlayer.powers} pending={game.pendingChoice}
               extraRollCredits={currentPlayer.extraRollCredits}
-              busy={rolling || firing} actionsEnabled={!winner && !waitingToFire && !game.pendingChoice}
+              busy={rolling || firing || remoteDisabled} actionsEnabled={!remoteDisabled && !winner && !waitingToFire && !game.pendingChoice}
               bombs={game.bombs.map((bomb) => ({ ...bomb,
                 ownerName: game.players.find((player) => player.id === bomb.ownerId)!.name,
                 owned: bomb.ownerId === currentPlayer.id,
                 ready: bomb.armed && game.players.some((player) => player.id !== bomb.ownerId && player.position === bomb.square),
               }))}
-              onChoose={(power) => applyPower((state) => choosePower(state, power))}
-              onDefense={(use) => { void applyAnimatedPower((state) => resolveDefense(state, use)); }}
-              onPlant={(square) => applyPower((state) => plantBomb(state, square))}
-              onExtraDice={() => applyPower(useExtraDice)}
+              onChoose={(power) => applyPower((state) => choosePower(state, power), { type: 'choose', power })}
+              onDefense={(use) => { void applyAnimatedPower((state) => resolveDefense(state, use), undefined, { type: 'defense', use }); }}
+              onPlant={(square) => applyPower((state) => plantBomb(state, square), { type: 'plant', square })}
+              onExtraDice={() => applyPower(useExtraDice, { type: 'extraDice' })}
               onDetonate={(id) => { void applyAnimatedPower(
                 (state) => ({ state: detonateBomb(state, id), path: [], effect: 'boom' }),
                 game.players.find((player) => player.id !== currentPlayer.id)!.id,
+                { type: 'detonate', bombId: id },
               ); }}
             />
             {powerError && <div className="sound-error" role="alert">{powerError}</div>}
@@ -813,14 +836,14 @@ function App() {
                 <div className="aim-options" role="group" aria-label="Choose snakes to aim at">
                   {SHOOTABLE_SNAKE_SQUARES.map((square) => (
                     <button key={square} className="aim-option" onClick={() => setSelectedTargets([square])}
-                      disabled={firing || !availableTargets.includes(square)}
+                      disabled={remoteDisabled || firing || !availableTargets.includes(square)}
                       aria-pressed={selectedTargets.length === 1 && selectedTargets[0] === square}
                       data-testid={`button-aim-${square}`}>
                       <Crosshair size={15} /> {square}<small>1 bullet</small>
                     </button>
                   ))}
                   <button className="aim-option" onClick={() => setSelectedTargets([...SHOOTABLE_SNAKE_SQUARES])}
-                    disabled={firing || currentPlayer.bullets < 2 || availableTargets.length < 2}
+                    disabled={remoteDisabled || firing || currentPlayer.bullets < 2 || availableTargets.length < 2}
                     aria-pressed={selectedTargets.length === 2} data-testid="button-aim-both">
                     <Crosshair size={15} /> Both<small>2 bullets</small>
                   </button>
@@ -830,19 +853,19 @@ function App() {
                   <button
                     className="primary-action"
                     onClick={fireAt}
-                    disabled={rolling || firing || selectedTargets.length === 0}
+                    disabled={remoteDisabled || rolling || firing || selectedTargets.length === 0}
                     data-testid="button-fire"
                   >
                     <Crosshair size={16} /> {firing ? 'Firing…' : selectedTargets.length === 2 ? 'Fire both' : 'Fire'}
                   </button>
-                  <button className="secondary-action" onClick={passShot} disabled={rolling || firing} data-testid="button-pass-fire">
+                  <button className="secondary-action" onClick={passShot} disabled={remoteDisabled || rolling || firing} data-testid="button-pass-fire">
                     Pass this shot
                   </button>
                 </div>
               </div>
             ) : (
               <div className="roll-area">
-                <button className="dice-button" onClick={rollDice} disabled={rolling || !!winner || !!game.pendingChoice} aria-label="Roll the dice" data-testid="button-roll">
+                <button className="dice-button" onClick={rollDice} disabled={remoteDisabled || rolling || !!winner || !!game.pendingChoice} aria-label="Roll the dice" data-testid="button-roll">
                   <span className={`dice-face ${rolling ? 'rolling' : ''}`} data-testid="dice-result"
                     role="img" aria-label={`Dice showing ${diceFace ?? 1}`}><DicePips value={diceFace ?? 1} /></span>
                 </button>
@@ -878,9 +901,9 @@ function App() {
                 <div className="rule-line"><Crown size={13} color="#f0c65a" /> Return to 100 with your torch and key to unlock the crown. An exact roll is required.</div>
               </div>
             </details>
-            <button className="primary-action" onClick={startNewGame} disabled={rolling || firing} data-testid="button-new-game">
+            {!online.session && <button className="primary-action" onClick={startNewGame} disabled={rolling || firing || remoteDisabled} data-testid="button-new-game">
               <RotateCcw size={15} /> New game
-            </button>
+            </button>}
             <div className="panel-footer"><span>TURN {String(game.turnNumber).padStart(2, '0')}</span><span>YOUR TABLE, YOUR QUEST</span></div>
           </section>
         </div>

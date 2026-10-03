@@ -11,6 +11,69 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /rooms:
+    post:
+      operationId: createGameRoom
+      tags: [multiplayer]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RoomMemberInput" }
+      responses:
+        "201":
+          description: Private room created; keep the seat token on this device.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoomAdmission" }
+  /rooms/{code}/join:
+    post:
+      operationId: joinGameRoom
+      tags: [multiplayer]
+      parameters:
+        - { name: code, in: path, required: true, schema: { type: string, pattern: "^[A-Z2-9]{6}$" } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RoomMemberInput" }
+      responses:
+        "200":
+          description: Second player admitted.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoomAdmission" }
+  /rooms/{code}:
+    get:
+      operationId: getGameRoom
+      tags: [multiplayer]
+      parameters:
+        - { name: code, in: path, required: true, schema: { type: string } }
+      security: [{ RoomSeat: [] }]
+      responses:
+        "200":
+          description: Authoritative round and current player presence.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OnlineRoom" }
+  /rooms/{code}/actions:
+    post:
+      operationId: actInGameRoom
+      tags: [multiplayer]
+      parameters:
+        - { name: code, in: path, required: true, schema: { type: string } }
+      security: [{ RoomSeat: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RoomAction" }
+      responses:
+        "200":
+          description: Validated, atomically committed action; dice are rolled by the server.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OnlineRoom" }
   /healthz:
     get:
       operationId: healthCheck
@@ -25,7 +88,80 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 components:
+  securitySchemes:
+    RoomSeat:
+      type: http
+      scheme: bearer
   schemas:
+    RoomMemberInput:
+      type: object
+      properties:
+        name: { type: string, maxLength: 24 }
+    RoomSession:
+      type: object
+      required: [code, token, playerId]
+      properties:
+        code: { type: string }
+        token: { type: string }
+        playerId: { type: string }
+    RoomAdmission:
+      type: object
+      required: [session, room]
+      properties:
+        session: { $ref: "#/components/schemas/RoomSession" }
+        room: { $ref: "#/components/schemas/OnlineRoom" }
+    RoomAction:
+      type: object
+      required: [type, actionId, expectedVersion]
+      properties:
+        type: { type: string, enum: [roll, choose, defense, plant, detonate, extraDice, shoot, pass, rematch, leave] }
+        actionId: { type: string, minLength: 16, maxLength: 100 }
+        expectedVersion: { type: integer, minimum: 0 }
+        power: { type: string, enum: [bomb, antiVenom, defuser, extraDice] }
+        square: { type: integer, minimum: 1, maximum: 100 }
+        bombId: { type: string, maxLength: 100 }
+        use: { type: boolean }
+        targets:
+          type: array
+          minItems: 1
+          maxItems: 2
+          items: { type: integer, enum: [98, 99] }
+    OnlineRoomMember:
+      type: object
+      required: [id, name, online]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        online: { type: boolean }
+    OnlineRoomEvent:
+      type: ["object", "null"]
+      required: [kind, playerId, from, roll, path, effect, targets]
+      properties:
+        kind: { type: string, enum: [roll, choose, defense, plant, detonate, extraDice, shoot, pass, rematch, join, leave] }
+        playerId: { type: string }
+        from: { type: integer }
+        roll: { type: ["integer", "null"] }
+        path: { type: array, items: { type: integer } }
+        effect: { type: ["string", "null"], enum: [snake, ladder, boom, torch, return, null] }
+        targets: { type: array, items: { type: integer } }
+    OnlineRoom:
+      type: object
+      required: [code, status, version, game, members, yourPlayerId, rematchVotes, event, busyForMs]
+      properties:
+        code: { type: string }
+        status: { type: string, enum: [waiting, playing, finished, closed] }
+        version: { type: integer }
+        game:
+          type: object
+          description: Complete shared Snake and Ladder GameState, generated only by the authoritative game engine.
+          additionalProperties: true
+        members:
+          type: array
+          items: { $ref: "#/components/schemas/OnlineRoomMember" }
+        yourPlayerId: { type: string }
+        rematchVotes: { type: array, items: { type: string } }
+        event: { $ref: "#/components/schemas/OnlineRoomEvent" }
+        busyForMs: { type: integer, minimum: 0 }
     HealthStatus:
       type: object
       properties:
