@@ -33,6 +33,7 @@ import { ShotAnimation } from './ShotAnimation';
 import { PowerControls } from './PowerControls';
 import { DicePips } from './DicePips';
 import { OnlinePanel } from './OnlinePanel';
+import BambooReturnArt from './BambooReturnArt';
 import { useOnlineGame } from './use-online-game';
 import type { OnlineAction } from '@workspace/api-client-react';
 
@@ -46,11 +47,12 @@ const SPECIAL_MOVE_DURATION_MS = { ladder: 2200, snake: 2000, boom: 700 } as con
 const SPECIAL_MOVE_STYLE = {
   '--ladder-move-duration': `${SPECIAL_MOVE_DURATION_MS.ladder}ms`,
   '--snake-move-duration': `${SPECIAL_MOVE_DURATION_MS.snake}ms`,
+  '--bamboo-move-duration': '2600ms',
 } as CSSProperties;
 type WalkingPiece = {
   playerId: string;
   position: number;
-  effect: 'step' | 'ladder' | 'snake' | 'boom' | 'torch' | 'return';
+  effect: 'step' | 'ladder' | 'snake' | 'boom' | 'torch' | 'return' | 'bamboo';
 };
 type Shot = { from: number; targets: ShootableSnakeSquare[] };
 
@@ -262,7 +264,7 @@ function PandaToken({
 }: {
   color: 'blue' | 'coral';
   hopping: boolean;
-  specialMove: 'ladder' | 'snake' | 'boom' | null;
+  specialMove: 'ladder' | 'snake' | 'boom' | 'bamboo' | null;
 }) {
   const scarf = color === 'blue' ? '#25a9df' : '#f06e50';
   const scarfShade = color === 'blue' ? '#0879ad' : '#c44839';
@@ -346,9 +348,10 @@ function Board({
       </div>
     );
   }), [activePlayer.hasTorch]);
-  const pieceStyle = (position: number, playerIndex: number) => {
-    const point = position > 0 ? centerOf(position) : { x: 70, y: 948 };
-    const stacked = game.players.some((other, index) => index !== playerIndex && other.position === position);
+  const pieceStyle = (position: number, playerIndex: number, bamboo: boolean) => {
+    const point = bamboo ? { x: -36, y: position === 100 ? 50 : 948 }
+      : position > 0 ? centerOf(position) : { x: 70, y: 948 };
+    const stacked = !bamboo && game.players.some((other, index) => index !== playerIndex && other.position === position);
     const offsetX = stacked ? playerIndex === 0 ? -8 : 8 : 0;
     const offsetY = stacked ? playerIndex === 0 ? -5 : 5 : 0;
     return {
@@ -376,6 +379,7 @@ function Board({
           ))}
           {LADDERS.map(ladder => <LadderArt key={ladder.from} from={ladder.from} to={ladder.to} />)}
         </svg>
+        <BambooReturnArt active={walking?.effect === 'bamboo'} />
         {game.bombs.map((bomb) => {
           const point = centerOf(bomb.square);
           const owner = game.players.find((player) => player.id === bomb.ownerId)!;
@@ -445,7 +449,7 @@ function Board({
             <div
               key={player.id}
               className={`board-piece ${stacked ? 'stacked' : ''} ${movement && movement !== 'step' ? `board-piece-${movement}` : ''}`}
-              style={pieceStyle(position, index)}
+              style={pieceStyle(position, index, movement === 'bamboo')}
               data-testid={`piece-${player.id}`}
               aria-label={`${player.name} on square ${position || 'home'}`}
             >
@@ -453,8 +457,9 @@ function Board({
                 key={hopping ? `${movement}-${position}` : `idle-${position}`}
                 color={player.color}
                 hopping={hopping}
-                specialMove={movement === 'ladder' || movement === 'snake' || movement === 'boom' ? movement : null}
+                specialMove={movement === 'ladder' || movement === 'snake' || movement === 'boom' || movement === 'bamboo' ? movement : null}
               />
+              {movement === 'bamboo' && <span className="panda-carried-torch" aria-hidden="true"><Flashlight size={15} /></span>}
               {(movement === 'ladder' || movement === 'snake') && (
                 <span className={`move-caption move-caption-${movement}`} aria-hidden="true">
                   {movement === 'ladder' ? 'Up we go!' : 'Wheee!'}
@@ -554,6 +559,13 @@ function App() {
         if (effect === 'torch' || effect === 'return') {
           setWalking({ playerId: id, position: 100, effect });
           await new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 150 : 1100));
+          if (!screenMounted.current) return;
+          setWalking({ playerId: id, position: 100, effect: 'bamboo' });
+          await new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 45 : 200));
+          if (!screenMounted.current) return;
+          if (effect === 'torch') sounds.play('happy');
+          setWalking({ playerId: id, position: 0, effect: 'bamboo' });
+          await new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 45 : 2680));
           if (!screenMounted.current) return;
           setWalking({ playerId: id, position: 0, effect: 'step' });
           await new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 45 : 300));
@@ -667,6 +679,13 @@ function App() {
       if (resolvedPlayer && (effect === 'torch' || effect === 'return')) {
         setWalking({ playerId: player.id, position: 100, effect });
         await new Promise<void>(resolve => window.setTimeout(resolve, reducedMotion ? 150 : 1100));
+        if (!screenMounted.current) return;
+        setWalking({ playerId: player.id, position: 100, effect: 'bamboo' });
+        await new Promise<void>(resolve => window.setTimeout(resolve, reducedMotion ? 45 : 200));
+        if (!screenMounted.current) return;
+        if (effect === 'torch') sounds.play('happy');
+        setWalking({ playerId: player.id, position: 0, effect: 'bamboo' });
+        await new Promise<void>(resolve => window.setTimeout(resolve, reducedMotion ? 45 : 2680));
         if (!screenMounted.current) return;
         setWalking({ playerId: player.id, position: 0, effect: 'step' });
         await new Promise<void>(resolve => window.setTimeout(resolve, reducedMotion ? 45 : 300));

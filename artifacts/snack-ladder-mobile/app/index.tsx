@@ -32,6 +32,7 @@ import { ShotAnimation, SHOT_DURATION_MS, type Shot } from "@/components/ShotAni
 import { PowerControls } from "@/components/PowerControls";
 import { RulesDrawer } from "@/components/RulesDrawer";
 import { OnlinePanel } from "@/components/OnlinePanel";
+import BambooReturnArt from "@/components/BambooReturnArt";
 import { useOnlineGame } from "@/hooks/useOnlineGame";
 import type { OnlineAction } from "@workspace/api-client-react";
 import {
@@ -69,7 +70,7 @@ const PREVIOUS_STORAGE_KEY = "snack-ladder-adventure-v3";
 const LEGACY_STORAGE_KEY = "snack-ladder-adventure-v2";
 const OLDEST_STORAGE_KEY = "snack-ladder-adventure-v1";
 const STEP_DELAY_MS = 270;
-const SPECIAL_MOVE_MS = { ladder: 2200, snake: 2000, boom: 700, torch: 1100, return: 1100 } as const;
+const SPECIAL_MOVE_MS = { ladder: 2200, snake: 2000, boom: 700, torch: 1100, return: 1100, bamboo: 2600 } as const;
 
 const PANDA_IMAGES = {
   blue: require("../assets/images/panda-token-blue.png"),
@@ -128,6 +129,7 @@ function Token({
   hopping,
   specialMove,
   moveDuration,
+  bamboo,
 }: {
   player: Player;
   index: number;
@@ -137,11 +139,12 @@ function Token({
   hopping: boolean;
   specialMove: boolean;
   moveDuration: number;
+  bamboo: boolean;
 }) {
   const cellSize = boardSize / 10;
   const tokenWidth = cellSize * 0.65;
   const tokenHeight = cellSize * 0.84;
-  const point = position > 0
+  const point = bamboo ? { x: boardSize * -0.036, y: boardSize * (position === 100 ? 0.05 : 0.948) } : position > 0
     ? getCellCenter(position, boardSize)
     : { x: cellSize * 0.28, y: boardSize - cellSize * 0.22 };
   const stackOffset = stacked ? (index === 0 ? -cellSize * 0.18 : cellSize * 0.18) : 0;
@@ -156,7 +159,7 @@ function Token({
   useEffect(() => {
     const duration = reducedMotion ? 0 : specialMove ? moveDuration : 250;
     x.value = withTiming(targetX, {
-      duration,
+      duration: bamboo && !reducedMotion ? 180 : duration,
       easing: Easing.out(Easing.cubic),
     });
     y.value = withTiming(targetY, {
@@ -182,7 +185,7 @@ function Token({
       hop.value = withTiming(0, { duration: 120 });
     }
     if (!specialMove || !hopping) sway.value = withTiming(0, { duration: 120 });
-  }, [cellSize, hopping, specialMove, moveDuration, reducedMotion, targetX, targetY, x, y, hop, sway]);
+  }, [cellSize, hopping, specialMove, moveDuration, bamboo, reducedMotion, targetX, targetY, x, y, hop, sway]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -207,6 +210,8 @@ function Token({
         resizeMode="contain"
         accessibilityLabel={`${player.name} panda token`}
       />
+      {bamboo && <MaterialCommunityIcons name="flashlight" size={Math.max(10, cellSize * 0.32)}
+        color="#ffeaa0" style={{ position: "absolute", right: -3, bottom: 4 }} />}
     </Animated.View>
   );
 }
@@ -389,6 +394,7 @@ function Board({
         ]}
         testID="game-board"
       >
+        <View style={{ width: size - 4, height: size - 4, overflow: "hidden", borderRadius: 7 }}>
         {Array.from({ length: 10 }, (_, row) => (
           <View key={`row-${row}`} style={styles.boardRow}>
             {cells
@@ -457,6 +463,7 @@ function Board({
           </View>
         ))}
 
+        </View>
         {SNAKES.map((snake) => (
           <SnakeArt
             key={snake.from}
@@ -476,6 +483,7 @@ function Board({
           />
         ))}
 
+        <BambooReturnArt size={size} active={walking?.effect === "bamboo"} />
         <View
           style={[
             styles.goalTile,
@@ -525,10 +533,11 @@ function Board({
               index={index}
               position={position}
               boardSize={size}
-              stacked={stacked}
+              stacked={stacked && walking?.effect !== "bamboo"}
               hopping={walking?.playerId === player.id}
               specialMove={walking?.playerId === player.id && walking.isSpecialMove}
               moveDuration={walking?.effect ? SPECIAL_MOVE_MS[walking.effect] : 540}
+              bamboo={walking?.playerId === player.id && walking.effect === "bamboo"}
             />
           );
         })}
@@ -804,6 +813,13 @@ export default function GameScreen() {
           setWalking({ playerId: id, position: 100, isSpecialMove: false, effect });
           await delay(reducedMotion ? 150 : SPECIAL_MOVE_MS[effect]);
           if (!screenMounted.current) return;
+          setWalking({ playerId: id, position: 100, isSpecialMove: true, effect: "bamboo" });
+          await delay(reducedMotion ? 45 : 200);
+          if (!screenMounted.current) return;
+          if (effect === "torch") sounds.play("happy");
+          setWalking({ playerId: id, position: 0, isSpecialMove: true, effect: "bamboo" });
+          await delay(reducedMotion ? 45 : SPECIAL_MOVE_MS.bamboo + 80);
+          if (!screenMounted.current) return;
           setWalking({ playerId: id, position: 0, isSpecialMove: true });
           await delay(reducedMotion ? 45 : 600);
         } else {
@@ -864,6 +880,13 @@ export default function GameScreen() {
           if (resolution.effect === "torch" || resolution.effect === "return") {
             setWalking({ playerId: player.id, position: 100, isSpecialMove: false, effect: resolution.effect });
             await delay(reducedMotion ? 150 : SPECIAL_MOVE_MS[resolution.effect]);
+            if (!screenMounted.current) return;
+            setWalking({ playerId: player.id, position: 100, isSpecialMove: true, effect: "bamboo" });
+            await delay(reducedMotion ? 45 : 200);
+            if (!screenMounted.current) return;
+            if (resolution.effect === "torch") sounds.play("happy");
+            setWalking({ playerId: player.id, position: 0, isSpecialMove: true, effect: "bamboo" });
+            await delay(reducedMotion ? 45 : SPECIAL_MOVE_MS.bamboo + 80);
             if (!screenMounted.current) return;
             setWalking({ playerId: player.id, position: 0, isSpecialMove: true });
             await delay(reducedMotion ? 45 : 600);
@@ -1265,7 +1288,7 @@ const styles = StyleSheet.create({
   },
   boardInner: {
     position: "relative",
-    overflow: "hidden",
+    overflow: "visible",
     borderWidth: 2,
     borderRadius: 9,
   },

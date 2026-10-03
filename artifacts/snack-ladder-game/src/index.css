@@ -319,3 +319,18 @@
 @media (prefers-reduced-motion: reduce) {
   *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; }
 }
+
+/* The panda aligns to the front-frame bamboo, slides down, then steps into Home. */
+.board-inner { overflow:visible; }
+.board-grid { overflow:hidden; border-radius:5px; }
+.board-piece-bamboo {
+  transition: top var(--bamboo-move-duration, 2600ms) cubic-bezier(.35,.05,.55,1),
+    left 180ms ease-out;
+  z-index: 12;
+}
+.panda-token-bamboo { animation: bamboo-panda-wiggle .48s ease-in-out infinite; }
+.panda-carried-torch { position:absolute; right:-5px; bottom:8px; color:#fff3a2; filter:drop-shadow(0 0 4px #ffc443); }
+@keyframes bamboo-panda-wiggle {
+  0%,100% { transform:rotate(-5deg); }
+  50% { transform:rotate(5deg); }
+}

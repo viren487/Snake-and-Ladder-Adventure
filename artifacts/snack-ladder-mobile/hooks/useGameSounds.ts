@@ -2,7 +2,7 @@ import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from "expo-au
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
 
-export type GameSound = "dice" | "step" | "ladder" | "snake" | "bullet" | "key";
+export type GameSound = "dice" | "step" | "ladder" | "snake" | "bullet" | "key" | "happy";
 type PickupState = { bullets: number; crownKeyRoom: number | null };
 
 /** Short one-shot effects only: no music, loops, recording or background playback. */
@@ -13,12 +13,14 @@ export function useGameSounds() {
   const snake = useAudioPlayer(require("../assets/sounds/snake.wav"));
   const bullet = useAudioPlayer(require("../assets/sounds/bullet.wav"));
   const key = useAudioPlayer(require("../assets/sounds/key.wav"));
+  const happy = useAudioPlayer(require("../assets/sounds/happy.wav"));
   const diceStatus = useAudioPlayerStatus(dice);
   const stepStatus = useAudioPlayerStatus(step);
   const ladderStatus = useAudioPlayerStatus(ladder);
   const snakeStatus = useAudioPlayerStatus(snake);
   const bulletStatus = useAudioPlayerStatus(bullet);
   const keyStatus = useAudioPlayerStatus(key);
+  const happyStatus = useAudioPlayerStatus(happy);
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
@@ -36,7 +38,8 @@ export function useGameSounds() {
     snake.volume = 0.45;
     bullet.volume = 0.55;
     key.volume = 0.55;
-    dice.loop = step.loop = ladder.loop = snake.loop = bullet.loop = key.loop = false;
+    happy.volume = 0.5;
+    dice.loop = step.loop = ladder.loop = snake.loop = bullet.loop = key.loop = happy.loop = false;
     const subscription = AppState.addEventListener("change", (state) => {
       if (state !== "active") {
         dice.pause();
@@ -45,14 +48,15 @@ export function useGameSounds() {
         snake.pause();
         bullet.pause();
         key.pause();
+        happy.pause();
       }
     });
     return () => subscription.remove();
-  }, [dice, step, ladder, snake, bullet, key]);
+  }, [dice, step, ladder, snake, bullet, key, happy]);
 
   const play = useCallback((sound: GameSound) => {
     if (mutedRef.current || AppState.currentState === "background") return;
-    const player = { dice, step, ladder, snake, bullet, key }[sound];
+    const player = { dice, step, ladder, snake, bullet, key, happy }[sound];
     // Audio errors never interrupt a dice turn or hold the movement lock.
     try {
       void player.seekTo(0).catch((error: unknown) => setPlaybackError(String(error)));
@@ -60,7 +64,7 @@ export function useGameSounds() {
     } catch (error) {
       setPlaybackError(String(error));
     }
-  }, [dice, step, ladder, snake, bullet, key]);
+  }, [dice, step, ladder, snake, bullet, key, happy]);
 
   const playPickups = useCallback((before: PickupState, after: PickupState) => {
     if (after.bullets > before.bullets) play("bullet");
@@ -77,14 +81,15 @@ export function useGameSounds() {
       snake.pause();
       bullet.pause();
       key.pause();
+      happy.pause();
     }
-  }, [dice, step, ladder, snake, bullet, key]);
+  }, [dice, step, ladder, snake, bullet, key, happy]);
 
   return {
     play,
     playPickups,
     muted,
     toggleMuted,
-    error: playbackError || diceStatus.error || stepStatus.error || ladderStatus.error || snakeStatus.error || bulletStatus.error || keyStatus.error,
+    error: playbackError || diceStatus.error || stepStatus.error || ladderStatus.error || snakeStatus.error || bulletStatus.error || keyStatus.error || happyStatus.error,
   };
 }

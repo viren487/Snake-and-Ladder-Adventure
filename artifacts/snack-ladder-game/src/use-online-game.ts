@@ -5,7 +5,7 @@ import type { GameState, ShootableSnakeSquare } from "./game-engine";
 import type { RoomSnapshot } from "@workspace/game-core/online";
 import type { useGameSounds } from "./use-game-sounds";
 
-type Walking = { playerId: string; position: number; effect: "step" | "ladder" | "snake" | "boom" | "torch" | "return" };
+type Walking = { playerId: string; position: number; effect: "step" | "ladder" | "snake" | "boom" | "torch" | "return" | "bamboo" };
 type Shot = { from: number; targets: ShootableSnakeSquare[] };
 type Setter<T> = Dispatch<SetStateAction<T>>;
 type Bindings = {
@@ -78,6 +78,11 @@ export function useOnlineGame(bindings: Bindings) {
         if (event.effect === "torch" || event.effect === "return") {
           b.setWalking({ playerId: moved.id, position: 100, effect: event.effect });
           if (!await wait(reduced ? 150 : 1100)) return;
+          b.setWalking({ playerId: moved.id, position: 100, effect: "bamboo" });
+          if (!await wait(reduced ? 45 : 200)) return;
+          if (event.effect === "torch") b.sounds.play("happy");
+          b.setWalking({ playerId: moved.id, position: 0, effect: "bamboo" });
+          if (!await wait(reduced ? 45 : 2680)) return;
           b.setWalking({ playerId: moved.id, position: 0, effect: "step" });
           if (!await wait(reduced ? 45 : 300)) return;
         } else if (event.effect) {

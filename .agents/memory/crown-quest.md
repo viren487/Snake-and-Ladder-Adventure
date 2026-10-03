@@ -20,3 +20,14 @@ Collect the crown key only by stopping in a black room while holding the torch, 
 **Why:** Exact-room pickups must remain playable. Leaving a keyless player on 100 would prevent all future legal forward rolls. Former ammo-room keys cannot satisfy this new quest, but their historical count should be preserved rather than converted into a free crown key.
 
 **How to apply:** Preserve existing positions, ammo and turn progress when upgrading saves; keep obsolete key counts separate from the new crown requirement.
+
+Torch collection should show the panda descending a realistic bamboo path along
+the side frame or slightly outside the board, with a short happy descent sound.
+Bamboo must not cover any rooms, their numbers or markers.
+
+**Why:** The user requested this return route and happy descent effect, then clarified
+that covering rooms is unacceptable; the side frame or slightly outside the board
+is acceptable. This is not background music.
+
+**How to apply:** Keep browser and native presentation aligned, including online
+turns. Preserve torch/key rules and saves; respect mute and reduced-motion settings.

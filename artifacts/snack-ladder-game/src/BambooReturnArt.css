@@ -1,0 +1,9 @@
+.bamboo-return-art{position:absolute;left:-10%;top:0;width:10%;height:100%;pointer-events:none;z-index:4;overflow:hidden}
+.bamboo-return-art .bamboo-glow{opacity:0;transition:opacity .35s ease}
+.bamboo-return-art.is-active .bamboo-glow{opacity:1;animation:bamboo-pulse 1.4s ease-in-out infinite}
+.bamboo-return-art.is-active .bamboo-leaves{animation:bamboo-sway 2.2s ease-in-out infinite;transform-origin:24px 120px}
+@keyframes bamboo-pulse{50%{opacity:.55}}
+@keyframes bamboo-sway{50%{transform:rotate(1.2deg)}}
+@media (prefers-reduced-motion:reduce){
+.bamboo-return-art .bamboo-glow,.bamboo-return-art.is-active .bamboo-glow,.bamboo-return-art.is-active .bamboo-leaves{animation:none;transition:none}
+.bamboo-return-art.is-active .bamboo-glow{opacity:.8}}
