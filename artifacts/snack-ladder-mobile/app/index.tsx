@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -24,6 +24,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
+import { useGameSounds } from "@/hooks/useGameSounds";
 import {
   BOOM_SQUARE,
   KEY_SQUARES,
@@ -31,13 +32,15 @@ import {
   LOCKED_SQUARES,
   SNAKES,
   createGame,
-  playTurn,
+  resolveTurn,
+  repairLegacyGame,
   squareAt,
   type GameState,
   type Player,
 } from "@/lib/game-engine";
 
-const STORAGE_KEY = "snack-ladder-adventure-v1";
+const STORAGE_KEY = "snack-ladder-adventure-v2";
+const LEGACY_STORAGE_KEY = "snack-ladder-adventure-v1";
 const EXTRA_BULLET_SQUARES = [61, 77] as const;
 const MYSTERY_BOX_SQUARES = [14, 35, 51, 76] as const;
 const GUN_SQUARES = [94, 95, 96] as const;
@@ -97,17 +100,29 @@ function isSavedGame(value: unknown): value is GameState {
     Array.isArray(candidate.players) &&
     candidate.players.length === 2 &&
     candidate.players.every(
-      (player) =>
+      (player, index) =>
         player &&
+        player.id === `player-${index + 1}` &&
+        typeof player.name === "string" &&
+        player.color === (index === 0 ? "blue" : "coral") &&
         Number.isInteger(player.position) &&
         player.position >= 0 &&
         player.position <= 100 &&
         Number.isInteger(player.keys) &&
-        player.keys >= 0,
+        player.keys >= 0 &&
+        (player.unlockedGates === undefined ||
+          (Array.isArray(player.unlockedGates) && player.unlockedGates.every(
+            (gate) => (LOCKED_SQUARES as readonly number[]).includes(gate),
+          ))),
     ) &&
     Number.isInteger(candidate.currentPlayerIndex) &&
     (candidate.currentPlayerIndex === 0 || candidate.currentPlayerIndex === 1) &&
     Number.isInteger(candidate.turnNumber) &&
+    candidate.turnNumber! >= 1 &&
+    (candidate.lastRoll === null ||
+      (Number.isInteger(candidate.lastRoll) && candidate.lastRoll! >= 1 && candidate.lastRoll! <= 6)) &&
+    (candidate.winnerId === null ||
+      candidate.players.some((player) => player.id === candidate.winnerId && player.position === 100)) &&
     typeof candidate.message === "string"
   );
 }
@@ -388,7 +403,12 @@ function Board({
                   </Text>
                   {cell.locked && (
                     <View style={styles.cellMarker}>
-                      <MaterialCommunityIcons name="lock" size={cellSize * 0.3} color={colors.primaryForeground} />
+                      <MaterialCommunityIcons
+                        name={game.players[game.currentPlayerIndex].unlockedGates?.includes(cell.number)
+                          ? "lock-open-variant" : "lock"}
+                        size={cellSize * 0.3}
+                        color={colors.primaryForeground}
+                      />
                     </View>
                   )}
                   {cell.keySquare && (
@@ -560,6 +580,7 @@ function PlayerRow({
 
 export default function GameScreen() {
   const colors = useColors();
+  const sounds = useGameSounds();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [game, setGame] = useState<GameState>(createGame);
@@ -568,17 +589,24 @@ export default function GameScreen() {
   const [diceFace, setDiceFace] = useState<number | null>(null);
   const [walking, setWalking] = useState<WalkState | null>(null);
   const [storageError, setStorageError] = useState(false);
+  const rollInFlight = useRef(false);
+  const screenMounted = useRef(true);
+  useEffect(() => {
+    screenMounted.current = true;
+    return () => { screenMounted.current = false; };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
     const loadSavedGame = async () => {
       try {
-        const saved = await AsyncStorage.getItem(STORAGE_KEY);
+        const currentSave = await AsyncStorage.getItem(STORAGE_KEY);
+        const saved = currentSave ?? await AsyncStorage.getItem(LEGACY_STORAGE_KEY);
         if (!mounted) return;
         if (saved) {
           const parsed: unknown = JSON.parse(saved);
           if (isSavedGame(parsed)) {
-            setGame(parsed);
+            setGame(repairLegacyGame(parsed));
             setDiceFace(parsed.lastRoll);
           }
         }
@@ -617,41 +645,45 @@ export default function GameScreen() {
   const bottomInset = Platform.OS === "web" ? 34 : Math.max(insets.bottom, 12) + 8;
 
   const rollDice = async () => {
-    if (rolling || game.winnerId) return;
+    if (!hydrated || rollInFlight.current || game.winnerId) return;
+    rollInFlight.current = true;
     setRolling(true);
+    sounds.play("dice");
     try {
       for (let frame = 0; frame < 7; frame += 1) {
         setDiceFace(1 + Math.floor(Math.random() * 6));
         await delay(85);
+        if (!screenMounted.current) return;
       }
       const roll = 1 + Math.floor(Math.random() * 6);
       setDiceFace(roll);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
 
       const player = game.players[game.currentPlayerIndex];
-      const destination = player.position + roll;
-      const blockedByGate =
-        player.keys === 0 &&
-        (LOCKED_SQUARES as readonly number[]).some(
-          (square) => square > player.position && square <= destination,
-        );
-      const nextGame = playTurn(game, roll);
+      const resolution = resolveTurn(game, roll);
+      const nextGame = resolution.state;
 
-      if (destination <= 100 && !blockedByGate) {
-        for (let position = Math.max(1, player.position + 1); position <= destination; position += 1) {
+      if (resolution.path.length > 0) {
+        for (const position of resolution.path) {
           setWalking({ playerId: player.id, position, isSpecialMove: false });
+          sounds.play("step");
           void Haptics.selectionAsync().catch(() => undefined);
           await delay(STEP_DELAY_MS);
+          if (!screenMounted.current) return;
         }
 
         const resolvedPlayer = nextGame.players.find((item) => item.id === player.id);
-        if (resolvedPlayer && resolvedPlayer.position !== destination) {
+        if (resolvedPlayer && resolution.effect) {
+          if (resolution.effect === "ladder" || resolution.effect === "snake") {
+            sounds.play(resolution.effect);
+          }
           setWalking({
             playerId: player.id,
             position: resolvedPlayer.position,
             isSpecialMove: true,
           });
-          await delay(560);
+          await delay(700);
+          if (!screenMounted.current) return;
         }
       }
 
@@ -662,13 +694,16 @@ export default function GameScreen() {
     } catch {
       Alert.alert("Turn not completed", "The dice roll could not finish. Please try again.");
     } finally {
-      setWalking(null);
-      setRolling(false);
+      rollInFlight.current = false;
+      if (screenMounted.current) {
+        setWalking(null);
+        setRolling(false);
+      }
     }
   };
 
   const startNewGame = () => {
-    if (rolling) return;
+    if (rollInFlight.current) return;
     Alert.alert("Start a new game?", "This replaces the saved round on this phone.", [
       { text: "Keep playing", style: "cancel" },
       {
@@ -710,6 +745,19 @@ export default function GameScreen() {
             <Text style={[styles.brandTitle, { color: colors.foreground }]}>Snakes &amp; Ladders</Text>
             <Text style={[styles.brandSubtitle, { color: colors.mutedForeground }]}>A tiny quest for two</Text>
           </View>
+          <Pressable
+            onPress={sounds.toggleMuted}
+            accessibilityRole="button"
+            accessibilityLabel={sounds.muted ? "Enable sound effects" : "Mute sound effects"}
+            testID="button-sound"
+            style={[styles.brandMark, { backgroundColor: colors.secondary }]}
+          >
+            <MaterialCommunityIcons
+              name={sounds.muted ? "volume-off" : "volume-high"}
+              size={22}
+              color={colors.secondaryForeground}
+            />
+          </Pressable>
           <View style={[styles.modeChip, { backgroundColor: colors.secondary }]}>
             <View style={[styles.liveDot, { backgroundColor: colors.accent }]} />
             <Text style={[styles.modeText, { color: colors.secondaryForeground }]}>PASS &amp; PLAY</Text>
@@ -797,13 +845,18 @@ export default function GameScreen() {
         <View style={styles.rulesLine}>
           <MaterialCommunityIcons name="information-outline" size={16} color={colors.mutedForeground} />
           <Text style={[styles.rulesText, { color: colors.mutedForeground }]}>
-            Keys open the gates. Snakes slide you down; ladders lift you up. Reach 100 exactly to win.
+            Collect keys as you pass. Opened gates stay open for your panda. Snakes slide you down; ladders lift you up. Reach 100 exactly to win.
           </Text>
         </View>
 
         {storageError && (
           <Text style={[styles.storageWarning, { color: colors.destructive }]}>
             This round may not be saved on this phone.
+          </Text>
+        )}
+        {sounds.error && !sounds.muted && (
+          <Text style={[styles.storageWarning, { color: colors.destructive }]}>
+            Sound effects could not play. Your game can still continue.
           </Text>
         )}
 

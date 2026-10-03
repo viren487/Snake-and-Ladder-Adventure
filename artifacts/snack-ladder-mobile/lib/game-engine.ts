@@ -4,6 +4,7 @@ export type Player = {
   color: "blue" | "coral";
   position: number;
   keys: number;
+  unlockedGates: number[];
 };
 
 export type GameState = {
@@ -39,8 +40,8 @@ export const LOCKED_SQUARES = [17, 44, 67] as const;
 export function createGame(): GameState {
   return {
     players: [
-      { id: "player-1", name: "Player 1", color: "blue", position: 0, keys: 0 },
-      { id: "player-2", name: "Player 2", color: "coral", position: 0, keys: 0 },
+      { id: "player-1", name: "Player 1", color: "blue", position: 0, keys: 0, unlockedGates: [] },
+      { id: "player-2", name: "Player 2", color: "coral", position: 0, keys: 0, unlockedGates: [] },
     ],
     currentPlayerIndex: 0,
     lastRoll: null,
@@ -68,60 +69,117 @@ export function squareAt(rowFromTop: number, column: number): number {
   return rowFromBottom % 2 === 0 ? base + column : base + (9 - column);
 }
 
-export function playTurn(state: GameState, roll: number): GameState {
+export type TurnResolution = {
+  state: GameState;
+  path: number[];
+  effect: "snake" | "ladder" | "boom" | null;
+};
+
+/** Repair old saves where passing a key tile did not award a key. */
+export function repairLegacyGame(state: GameState): GameState {
+  return {
+    ...state,
+    players: state.players.map((player) => {
+      const legacy = player.unlockedGates === undefined;
+      const unlockedGates = legacy
+        ? LOCKED_SQUARES.filter((square) => square <= player.position)
+        : [...player.unlockedGates];
+      const nextGate = LOCKED_SQUARES.find(
+        (square) => square > player.position && !unlockedGates.includes(square),
+      );
+      const precedingKey = nextGate === undefined
+        ? undefined
+        : [...KEY_SQUARES].reverse().find((square) => square < nextGate);
+      const missedKey = legacy && player.keys === 0 && precedingKey !== undefined &&
+        player.position >= precedingKey;
+      return { ...player, keys: missedKey ? 1 : player.keys, unlockedGates };
+    }) as [Player, Player],
+  };
+}
+
+/** The screen animates this exact path; it must not independently decide gate rules. */
+export function resolveTurn(state: GameState, roll: number): TurnResolution {
   if (!Number.isInteger(roll) || roll < 1 || roll > 6) {
     throw new RangeError("A dice roll must be an integer from 1 to 6.");
   }
-  if (state.winnerId) return state;
+  if (state.winnerId) return { state, path: [], effect: null };
 
   const player = state.players[state.currentPlayerIndex];
   const nextPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
   const nextPlayer = state.players[nextPlayerIndex];
   const nextPlayers: [Player, Player] = state.players.map((item) => ({
     ...item,
+    unlockedGates: [...(item.unlockedGates ?? [])],
   })) as [Player, Player];
   const movingPlayer = nextPlayers[state.currentPlayerIndex];
   const target = player.position + roll;
-  const crossedGate = (LOCKED_SQUARES as readonly number[]).find(
-    (square) => square > player.position && square <= target,
-  );
+  const path: number[] = [];
+  let effect: TurnResolution["effect"] = null;
+  let blockedGate: number | null = null;
+  let keysFound = 0;
+  let gatesOpened = 0;
   let message: string;
   let winnerId: string | null = null;
 
   if (target > 100) {
     message = `${player.name} needs an exact roll to reach 100.`;
-  } else if (crossedGate !== undefined && movingPlayer.keys === 0) {
-    message = `${player.name} needs a torch key to pass square ${crossedGate}.`;
   } else {
-    movingPlayer.position = target;
-
-    if (crossedGate !== undefined) {
-      movingPlayer.keys -= 1;
-      message = `${player.name} used a torch key to pass square ${crossedGate}.`;
-    } else {
-      message = `${player.name} moved to square ${target}.`;
+    for (let square = player.position + 1; square <= target; square += 1) {
+      if ((LOCKED_SQUARES as readonly number[]).includes(square) &&
+          !movingPlayer.unlockedGates.includes(square)) {
+        if (movingPlayer.keys === 0) {
+          blockedGate = square;
+          break;
+        }
+        movingPlayer.keys -= 1;
+        movingPlayer.unlockedGates.push(square);
+        gatesOpened += 1;
+      }
+      path.push(square);
+      movingPlayer.position = square;
+      // Collect on crossing, not only on an exact landing. Otherwise the gates
+      // can permanently trap a player who rolled past every key.
+      if ((KEY_SQUARES as readonly number[]).includes(square)) {
+        movingPlayer.keys += 1;
+        keysFound += 1;
+      }
     }
+    message = blockedGate !== null
+      ? `${player.name} stopped before gate ${blockedGate}; a torch key is needed.`
+      : `${player.name} moved to square ${movingPlayer.position}.`;
 
-    const snake = SNAKES.find((item) => item.from === target);
-    const ladder = LADDERS.find((item) => item.from === target);
+    const landing = movingPlayer.position;
+    const snake = blockedGate === null ? SNAKES.find((item) => item.from === landing) : undefined;
+    const ladder = blockedGate === null ? LADDERS.find((item) => item.from === landing) : undefined;
 
     if (snake) {
+      effect = "snake";
       movingPlayer.position = snake.to;
       message = `${player.name} slid down from ${snake.from} to ${snake.to}.`;
     } else if (ladder) {
+      effect = "ladder";
       movingPlayer.position = ladder.to;
+      for (const keySquare of KEY_SQUARES) {
+        if (keySquare > ladder.from && keySquare <= ladder.to) {
+          movingPlayer.keys += 1;
+          keysFound += 1;
+        }
+      }
       message = `${player.name} climbed from ${ladder.from} to ${ladder.to}.`;
     }
 
     if (movingPlayer.position === BOOM_SQUARE) {
+      effect = "boom";
       movingPlayer.position = 0;
       message = `${player.name} hit the boom on square ${BOOM_SQUARE} and returned home.`;
     }
 
-    if ((KEY_SQUARES as readonly number[]).includes(movingPlayer.position)) {
+    if (effect === "snake" && (KEY_SQUARES as readonly number[]).includes(movingPlayer.position)) {
       movingPlayer.keys += 1;
-      message = `${player.name} found a torch key on square ${movingPlayer.position}.`;
+      keysFound += 1;
     }
+    if (keysFound) message += ` Collected ${keysFound} torch key${keysFound === 1 ? "" : "s"}.`;
+    if (gatesOpened) message += ` Opened ${gatesOpened} gate${gatesOpened === 1 ? "" : "s"}.`;
 
     if (movingPlayer.position === 100) {
       winnerId = movingPlayer.id;
@@ -129,7 +187,7 @@ export function playTurn(state: GameState, roll: number): GameState {
     }
   }
 
-  return {
+  const nextState: GameState = {
     players: nextPlayers,
     currentPlayerIndex: nextPlayerIndex,
     lastRoll: roll,
@@ -139,4 +197,9 @@ export function playTurn(state: GameState, roll: number): GameState {
       ? message
       : `${message} ${nextPlayer.name} is up next.`,
   };
+  return { state: nextState, path, effect };
+}
+
+export function playTurn(state: GameState, roll: number): GameState {
+  return resolveTurn(state, roll).state;
 }
