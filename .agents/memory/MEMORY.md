@@ -1,2 +1,3 @@
 - [Game direction and compatibility](mobile-game-direction.md) — Browser gameplay is the reference; keep native rules aligned, both artifacts available and saved rounds intact.
 - [Torch and crown quest](crown-quest.md) — First arrival at 100 grants a torch and returns the player Home; keys exist only in black rooms 17, 44 and 67.
+- [Extra rolls and mystery powers](mystery-powers.md) — A valid six earns another chance; mystery powers are chosen by players and used through explicit actions.
