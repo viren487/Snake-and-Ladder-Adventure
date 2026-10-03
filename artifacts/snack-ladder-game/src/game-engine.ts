@@ -4,6 +4,9 @@ export type Player = {
   color: "blue" | "coral";
   position: number;
   keys: number;
+  hasTorch: boolean;
+  crownKeyRoom: number | null;
+  legacyKeys?: number;
   unlockedGates: number[];
   bullets: number;
   snakeStuns: Record<ShootableSnakeSquare, number>;
@@ -36,9 +39,9 @@ export const LADDERS = [
   { from: 74, to: 87 },
 ] as const;
 
-export const KEY_SQUARES = [6, 12, 25, 38, 63, 89] as const;
+export const KEY_SQUARES = [17, 44, 67] as const;
 export const EXTRA_BULLET_SQUARES = [61, 77] as const;
-export const BULLET_PICKUP_SQUARES = [...KEY_SQUARES, ...EXTRA_BULLET_SQUARES] as const;
+export const BULLET_PICKUP_SQUARES = [6, 12, 25, 38, 63, 89, ...EXTRA_BULLET_SQUARES] as const;
 export const BOOM_SQUARE = 97 as const;
 export const LOCKED_SQUARES = [17, 44, 67] as const;
 export const GUN_SQUARES = [94, 95, 96] as const;
@@ -52,14 +55,14 @@ const emptySnakeStuns = (): Record<ShootableSnakeSquare, number> => ({ 98: 0, 99
 export function createGame(): GameState {
   return {
     players: [
-      { id: "player-1", name: "Player 1", color: "blue", position: 0, keys: 0, unlockedGates: [], bullets: 0, snakeStuns: emptySnakeStuns() },
-      { id: "player-2", name: "Player 2", color: "coral", position: 0, keys: 0, unlockedGates: [], bullets: 0, snakeStuns: emptySnakeStuns() },
+      { id: "player-1", name: "Player 1", color: "blue", position: 0, keys: 0, hasTorch: false, crownKeyRoom: null, unlockedGates: [], bullets: 0, snakeStuns: emptySnakeStuns() },
+      { id: "player-2", name: "Player 2", color: "coral", position: 0, keys: 0, hasTorch: false, crownKeyRoom: null, unlockedGates: [], bullets: 0, snakeStuns: emptySnakeStuns() },
     ],
     currentPlayerIndex: 0,
     lastRoll: null,
     turnNumber: 1,
     winnerId: null,
-    message: "Player 1 is ready. Roll the dice to begin.",
+    message: "Player 1 is ready. First reach 100 for a torch; the crown stays locked until you collect a black-room key and return to 100.",
     pendingFireForPlayerId: null,
   };
 }
@@ -85,12 +88,31 @@ export function squareAt(rowFromTop: number, column: number): number {
 export type TurnResolution = {
   state: GameState;
   path: number[];
-  effect: "snake" | "ladder" | "boom" | null;
+  effect: "snake" | "ladder" | "boom" | "torch" | "return" | null;
 };
 
-/** Upgrade older rounds that had no record of opened gates or missed key tiles. */
+/** Preserve old progress without treating former ammo-room keys as crown keys. */
 export function repairLegacyGame(state: GameState): GameState {
-  const pendingShooter = state.players.find((player) => player.id === state.pendingFireForPlayerId);
+  const legacyQuest = state.players.some((player) => player.hasTorch === undefined);
+  const players = state.players.map((player) => {
+    const legacy = player.hasTorch === undefined;
+    const hasTorch = legacy ? player.position === 100 : player.hasTorch;
+    const crownKeyRoom = !legacy && hasTorch &&
+      (KEY_SQUARES as readonly number[]).includes(player.crownKeyRoom ?? -1)
+      ? player.crownKeyRoom : null;
+    return {
+      ...player,
+      hasTorch,
+      crownKeyRoom,
+      keys: crownKeyRoom === null ? 0 : 1,
+      ...(legacy ? { legacyKeys: player.keys } : {}),
+      position: player.position === 100 && (!hasTorch || crownKeyRoom === null) ? 0 : player.position,
+      unlockedGates: [...(player.unlockedGates ?? [])],
+      bullets: Math.min(MAX_BULLETS, Math.max(0, player.bullets ?? 0)),
+      snakeStuns: { ...emptySnakeStuns(), ...(player.snakeStuns ?? {}) },
+    };
+  }) as [Player, Player];
+  const pendingShooter = players.find((player) => player.id === state.pendingFireForPlayerId);
   const validPendingShot = pendingShooter &&
     (GUN_SQUARES as readonly number[]).includes(pendingShooter.position);
   const nextPlayerIndex = state.pendingFireForPlayerId && !validPendingShot
@@ -98,37 +120,16 @@ export function repairLegacyGame(state: GameState): GameState {
     : state.currentPlayerIndex;
   return {
     ...state,
+    players,
+    winnerId: players.some((player) => player.id === state.winnerId &&
+      player.position === 100 && player.hasTorch && player.crownKeyRoom !== null)
+      ? state.winnerId : null,
     currentPlayerIndex: nextPlayerIndex,
     message: state.pendingFireForPlayerId && !validPendingShot
       ? `${state.players[nextPlayerIndex].name} is up next. Fire is available only from a gun room.`
-      : state.message,
-    players: state.players.map((player) => {
-      const legacy = player.unlockedGates === undefined;
-      const unlockedGates = legacy
-        ? LOCKED_SQUARES.filter((square) => square <= player.position)
-        : [...player.unlockedGates];
-      const nextGate = LOCKED_SQUARES.find(
-        (square) => square > player.position && !unlockedGates.includes(square),
-      );
-      const precedingKey = nextGate === undefined
-        ? undefined
-        : [...KEY_SQUARES].reverse().find((square) => square < nextGate);
-      const missedKey =
-        legacy &&
-        player.keys === 0 &&
-        precedingKey !== undefined &&
-        player.position >= precedingKey;
-      return {
-        ...player,
-        keys: missedKey ? 1 : player.keys,
-        unlockedGates,
-        bullets: Math.min(MAX_BULLETS, Math.max(0, player.bullets ?? 0)),
-        snakeStuns: {
-          ...emptySnakeStuns(),
-          ...(player.snakeStuns ?? {}),
-        },
-      };
-    }) as [Player, Player],
+      : legacyQuest
+        ? "Torch quest: first reach 100 for a torch, then land in black room 17, 44 or 67 for one key, and return to 100 for the crown. Previous ammo-room keys are not crown keys."
+        : state.message,
     pendingFireForPlayerId: validPendingShot ? state.pendingFireForPlayerId : null,
   };
 }
@@ -152,18 +153,11 @@ export function resolveTurn(state: GameState, roll: number): TurnResolution {
   const target = player.position + roll;
   const path: number[] = [];
   let effect: TurnResolution["effect"] = null;
-  let keysFound = 0;
   let bulletsFound = 0;
   let ammoWasFull = false;
   let message: string;
   let winnerId: string | null = null;
   const originalSnakeStuns = { ...movingPlayer.snakeStuns };
-  const collectKey = (square: number) => {
-    if ((KEY_SQUARES as readonly number[]).includes(square)) {
-      movingPlayer.keys += 1;
-      keysFound += 1;
-    }
-  };
   const collectBullet = (square: number) => {
     if ((BULLET_PICKUP_SQUARES as readonly number[]).includes(square)) {
       if (movingPlayer.bullets < MAX_BULLETS) {
@@ -181,7 +175,6 @@ export function resolveTurn(state: GameState, roll: number): TurnResolution {
     for (let square = player.position + 1; square <= target; square += 1) {
       path.push(square);
       movingPlayer.position = square;
-      collectKey(square);
     }
 
     message = `${player.name} moved to square ${movingPlayer.position}.`;
@@ -204,11 +197,6 @@ export function resolveTurn(state: GameState, roll: number): TurnResolution {
     } else if (ladder) {
       effect = "ladder";
       movingPlayer.position = ladder.to;
-      for (const pickupSquare of KEY_SQUARES) {
-        if (pickupSquare > ladder.from && pickupSquare <= ladder.to) {
-          collectKey(pickupSquare);
-        }
-      }
       message = `${player.name} climbed from ${ladder.from} to ${ladder.to}.`;
     }
 
@@ -218,16 +206,34 @@ export function resolveTurn(state: GameState, roll: number): TurnResolution {
       message = `${player.name} hit the boom on square ${BOOM_SQUARE} and returned home.`;
     }
 
-    if (effect === "snake") collectKey(movingPlayer.position);
+    if ((KEY_SQUARES as readonly number[]).includes(movingPlayer.position)) {
+      if (!movingPlayer.hasTorch) {
+        message += " This black room is dark. First collect the torch at 100.";
+      } else if (movingPlayer.crownKeyRoom === null) {
+        movingPlayer.crownKeyRoom = movingPlayer.position;
+        movingPlayer.keys = 1;
+        message += ` Your torch revealed a key in black room ${movingPlayer.position}! Return to 100 for the crown.`;
+      }
+    }
     // Ammo is earned only where the panda finally stops, not along its route.
     collectBullet(movingPlayer.position);
-    if (keysFound) message += ` Collected ${keysFound} torch key${keysFound === 1 ? "" : "s"}.`;
     if (bulletsFound) message += ` Picked up ${bulletsFound} bullet${bulletsFound === 1 ? "" : "s"}.`;
     if (ammoWasFull) message += ` Ammo is capped at ${MAX_BULLETS}.`;
 
     if (movingPlayer.position === 100) {
-      winnerId = movingPlayer.id;
-      message = `${movingPlayer.name} reached 100 and won!`;
+      if (!movingPlayer.hasTorch) {
+        movingPlayer.hasTorch = true;
+        movingPlayer.position = 0;
+        effect = "torch";
+        message = `${movingPlayer.name} collected the torch at 100 and returned Home! The crown is still locked. Land in black room 17, 44 or 67 for one key.`;
+      } else if (movingPlayer.crownKeyRoom === null) {
+        movingPlayer.position = 0;
+        effect = "return";
+        message = `${movingPlayer.name} reached 100 without a black-room key. The crown remains locked; return Home and try for a key in 17, 44 or 67.`;
+      } else {
+        winnerId = movingPlayer.id;
+        message = `${movingPlayer.name} returned to 100 with the torch and a key from room ${movingPlayer.crownKeyRoom}, unlocked the crown and won!`;
+      }
     }
   }
 
@@ -248,7 +254,7 @@ export function resolveTurn(state: GameState, roll: number): TurnResolution {
 
   const nextState: GameState = {
     players: nextPlayers,
-    currentPlayerIndex: pendingFireForPlayerId ? state.currentPlayerIndex : nextPlayerIndex,
+    currentPlayerIndex: winnerId || pendingFireForPlayerId ? state.currentPlayerIndex : nextPlayerIndex,
     lastRoll: roll,
     turnNumber: state.turnNumber + 1,
     winnerId,

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   createGame,
   MAX_BULLETS,
+  KEY_SQUARES,
   passFire,
   playTurn,
   repairLegacyGame,
@@ -13,14 +14,31 @@ import {
 
 function at(position, keys = 0) {
   const game = createGame();
-  game.players[0] = { ...game.players[0], position, keys };
+  game.players[0] = { ...game.players[0], position, keys: keys ? 1 : 0,
+    hasTorch: keys > 0, crownKeyRoom: keys ? 17 : null };
   return game;
 }
 
-test("keys are picked up while passing, without double-counting a landing", () => {
-  assert.equal(playTurn(at(4), 4).players[0].keys, 1);
-  assert.equal(playTurn(at(0), 6).players[0].keys, 1);
-  assert.equal(playTurn(at(5), 1).players[0].keys, 1);
+test("keys exist only in black rooms, after torch collection and on exact landing", () => {
+  assert.deepEqual(KEY_SQUARES, [17, 44, 67]);
+  for (const room of KEY_SQUARES) {
+    assert.equal(playTurn(at(room - 1), 1).players[0].keys, 0);
+    const lit = at(room - 1);
+    lit.players[0].hasTorch = true;
+    const collected = playTurn(lit, 1);
+    assert.equal(collected.players[0].keys, 1);
+    assert.equal(collected.players[0].crownKeyRoom, room);
+    assert.equal(collected.winnerId, null);
+    assert.equal(playTurn(lit, 2).players[0].keys, 0);
+  }
+  for (const room of [6, 12, 25, 38, 63, 89]) {
+    const lit = at(room - 1);
+    lit.players[0].hasTorch = true;
+    assert.equal(playTurn(lit, 1).players[0].keys, 0);
+  }
+  const climbing = at(12);
+  climbing.players[0].hasTorch = true;
+  assert.equal(playTurn(climbing, 1).players[0].keys, 0); // Ladder skips black room 17.
 });
 
 test("keys remain collectible but no longer affect gate movement", () => {
@@ -28,7 +46,7 @@ test("keys remain collectible but no longer affect gate movement", () => {
   assert.deepEqual(turn.path, [12, 13, 14, 15, 16, 17]);
   assert.equal(turn.state.players[0].position, 17);
   assert.deepEqual(turn.state.players[0].unlockedGates, []);
-  assert.equal(turn.state.players[0].keys, 1);
+  assert.equal(turn.state.players[0].keys, 0);
   assert.equal(turn.state.players[0].bullets, 0);
 
   const noKey = resolveTurn(at(15), 3);
@@ -37,7 +55,7 @@ test("keys remain collectible but no longer affect gate movement", () => {
 
   const savedKeys = resolveTurn(at(16, 3), 1);
   assert.equal(savedKeys.state.players[0].position, 17);
-  assert.equal(savedKeys.state.players[0].keys, 3);
+  assert.equal(savedKeys.state.players[0].keys, 1);
   assert.deepEqual(savedKeys.state.players[0].unlockedGates, []);
 });
 
@@ -47,7 +65,7 @@ for (const position of [16, 43, 66]) {
     delete legacy.players[0].unlockedGates;
     for (let roll = 1; roll <= 6; roll++) {
       const resumed = repairLegacyGame(legacy);
-      assert.equal(resumed.players[0].keys, 1);
+      assert.equal(resumed.players[0].keys, 0);
       const turn = resolveTurn(resumed, roll);
       assert.notEqual(turn.state.players[0].position, position);
       assert.equal(turn.path.length, roll);
@@ -55,17 +73,27 @@ for (const position of [16, 43, 66]) {
   });
 }
 
-test("migration preserves both players, positions, keys and round number", () => {
+test("migration preserves positions, ammo, turns and archives obsolete keys without unlocking crown", () => {
   const saved = at(16);
   delete saved.players[0].unlockedGates;
   saved.turnNumber = 20;
   saved.players[1].position = 35;
   saved.players[1].keys = 3;
+  saved.players[1].bullets = 4;
+  delete saved.players[0].hasTorch;
+  delete saved.players[1].hasTorch;
+  delete saved.players[0].crownKeyRoom;
+  delete saved.players[1].crownKeyRoom;
   const repaired = repairLegacyGame(saved);
   assert.equal(repaired.turnNumber, 20);
   assert.equal(repaired.players[0].position, 16);
-  assert.equal(repaired.players[0].keys, 1);
-  assert.deepEqual(repaired.players[1], saved.players[1]);
+  assert.equal(repaired.players[0].keys, 0);
+  assert.equal(repaired.players[1].legacyKeys, 3);
+  assert.equal(repaired.players[1].keys, 0);
+  assert.equal(repaired.players[1].hasTorch, false);
+  assert.equal(repaired.players[1].position, 35);
+  assert.equal(repaired.players[1].bullets, 4);
+  assert.deepEqual(repairLegacyGame(repaired), repaired);
   assert.equal(saved.players[0].keys, 0);
 });
 
@@ -74,14 +102,14 @@ test("the movement path ends at the correct ladder and snake destinations", () =
   assert.deepEqual(ladder.path, [13]);
   assert.equal(ladder.effect, "ladder");
   assert.equal(ladder.state.players[0].position, 28);
-  assert.equal(ladder.state.players[0].keys, 2);
+  assert.equal(ladder.state.players[0].keys, 1);
   assert.equal(ladder.state.players[0].bullets, 0);
 
   const snake = resolveTurn(at(35, 1), 1);
   assert.deepEqual(snake.path, [36]);
   assert.equal(snake.effect, "snake");
   assert.equal(snake.state.players[0].position, 25);
-  assert.equal(snake.state.players[0].keys, 2);
+  assert.equal(snake.state.players[0].keys, 1);
   assert.equal(snake.state.players[0].bullets, 1);
 });
 
@@ -92,7 +120,7 @@ test("bullets are collected only on the final landing, not when crossing or clim
   assert.equal(ladder.effect, "ladder");
   assert.equal(ladder.state.players[0].position, 66);
   assert.equal(ladder.state.players[0].bullets, 0);
-  assert.equal(ladder.state.players[0].keys, 1);
+  assert.equal(ladder.state.players[0].keys, 0);
   assert.equal(resolveTurn(at(58), 1).state.players[0].bullets, 0);
 });
 
@@ -128,18 +156,18 @@ test("ammo never exceeds five bullets", () => {
   full.players[0].bullets = MAX_BULLETS;
   const capped = resolveTurn(full, 3);
   assert.equal(capped.state.players[0].bullets, MAX_BULLETS);
-  assert.equal(capped.state.players[0].keys, 1);
+  assert.equal(capped.state.players[0].keys, 0);
   assert.match(capped.state.message, /capped at 5/);
 });
 
 test("legacy gate metadata is preserved but never required for movement", () => {
   const game = at(43);
   game.players[0].unlockedGates = [17, 44];
-  game.players[0].keys = 2;
+  game.players[0].keys = 1;
   const turn = resolveTurn(game, 1);
   assert.deepEqual(turn.path, [44]);
   assert.equal(turn.state.players[0].position, 44);
-  assert.equal(turn.state.players[0].keys, 2);
+  assert.equal(turn.state.players[0].keys, 1);
   assert.deepEqual(turn.state.players[0].unlockedGates, [17, 44]);
 });
 
@@ -236,7 +264,7 @@ test("exact-roll win, overshoot, boom reset and next-player selection still work
   assert.equal(overshoot.state.players[0].position, 98);
   assert.equal(overshoot.state.currentPlayerIndex, 1);
 
-  const win = resolveTurn(at(98), 2);
+  const win = resolveTurn(at(98, 1), 2);
   assert.equal(win.state.winnerId, "player-1");
   assert.equal(win.state.players[0].position, 100);
   assert.equal(playTurn(win.state, 6), win.state);
@@ -244,6 +272,68 @@ test("exact-roll win, overshoot, boom reset and next-player selection still work
   const boom = resolveTurn(at(96), 1);
   assert.equal(boom.effect, "boom");
   assert.equal(boom.state.players[0].position, 0);
+});
+
+test("first arrival at 100 gives only a torch and returns Home; progress is player-specific", () => {
+  const state = at(99);
+  state.players[0].bullets = 3;
+  const torch = resolveTurn(state, 1);
+  assert.deepEqual(torch.path, [100]);
+  assert.equal(torch.effect, "torch");
+  assert.equal(torch.state.winnerId, null);
+  assert.equal(torch.state.players[0].position, 0);
+  assert.equal(torch.state.players[0].hasTorch, true);
+  assert.equal(torch.state.players[0].keys, 0);
+  assert.equal(torch.state.players[0].bullets, 3);
+  assert.equal(torch.state.players[1].hasTorch, false);
+  assert.equal(torch.state.currentPlayerIndex, 1);
+  assert.equal(state.players[0].hasTorch, false);
+});
+
+test("torch without a key never wins or traps the player at 100", () => {
+  const state = at(99);
+  state.players[0].hasTorch = true;
+  const retry = resolveTurn(state, 1);
+  assert.equal(retry.effect, "return");
+  assert.equal(retry.state.players[0].position, 0);
+  assert.equal(retry.state.players[0].hasTorch, true);
+  assert.equal(retry.state.winnerId, null);
+});
+
+test("one black-room key qualifies for a later crown, survives boom and is not duplicated", () => {
+  const state = at(16);
+  state.players[0].hasTorch = true;
+  let game = resolveTurn(state, 1).state;
+  assert.equal(game.winnerId, null);
+  assert.equal(game.players[0].keys, 1);
+  game.currentPlayerIndex = 0;
+  game.players[0].position = 43;
+  game = resolveTurn(game, 1).state;
+  assert.equal(game.players[0].keys, 1);
+  assert.equal(game.players[0].crownKeyRoom, 17);
+  game.currentPlayerIndex = 0;
+  game.players[0].position = 96;
+  game = resolveTurn(game, 1).state;
+  assert.equal(game.players[0].position, 0);
+  assert.equal(game.players[0].hasTorch, true);
+  assert.equal(game.players[0].crownKeyRoom, 17);
+  assert.deepEqual(repairLegacyGame(game), game);
+  game.currentPlayerIndex = 0;
+  game.players[0].position = 99;
+  game = resolveTurn(game, 1).state;
+  assert.equal(game.winnerId, "player-1");
+  assert.equal(game.currentPlayerIndex, 0);
+});
+
+test("an old ordinary winner gets the torch stage, not a free crown", () => {
+  const old = at(100, 1);
+  old.winnerId = "player-1";
+  delete old.players[0].hasTorch;
+  const migrated = repairLegacyGame(old);
+  assert.equal(migrated.winnerId, null);
+  assert.equal(migrated.players[0].hasTorch, true);
+  assert.equal(migrated.players[0].position, 0);
+  assert.equal(migrated.players[0].keys, 0);
 });
 
 test("1000 seeded rounds reach winners without a gate deadlock", () => {

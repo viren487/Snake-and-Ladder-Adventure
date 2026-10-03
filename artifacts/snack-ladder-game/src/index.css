@@ -148,6 +148,24 @@
 .crown-tile { position:absolute; z-index:4; top:0; left:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0; background:linear-gradient(145deg,#f4bf36,#c85d16); border:2px solid #ffe578; color:#fff1a5; width:10%; aspect-ratio:1; border-radius:12%; filter:drop-shadow(0 2px 3px #301607); }
 .crown-tile svg { width:48%; height:48%; margin-bottom:-2px; }
 .crown-tile span { font:700 clamp(9px,1.1vw,15px)/1 'Fredoka',sans-serif; color:#fff8d4; text-shadow:0 1px 2px #8a3514; }
+.crown-tile.crown-locked { background:linear-gradient(145deg,#6c6259,#38343a); border-color:#c9ae7d; }
+.crown-locked .goal-crown-icon { opacity:.4; }
+.crown-tile .goal-lock-icon { position:absolute; width:29%;height:29%;right:8%;top:9%;color:#ffdf80; }
+.crown-tile .goal-torch-icon { position:absolute; width:38%;height:38%;left:4%;top:33%;color:#fff1a1;filter:drop-shadow(0 0 4px #ffd54b); }
+.board-cell.key-room-lit { background:radial-gradient(circle at 50% 55%,#6d5827,#211e23 75%);box-shadow:inset 0 0 0 2px #f0c65a,inset 0 0 15px #f6d97066; }
+.key-dark-glyph { opacity:.4;filter:none; }
+.key-revealed-glyph { color:#ffdf76;filter:drop-shadow(0 0 5px #ffdc70); }
+.quest-card { grid-column:1/-1;padding:14px 15px;border:1px solid #766340;border-radius:16px;background:linear-gradient(145deg,#333041,#252b3b); }
+.quest-title { color:#f1d492;font:600 10px 'DM Mono',monospace;letter-spacing:1px; }
+.quest-steps { display:flex;justify-content:space-between;gap:6px;margin-top:10px; }
+.quest-steps span { display:flex;align-items:center;gap:4px;color:#8c96a8;font-size:11px; }
+.quest-steps .quest-current { color:#ffdc83; }
+.quest-steps .quest-done { color:#8ee0aa; }
+.quest-card p { margin:10px 0 0;color:#e1dcd2;font-size:12px;line-height:1.45; }
+.player-quest { display:flex;align-items:center;gap:4px;padding:5px 7px 0;color:#d5c6a0;font-size:10px; }
+.quest-pickup { position:absolute;inset:35% 14%;z-index:15;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px;border:2px solid #ffe19b;border-radius:16px;color:#ffe9a8;background:#292638ee;box-shadow:0 0 30px #fbd15b66;pointer-events:none; }
+.quest-pickup strong { font:600 clamp(13px,2vw,23px) 'Fredoka',sans-serif;text-align:center; }
+.quest-pickup span { font-size:clamp(10px,1.3vw,14px); }
 .board-piece { position:absolute; z-index:7; width:7.2%; height:8.2%; display:grid; place-items:center; transform:translate(-50%,-55%); transition:left .21s cubic-bezier(.2,.8,.25,1),top .21s cubic-bezier(.2,.8,.25,1); }
 .board-piece.stacked { z-index:8; }
 .board-piece-ladder { transition:left var(--ladder-move-duration) cubic-bezier(.35,.05,.3,1),top var(--ladder-move-duration) cubic-bezier(.35,.05,.3,1); }
