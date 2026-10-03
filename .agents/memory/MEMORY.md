@@ -1,1 +1,1 @@
-- [Mobile game direction](mobile-game-direction.md) — Native Android/iOS is the target; retain the browser game unless asked to replace it.
+- [Web-first game direction](mobile-game-direction.md) — Finish the browser game first; align the native mobile app afterward and keep both versions.

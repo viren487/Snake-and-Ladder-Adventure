@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Crown, Dices, KeyRound, RotateCcw, Sparkles, Trophy } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Crown, Dices, KeyRound, RotateCcw, Sparkles, Trophy, Volume2, VolumeX } from 'lucide-react';
 import {
   createGame,
-  playTurn,
+  repairLegacyGame,
+  resolveTurn,
   squareAt,
   SNAKES,
   LADDERS,
@@ -11,12 +12,18 @@ import {
   LOCKED_SQUARES,
   type GameState,
 } from './game-engine';
+import { useGameSounds } from './use-game-sounds';
 
-const STORAGE_KEY = 'snack-ladder-adventure-v1';
+const STORAGE_KEY = 'snack-ladder-adventure-v2';
+const LEGACY_STORAGE_KEY = 'snack-ladder-adventure-v1';
 const EXTRA_BULLET_SQUARES = [61, 77] as const;
 const MYSTERY_BOX_SQUARES = [14, 35, 51, 76] as const;
 const MOVEMENT_STEP_DELAY_MS = 240;
-type WalkingPiece = { playerId: string; position: number };
+type WalkingPiece = {
+  playerId: string;
+  position: number;
+  effect: 'step' | 'ladder' | 'snake' | 'boom';
+};
 
 const SNAKE_ART: Record<string, string> = {
   violet: new URL('./realistic-snake-violet.png', import.meta.url).href,
@@ -28,15 +35,45 @@ const SNAKE_ART: Record<string, string> = {
 
 function readGame(): GameState {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
     if (saved) {
-      const value = JSON.parse(saved) as GameState;
-      if (value?.players?.length === 2 && Number.isInteger(value.currentPlayerIndex)) return value;
+      const value: unknown = JSON.parse(saved);
+      if (isSavedGame(value)) return repairLegacyGame(value);
     }
-  } catch {
-    // A damaged or unavailable local save starts a fresh round.
-  }
+  } catch { /* A damaged or unavailable save starts a fresh round. */ }
   return createGame();
+}
+
+function isSavedGame(value: unknown): value is GameState {
+  if (!value || typeof value !== 'object') return false;
+  const game = value as Partial<GameState>;
+  return Array.isArray(game.players) &&
+    game.players.length === 2 &&
+    game.players.every((player) =>
+      player !== null &&
+      typeof player === 'object' &&
+      typeof player.id === 'string' &&
+      typeof player.name === 'string' &&
+      (player.color === 'blue' || player.color === 'coral') &&
+      Number.isInteger(player.position) &&
+      player.position >= 0 &&
+      player.position <= 100 &&
+      Number.isInteger(player.keys) &&
+      player.keys >= 0 &&
+      (player.unlockedGates === undefined ||
+        (Array.isArray(player.unlockedGates) &&
+          player.unlockedGates.every((gate) =>
+            (LOCKED_SQUARES as readonly number[]).includes(gate),
+          ))),
+    ) &&
+    Number.isInteger(game.currentPlayerIndex) &&
+    game.currentPlayerIndex! >= 0 &&
+    game.currentPlayerIndex! <= 1 &&
+    Number.isInteger(game.turnNumber) &&
+    game.turnNumber! >= 1 &&
+    (game.lastRoll === null || (Number.isInteger(game.lastRoll) && game.lastRoll! >= 1 && game.lastRoll! <= 6)) &&
+    (game.winnerId === null || game.players.some((player) => player.id === game.winnerId)) &&
+    typeof game.message === 'string';
 }
 
 function centerOf(square: number) {
@@ -160,11 +197,19 @@ function SnakeArt({ from, to, color }: { from: number; to: number; color: string
   );
 }
 
-function PandaToken({ color, hopping }: { color: 'blue' | 'coral'; hopping: boolean }) {
+function PandaToken({
+  color,
+  hopping,
+  specialMove,
+}: {
+  color: 'blue' | 'coral';
+  hopping: boolean;
+  specialMove: 'ladder' | 'snake' | 'boom' | null;
+}) {
   const scarf = color === 'blue' ? '#25a9df' : '#f06e50';
   const scarfShade = color === 'blue' ? '#0879ad' : '#c44839';
   return (
-    <svg className={`panda-token ${hopping ? 'panda-token-hopping' : ''}`} viewBox="0 0 52 62" aria-hidden="true">
+    <svg className={`panda-token ${hopping ? 'panda-token-hopping' : ''} ${specialMove ? `panda-token-${specialMove}` : ''}`} viewBox="0 0 52 62" aria-hidden="true">
       <ellipse cx="26" cy="57" rx="14" ry="3" fill="#10151b" opacity=".4" />
       <ellipse cx="26" cy="47" rx="15" ry="11" fill={scarf} stroke="#473523" strokeWidth="1.5" />
       <path d="M13 44q13 8 26 0v6q-13 9-26 0Z" fill={scarfShade} />
@@ -191,6 +236,7 @@ function PandaToken({ color, hopping }: { color: 'blue' | 'coral'; hopping: bool
 }
 
 function Board({ game, walking }: { game: GameState; walking: WalkingPiece | null }) {
+  const openGates = game.players[game.currentPlayerIndex].unlockedGates;
   const cells = useMemo(() => Array.from({ length: 100 }, (_, i) => {
     const row = Math.floor(i / 10);
     const col = i % 10;
@@ -203,19 +249,19 @@ function Board({ game, walking }: { game: GameState; walking: WalkingPiece | nul
     const boom = number === BOOM_SQUARE;
     const tone = locked ? 'locked' : key ? 'key-square' : number % 3 === 0 ? 'blue' : (row + col) % 2 === 0 ? 'green' : 'cream';
     return (
-      <div className={`board-cell ${tone} ${locked || key ? 'special' : ''}`} key={number} data-testid={`board-square-${number}`} aria-label={`Square ${number}${bullet ? key ? ', bullet pickup' : ', bullet' : ''}${mysteryBox ? ', mystery box' : ''}${gun ? ', gun' : ''}${boom ? ', boom trap' : ''}`}>
+      <div className={`board-cell ${tone} ${locked || key ? 'special' : ''}`} key={number} data-testid={`board-square-${number}`} aria-label={`Square ${number}${locked && openGates.includes(number) ? ', open gate for current player' : ''}${bullet ? key ? ', bullet pickup' : ', bullet' : ''}${mysteryBox ? ', mystery box' : ''}${gun ? ', gun' : ''}${boom ? ', boom trap' : ''}`}>
         <span className="cell-number" data-testid={`square-number-${number}`}>{number}</span>
         {bullet && <BulletIcon square={number} />}
         {mysteryBox && <MysteryBoxIcon square={number} />}
         {gun && <GunIcon />}
         {boom && <BoomIcon />}
         {locked && <>
-          <span className="lock-caption">TORCH KEY<br />REQUIRED</span>
-          <KeyRound className="locked-glyph" strokeWidth={2.2} />
+          <span className="lock-caption">{openGates.includes(number) ? 'OPEN FOR<br />YOUR PANDA' : <>TORCH KEY<br />REQUIRED</>}</span>
+          <KeyRound className={`locked-glyph ${openGates.includes(number) ? 'gate-open-glyph' : ''}`} strokeWidth={2.2} />
         </>}
       </div>
     );
-  }), []);
+  }), [openGates]);
   const pieceStyle = (position: number, playerIndex: number) => {
     const point = position > 0 ? centerOf(position) : { x: 70, y: 948 };
     const stacked = game.players.some((other, index) => index !== playerIndex && other.position === position);
@@ -245,19 +291,21 @@ function Board({ game, walking }: { game: GameState; walking: WalkingPiece | nul
         {game.players.map((player, index) => {
           const position = walking?.playerId === player.id ? walking.position : player.position;
           const stacked = game.players.some((other, otherIndex) => otherIndex !== index && other.position === position);
-          const hopping = walking?.playerId === player.id;
+          const movement = walking?.playerId === player.id ? walking.effect : null;
+          const hopping = movement !== null;
           return (
             <div
               key={player.id}
-              className={`board-piece ${stacked ? 'stacked' : ''}`}
+              className={`board-piece ${stacked ? 'stacked' : ''} ${movement && movement !== 'step' ? `board-piece-${movement}` : ''}`}
               style={pieceStyle(position, index)}
               data-testid={`piece-${player.id}`}
               aria-label={`${player.name} on square ${position || 'home'}`}
             >
               <PandaToken
-                key={hopping ? `step-${position}` : `idle-${position}`}
+                key={hopping ? `${movement}-${position}` : `idle-${position}`}
                 color={player.color}
                 hopping={hopping}
+                specialMove={movement && movement !== 'step' ? movement : null}
               />
             </div>
           );
@@ -278,6 +326,14 @@ function App() {
   const [rolling, setRolling] = useState(false);
   const [diceFace, setDiceFace] = useState<number | null>(game.lastRoll);
   const [walking, setWalking] = useState<WalkingPiece | null>(null);
+  const sounds = useGameSounds();
+  const rollInFlight = useRef(false);
+  const screenMounted = useRef(true);
+
+  useEffect(() => {
+    screenMounted.current = true;
+    return () => { screenMounted.current = false; };
+  }, []);
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(game)); } catch { /* Local play remains available without storage. */ }
@@ -287,8 +343,10 @@ function App() {
   const winner = game.players.find(player => player.id === game.winnerId);
 
   const rollDice = async () => {
-    if (rolling || game.winnerId) return;
+    if (rollInFlight.current || game.winnerId) return;
+    rollInFlight.current = true;
     setRolling(true);
+    sounds.play('dice');
     try {
       const result = await new Promise<number>(resolve => {
         let frames = 0;
@@ -305,35 +363,44 @@ function App() {
       });
 
       const player = game.players[game.currentPlayerIndex];
-      const destination = player.position + result;
-      const blockedByGate = player.keys === 0 && (LOCKED_SQUARES as readonly number[]).some(
-        square => square > player.position && square <= destination,
-      );
-
-      if (destination <= 100 && !blockedByGate) {
-        const firstStep = Math.max(1, player.position + 1);
-        const stepDelay = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-          ? 45
-          : MOVEMENT_STEP_DELAY_MS;
-        for (let position = firstStep; position <= destination; position += 1) {
-          setWalking({ playerId: player.id, position });
-          await new Promise<void>(resolve => window.setTimeout(resolve, stepDelay));
-        }
+      const resolution = resolveTurn(game, result);
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const stepDelay = reducedMotion
+        ? 45
+        : MOVEMENT_STEP_DELAY_MS;
+      for (const position of resolution.path) {
+        setWalking({ playerId: player.id, position, effect: 'step' });
+        sounds.play('step');
+        await new Promise<void>(resolve => window.setTimeout(resolve, stepDelay));
+        if (!screenMounted.current) return;
+      }
+      const resolvedPlayer = resolution.state.players.find(item => item.id === player.id);
+      if (resolvedPlayer && resolution.effect) {
+        if (resolution.effect === 'ladder' || resolution.effect === 'snake') sounds.play(resolution.effect);
+        setWalking({ playerId: player.id, position: resolvedPlayer.position, effect: resolution.effect });
+        await new Promise<void>(resolve => window.setTimeout(resolve, reducedMotion ? 45 : 700));
+        if (!screenMounted.current) return;
       }
 
-      setGame(previous => playTurn(previous, result));
+      setGame(resolution.state);
     } finally {
-      setWalking(null);
-      window.setTimeout(() => setRolling(false), 220);
+      rollInFlight.current = false;
+      if (screenMounted.current) {
+        setWalking(null);
+        setRolling(false);
+      }
     }
   };
 
   const startNewGame = () => {
-    if (rolling) return;
+    if (rollInFlight.current) return;
     const fresh = createGame();
     setGame(fresh);
     setDiceFace(null);
-    try { localStorage.removeItem(STORAGE_KEY); } catch { /* Ignore unavailable storage. */ }
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+    } catch { /* Ignore unavailable storage. */ }
   };
 
   return (
@@ -347,7 +414,19 @@ function App() {
               <div className="brand-subtitle">A tiny quest for two</div>
             </div>
           </div>
-          <div className="top-chip" data-testid="game-mode"><i /> LOCAL · PASS &amp; PLAY</div>
+          <div className="topbar-tools">
+            <button
+              className="sound-toggle"
+              onClick={sounds.toggleMuted}
+              aria-label={sounds.muted ? 'Enable sound effects' : 'Mute sound effects'}
+              aria-pressed={sounds.muted}
+              title={sounds.muted ? 'Enable sound effects' : 'Mute sound effects'}
+              data-testid="button-sound"
+            >
+              {sounds.muted ? <VolumeX size={19} /> : <Volume2 size={19} />}
+            </button>
+            <div className="top-chip" data-testid="game-mode"><i /> LOCAL · PASS &amp; PLAY</div>
+          </div>
         </header>
 
         <div className="game-columns">
@@ -397,12 +476,13 @@ function App() {
               <Sparkles className="message-icon" size={16} />
               <div className="message-text">{game.message}</div>
             </div>
+            {sounds.error && <div className="sound-error" role="status">Sound effects could not play, but the game will continue.</div>}
 
             <div className="rules-card">
               <div className="rules-title">A few things to know</div>
               <div className="rules-list">
                 <div className="rule-line"><span className="rule-swatch" style={{ background: '#dc8540' }} /> Ladders lift you up; snakes send you sliding.</div>
-                <div className="rule-line"><KeyRound size={13} color="#f0c65a" /> Find keys to open the torch gates.</div>
+                <div className="rule-line"><KeyRound size={13} color="#f0c65a" /> Collect keys as you pass; gates you open stay open for your panda.</div>
                 <div className="rule-line"><Crown size={13} color="#f0c65a" /> Reach 100 with an exact roll to win.</div>
               </div>
             </div>
