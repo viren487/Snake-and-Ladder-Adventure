@@ -172,7 +172,6 @@ function Token({
 
   return (
     <Animated.View
-      pointerEvents="none"
       style={[
         styles.token,
         { width: tokenWidth, height: tokenHeight, zIndex: stacked ? 9 + index : 7 + index },
@@ -212,7 +211,6 @@ function SnakeArt({
 
   return (
     <Image
-      pointerEvents="none"
       source={SNAKE_IMAGES[color]}
       resizeMode="stretch"
       style={[
@@ -253,16 +251,18 @@ function LadderArt({
   const railWidth = Math.max(2, boardSize * 0.008);
   const rungWidth = spacing * 2 + railWidth;
   const rungCount = Math.max(3, Math.floor(length / (boardSize * 0.075)));
+  const normalX = -dy / length;
+  const normalY = dx / length;
 
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    <View style={StyleSheet.absoluteFill}>
       {[-1, 1].map((side) => (
         <View
           key={side}
           style={{
             position: "absolute",
-            left: middleX + side * spacing - railWidth / 2,
-            top: middleY - length / 2,
+            left: middleX + side * spacing * normalX - railWidth / 2,
+            top: middleY + side * spacing * normalY - length / 2,
             width: railWidth,
             height: length,
             borderRadius: railWidth,
@@ -286,7 +286,7 @@ function LadderArt({
               height: Math.max(3, boardSize * 0.008),
               borderRadius: 4,
               backgroundColor: color,
-              transform: [{ rotate: `${angle + 90}deg` }],
+              transform: [{ rotate: `${angle}deg` }],
             }}
           />
         );
@@ -343,7 +343,16 @@ function Board({
   );
 
   return (
-    <View style={[styles.boardFrame, { width: size + 14, backgroundColor: colors.boardFrame }]}>
+    <View
+      style={[
+        styles.boardFrame,
+        {
+          width: size + 14,
+          backgroundColor: colors.boardFrame,
+          borderColor: colors.primary,
+        },
+      ]}
+    >
       <View
         style={[
           styles.boardInner,
@@ -480,10 +489,23 @@ function Board({
   );
 }
 
-function DiceFace({ value, color }: { value: number | null; color: string }) {
+function DiceFace({
+  value,
+  color,
+  faceColor,
+  borderColor,
+}: {
+  value: number | null;
+  color: string;
+  faceColor: string;
+  borderColor: string;
+}) {
   const pips = DICE_PIPS[value ?? 1];
   return (
-    <View style={styles.dieFace} accessibilityLabel={value ? `Dice showing ${value}` : "Ready to roll"}>
+    <View
+      style={[styles.dieFace, { backgroundColor: faceColor, borderColor }]}
+      accessibilityLabel={value ? `Dice showing ${value}` : "Ready to roll"}
+    >
       {pips.map(([column, row], index) => (
         <View
           key={index}
@@ -743,7 +765,12 @@ export default function GameScreen() {
               },
             ]}
           >
-            <DiceFace value={diceFace} color={colors.primaryForeground} />
+            <DiceFace
+              value={diceFace}
+              color={colors.primaryForeground}
+              faceColor={colors.dieFace}
+              borderColor={colors.dieBorder}
+            />
             <View style={styles.rollCopy}>
               <Text style={[styles.rollTitle, { color: colors.primaryForeground }]}>
                 {rolling ? "ROLLING…" : "ROLL THE DICE"}
@@ -761,7 +788,7 @@ export default function GameScreen() {
         )}
 
         <View style={[styles.messageCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <MaterialCommunityIcons name="sparkles" size={17} color={colors.primary} />
+          <MaterialCommunityIcons name="star" size={17} color={colors.primary} />
           <Text style={[styles.messageText, { color: colors.cardForeground }]} testID="game-message">
             {game.message}
           </Text>
@@ -893,11 +920,6 @@ const styles = StyleSheet.create({
     padding: 7,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#d49b48",
-    shadowColor: "#05070b",
-    shadowOpacity: 0.35,
-    shadowRadius: 13,
-    shadowOffset: { width: 0, height: 6 },
     elevation: 7,
   },
   boardInner: {
@@ -1034,9 +1056,7 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 13,
-    backgroundColor: "#fff8e8",
     borderWidth: 1,
-    borderColor: "#ffffff",
   },
   diePip: {
     position: "absolute",

@@ -1,0 +1,1 @@
+- [Mobile game direction](mobile-game-direction.md) — Native Android/iOS is the target; retain the browser game unless asked to replace it.
