@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { CircleDot, Crosshair, Crown, Dices, KeyRound, RotateCcw, Sparkles, Trophy, Volume2, VolumeX } from 'lucide-react';
 import {
   BULLET_PICKUP_SQUARES,
@@ -8,30 +8,36 @@ import {
   repairLegacyGame,
   passFire,
   resolveTurn,
-  shootSnake,
+  shootSnakes,
   SHOOTABLE_SNAKE_SQUARES,
   SNAKE_STUN_ROLLS,
   squareAt,
   SNAKES,
   LADDERS,
   BOOM_SQUARE,
-  KEY_SQUARES,
   LOCKED_SQUARES,
   type ShootableSnakeSquare,
   type GameState,
 } from './game-engine';
 import { useGameSounds } from './use-game-sounds';
+import { ShotAnimation } from './ShotAnimation';
 
 const STORAGE_KEY = 'snack-ladder-adventure-v3';
 const PREVIOUS_STORAGE_KEY = 'snack-ladder-adventure-v2';
 const LEGACY_STORAGE_KEY = 'snack-ladder-adventure-v1';
 const MYSTERY_BOX_SQUARES = [14, 35, 51, 76] as const;
 const MOVEMENT_STEP_DELAY_MS = 240;
+const SPECIAL_MOVE_DURATION_MS = { ladder: 2200, snake: 2000, boom: 700 } as const;
+const SPECIAL_MOVE_STYLE = {
+  '--ladder-move-duration': `${SPECIAL_MOVE_DURATION_MS.ladder}ms`,
+  '--snake-move-duration': `${SPECIAL_MOVE_DURATION_MS.snake}ms`,
+} as CSSProperties;
 type WalkingPiece = {
   playerId: string;
   position: number;
   effect: 'step' | 'ladder' | 'snake' | 'boom';
 };
+type Shot = { from: number; targets: ShootableSnakeSquare[] };
 
 const SNAKE_ART: Record<string, string> = {
   violet: new URL('./realistic-snake-violet.png', import.meta.url).href,
@@ -103,6 +109,17 @@ function centerOf(square: number) {
     }
   }
   return { x: 50, y: 950 };
+}
+
+function scrollToGameSection(selector: string) {
+  const section = document.querySelector(selector);
+  if (!section) return;
+  // Scroll the document directly; scrollIntoView can target the clipped game shell.
+  window.scrollTo({
+    top: Math.max(0, window.scrollY + section.getBoundingClientRect().top - 16),
+    // A short shot must not start before a browser's smooth scroll has settled.
+    behavior: 'instant',
+  });
 }
 
 function BulletIcon({ square }: { square: number }) {
@@ -251,6 +268,16 @@ function PandaToken({
       <circle cx="12" cy="35" r="2" fill="#ee9989" opacity=".65" />
       <circle cx="40" cy="35" r="2" fill="#ee9989" opacity=".65" />
       <path d="M20 44q6 2 12 0" fill="none" stroke="#fff9e9" strokeWidth="1.4" opacity=".8" />
+      {(specialMove === 'ladder' || specialMove === 'snake') && (
+        <g fill={specialMove === 'ladder' ? '#ffe998' : '#dfccff'} stroke={specialMove === 'ladder' ? '#b8762d' : '#7d5b9c'} strokeWidth=".7">
+          {[{ x: 2, y: 19 }, { x: 51, y: 10 }, { x: 49, y: 51 }].map((point, index) => (
+            <g key={index} transform={`translate(${point.x} ${point.y})`}>
+              <path className="panda-motion-sparkle" style={{ animationDelay: `${index * .22}s` }}
+                d="m0-5 1.6 3.4L5 0 1.6 1.6 0 5-1.6 1.6-5 0-1.6-1.6Z" />
+            </g>
+          ))}
+        </g>
+      )}
     </svg>
   );
 }
@@ -259,11 +286,17 @@ function Board({
   game,
   walking,
   aiming,
+  selectedTargets,
+  shot,
+  firing,
   onAimTarget,
 }: {
   game: GameState;
   walking: WalkingPiece | null;
   aiming: boolean;
+  selectedTargets: ShootableSnakeSquare[];
+  shot: Shot | null;
+  firing: boolean;
   onAimTarget: (square: ShootableSnakeSquare) => void;
 }) {
   const activePlayer = game.players[game.currentPlayerIndex];
@@ -273,14 +306,13 @@ function Board({
     const col = i % 10;
     const number = squareAt(row, col);
     const gate = (LOCKED_SQUARES as readonly number[]).includes(number);
-    const key = (KEY_SQUARES as readonly number[]).includes(number);
     const bullet = (BULLET_PICKUP_SQUARES as readonly number[]).includes(number);
     const mysteryBox = (MYSTERY_BOX_SQUARES as readonly number[]).includes(number);
     const gun = (GUN_SQUARES as readonly number[]).includes(number);
     const boom = number === BOOM_SQUARE;
-    const tone = gate ? 'locked' : key ? 'key-square' : number % 3 === 0 ? 'blue' : (row + col) % 2 === 0 ? 'green' : 'cream';
+    const tone = gate ? 'locked' : bullet ? 'bullet-square' : number % 3 === 0 ? 'blue' : (row + col) % 2 === 0 ? 'green' : 'cream';
     return (
-      <div className={`board-cell ${tone} ${gate || key ? 'special' : ''}`} key={number} data-testid={`board-square-${number}`} aria-label={`Square ${number}${gate ? ', open gate; keys are not required' : ''}${bullet ? ', bullet pickup' : ''}${mysteryBox ? ', mystery box' : ''}${gun ? ', gun' : ''}${boom ? ', boom trap' : ''}`}>
+      <div className={`board-cell ${tone} ${gate || bullet ? 'special' : ''}`} key={number} data-testid={`board-square-${number}`} aria-label={`Square ${number}${gate ? ', open gate; keys are not required' : ''}${bullet ? ', bullet pickup on landing' : ''}${mysteryBox ? ', mystery box' : ''}${gun ? ', gun' : ''}${boom ? ', boom trap' : ''}`}>
         <span className="cell-number" data-testid={`square-number-${number}`}>{number}</span>
         {bullet && <BulletIcon square={number} />}
         {mysteryBox && <MysteryBoxIcon square={number} />}
@@ -349,11 +381,12 @@ function Board({
           return (
             <button
               type="button"
-              className={`aim-target ${rounds > 0 ? 'aim-target-sleeping' : ''}`}
+              className={`aim-target ${selectedTargets.includes(square) ? 'aim-target-selected' : ''}`}
               key={`aim-${square}`}
               style={{ left: `${point.x / 10}%`, top: `${point.y / 10}%` }}
               onClick={() => onAimTarget(square)}
-              disabled={rounds > 0}
+              disabled={rounds > 0 || firing}
+              aria-pressed={selectedTargets.includes(square)}
               aria-label={rounds > 0 ? `Snake at square ${square} is already stunned for ${rounds} rolls` : `Aim at snake at square ${square}`}
               data-testid={`aim-target-${square}`}
             >
@@ -362,6 +395,7 @@ function Board({
             </button>
           );
         })}
+        {shot && <ShotAnimation from={centerOf(shot.from)} targets={shot.targets.map((square) => ({ square, ...centerOf(square) }))} />}
         {game.players.map((player, index) => {
           const position = walking?.playerId === player.id ? walking.position : player.position;
           const stacked = game.players.some((other, otherIndex) => otherIndex !== index && other.position === position);
@@ -381,6 +415,11 @@ function Board({
                 hopping={hopping}
                 specialMove={movement && movement !== 'step' ? movement : null}
               />
+              {(movement === 'ladder' || movement === 'snake') && (
+                <span className={`move-caption move-caption-${movement}`} aria-hidden="true">
+                  {movement === 'ladder' ? 'Up we go!' : 'Wheee!'}
+                </span>
+              )}
             </div>
           );
         })}
@@ -400,9 +439,12 @@ function App() {
   const [rolling, setRolling] = useState(false);
   const [diceFace, setDiceFace] = useState<number | null>(game.lastRoll);
   const [walking, setWalking] = useState<WalkingPiece | null>(null);
-  const [aiming, setAiming] = useState(false);
+  const [selectedTargets, setSelectedTargets] = useState<ShootableSnakeSquare[]>([]);
+  const [shot, setShot] = useState<Shot | null>(null);
+  const [firing, setFiring] = useState(false);
   const sounds = useGameSounds();
   const rollInFlight = useRef(false);
+  const fireInFlight = useRef(false);
   const screenMounted = useRef(true);
 
   useEffect(() => {
@@ -414,14 +456,6 @@ function App() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(game)); } catch { /* Local play remains available without storage. */ }
   }, [game]);
 
-  useEffect(() => {
-    if (!aiming || !window.matchMedia('(max-width: 820px)').matches) return;
-    document.querySelector('[data-testid="game-board"]')?.scrollIntoView({
-      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
-      block: 'center',
-    });
-  }, [aiming]);
-
   const currentPlayer = game.players[game.currentPlayerIndex];
   const winner = game.players.find(player => player.id === game.winnerId);
   const waitingToFire = game.pendingFireForPlayerId === currentPlayer.id;
@@ -429,22 +463,46 @@ function App() {
     (square) => currentPlayer.snakeStuns[square] === 0,
   );
 
-  const fireAt = (square: ShootableSnakeSquare) => {
-    setGame(shootSnake(game, square));
-    setAiming(false);
-    if (window.matchMedia('(max-width: 820px)').matches) {
-      window.setTimeout(() => {
-        document.querySelector('[data-testid="game-controls"]')?.scrollIntoView({
-          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
-          block: 'start',
-        });
-      }, 50);
+  const selectTarget = (square: ShootableSnakeSquare) => {
+    if (firing || !waitingToFire || !availableTargets.includes(square)) return;
+    setSelectedTargets((targets) => targets.includes(square)
+      ? targets.filter((target) => target !== square)
+      : currentPlayer.bullets === 1 ? [square] : [...targets, square]);
+  };
+
+  const fireAt = async () => {
+    if (fireInFlight.current || !waitingToFire || selectedTargets.length === 0) return;
+    const nextGame = shootSnakes(game, selectedTargets);
+    const targets = [...selectedTargets];
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const mobile = window.matchMedia('(max-width: 820px)').matches;
+    fireInFlight.current = true;
+    setFiring(true);
+    try {
+      if (mobile) {
+        scrollToGameSection('[data-testid="game-board"]');
+        await new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 0 : 100));
+        if (!screenMounted.current) return;
+      }
+      setShot({ from: currentPlayer.position, targets });
+      await new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 150 : 950));
+      if (!screenMounted.current) return;
+      setGame(nextGame);
+      setSelectedTargets([]);
+      setShot(null);
+      if (mobile) {
+        scrollToGameSection('[data-testid="game-controls"]');
+      }
+    } finally {
+      fireInFlight.current = false;
+      if (screenMounted.current) setFiring(false);
     }
   };
 
   const passShot = () => {
+    if (fireInFlight.current) return;
     setGame(passFire(game));
-    setAiming(false);
+    setSelectedTargets([]);
   };
 
   const rollDice = async () => {
@@ -483,7 +541,9 @@ function App() {
       if (resolvedPlayer && resolution.effect) {
         if (resolution.effect === 'ladder' || resolution.effect === 'snake') sounds.play(resolution.effect);
         setWalking({ playerId: player.id, position: resolvedPlayer.position, effect: resolution.effect });
-        await new Promise<void>(resolve => window.setTimeout(resolve, reducedMotion ? 45 : 700));
+        await new Promise<void>(resolve => window.setTimeout(resolve,
+          reducedMotion ? 45 : SPECIAL_MOVE_DURATION_MS[resolution.effect!] + 80,
+        ));
         if (!screenMounted.current) return;
       }
 
@@ -498,11 +558,12 @@ function App() {
   };
 
   const startNewGame = () => {
-    if (rollInFlight.current) return;
+    if (rollInFlight.current || fireInFlight.current) return;
     const fresh = createGame();
     setGame(fresh);
     setDiceFace(null);
-    setAiming(false);
+    setSelectedTargets([]);
+    setShot(null);
     try {
       localStorage.removeItem(STORAGE_KEY);
       localStorage.removeItem(PREVIOUS_STORAGE_KEY);
@@ -511,7 +572,7 @@ function App() {
   };
 
   return (
-    <main className="game-shell">
+    <main className="game-shell" style={SPECIAL_MOVE_STYLE}>
       <div className="game-layout">
         <header className="topbar">
           <div className="brand-lockup">
@@ -537,7 +598,7 @@ function App() {
         </header>
 
         <div className="game-columns">
-          <Board game={game} walking={walking} aiming={waitingToFire && aiming} onAimTarget={fireAt} />
+          <Board game={game} walking={walking} aiming={waitingToFire} selectedTargets={selectedTargets} shot={shot} firing={firing} onAimTarget={selectTarget} />
           <section className="side-panel" aria-label="Game controls and player status" data-testid="game-controls">
             <div className="turn-card">
               <div className="eyebrow" data-testid="turn-number">TURN {String(game.turnNumber).padStart(2, '0')}</div>
@@ -579,23 +640,36 @@ function App() {
               <div className="win-banner" data-testid="winner-banner"><Trophy size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} /> Crown claimed!</div>
             ) : waitingToFire ? (
               <div className="fire-choice-card" data-testid="fire-choice">
-                <div className="fire-choice-title"><Crosshair size={17} /> Gun point reached</div>
+                <div className="fire-choice-title"><Crosshair size={17} /> Gun room · {currentPlayer.position}</div>
                 <div className="fire-choice-copy">
-                  {aiming
-                    ? 'Choose an awake snake at square 98 or 99. A shot uses one bullet.'
-                    : `${currentPlayer.bullets} bullet${currentPlayer.bullets === 1 ? '' : 's'} available. A hit keeps that snake asleep for your next ${SNAKE_STUN_ROLLS} rolls.`}
+                  {currentPlayer.bullets} bullet{currentPlayer.bullets === 1 ? '' : 's'} available. Choose your aim; each target costs one bullet.
                 </div>
+                <div className="aim-options" role="group" aria-label="Choose snakes to aim at">
+                  {SHOOTABLE_SNAKE_SQUARES.map((square) => (
+                    <button key={square} className="aim-option" onClick={() => setSelectedTargets([square])}
+                      disabled={firing || !availableTargets.includes(square)}
+                      aria-pressed={selectedTargets.length === 1 && selectedTargets[0] === square}
+                      data-testid={`button-aim-${square}`}>
+                      <Crosshair size={15} /> {square}<small>1 bullet</small>
+                    </button>
+                  ))}
+                  <button className="aim-option" onClick={() => setSelectedTargets([...SHOOTABLE_SNAKE_SQUARES])}
+                    disabled={firing || currentPlayer.bullets < 2 || availableTargets.length < 2}
+                    aria-pressed={selectedTargets.length === 2} data-testid="button-aim-both">
+                    <Crosshair size={15} /> Both<small>2 bullets</small>
+                  </button>
+                </div>
+                {currentPlayer.bullets === 1 && <div className="fire-choice-copy">Only one bullet: aim at 98 or 99, not both.</div>}
                 <div className="fire-choice-actions">
                   <button
                     className="primary-action"
-                    onClick={() => setAiming((value) => !value)}
-                    disabled={rolling || (aiming && availableTargets.length === 0)}
-                    aria-pressed={aiming}
+                    onClick={fireAt}
+                    disabled={rolling || firing || selectedTargets.length === 0}
                     data-testid="button-fire"
                   >
-                    <Crosshair size={16} /> {aiming ? 'Cancel aim' : 'Fire'}
+                    <Crosshair size={16} /> {firing ? 'Firing…' : selectedTargets.length === 2 ? 'Fire both' : 'Fire'}
                   </button>
-                  <button className="secondary-action" onClick={passShot} disabled={rolling} data-testid="button-pass-fire">
+                  <button className="secondary-action" onClick={passShot} disabled={rolling || firing} data-testid="button-pass-fire">
                     Pass this shot
                   </button>
                 </div>
@@ -624,12 +698,12 @@ function App() {
               <div className="rules-list">
                 <div className="rule-line"><span className="rule-swatch" style={{ background: '#dc8540' }} /> Ladders lift you up; snakes send you sliding.</div>
                 <div className="rule-line"><KeyRound size={13} color="#f0c65a" /> Keys are saved, but gates do not need them right now.</div>
-                <div className="rule-line"><CircleDot size={13} color="#dce6e9" /> Collect bullets as you move; carry up to {MAX_BULLETS}.</div>
-                <div className="rule-line"><Crosshair size={13} color="#f0c65a" /> At a gun, shoot snake 98 or 99 to stun it for your next {SNAKE_STUN_ROLLS} rolls.</div>
+                <div className="rule-line"><CircleDot size={13} color="#dce6e9" /> Land in a bullet room to collect ammo; carry up to {MAX_BULLETS}.</div>
+                <div className="rule-line"><Crosshair size={13} color="#f0c65a" /> Stop in a gun room to shoot 98, 99, or both with two bullets. Hits last for your next {SNAKE_STUN_ROLLS} rolls.</div>
                 <div className="rule-line"><Crown size={13} color="#f0c65a" /> Reach 100 with an exact roll to win.</div>
               </div>
             </div>
-            <button className="primary-action" onClick={startNewGame} disabled={rolling} data-testid="button-new-game">
+            <button className="primary-action" onClick={startNewGame} disabled={rolling || firing} data-testid="button-new-game">
               <RotateCcw size={15} /> New game
             </button>
             <div className="panel-footer"><span>TURN {String(game.turnNumber).padStart(2, '0')}</span><span>YOUR TABLE, YOUR QUEST</span></div>

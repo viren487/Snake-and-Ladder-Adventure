@@ -27,8 +27,24 @@ Collectible and gate rules must not permanently trap a panda because a roll skip
 
 ## Browser-first keys and ammunition
 
-Keep keys collectible and visible, but suspend their gate effect for now. Bullet pickups are collected while moving (including ladder routes), with a five-bullet cap. Reaching a gun square pauses the shooter’s turn so they can aim at snake 98 or 99, or pass. A shot spends one bullet and makes that snake harmless only for the shooter’s next three dice rolls; the countdown advances on that player’s rolls, not the opponent’s.
+Keep keys collectible and visible, but suspend their gate effect for now. Bullets are collected only when the panda stops on a bullet room, including a snake's final destination—not when crossing a tile or taking a ladder past it. Keep the five-bullet cap. Fire is available only when the panda stops in a gun room. Aim choices are 98, 99, or both; each targeted snake costs one bullet, so both requires two. A hit makes that snake harmless only for the shooter’s next three dice rolls; the countdown advances on that player’s rolls, not the opponent’s.
 
-**Why:** The user asked to finish these mechanics in the browser game before aligning the native version. The shooter-scoped stun is the interpretation of “next 3 dice” used for the current implementation.
+**Why:** The user reiterated the exact-room requirement with room 6: stopping on 6 rewards a bullet; crossing 6 and continuing does not. Firing must remain at gun rooms, with single-target and both-target aiming restricted by available bullets. The shooter-scoped stun is the interpretation of “next 3 dice” used for the current implementation.
 
 **How to apply:** Keep the browser version as the reference. During the later mobile port, copy the same inventory, firing, and per-player countdown rules before restoring full cross-platform parity.
+
+## Required animation visibility
+
+Do not rely on a timed smooth scroll to make short gameplay effects visible. Position the viewport synchronously before starting a shot, or explicitly wait for scrolling to finish.
+
+**Why:** Browser checks found that smooth scrolling could leave the upper-board snake targets offscreen for the entire short firing animation, despite correctly resolving the shot. Direct instant document scrolling made the target area visible.
+
+**How to apply:** When controls and action areas are separated on narrow screens, establish visibility before playing a short animation and restore the controls afterward.
+
+## Snake and ladder movement
+
+Snake slides and ladder climbs should be visibly slower and playful, with gentle panda wobble or bounce rather than near-instant jumps.
+
+**Why:** The user said the snake-bite and ladder-climb effects were too fast and requested a slower, cute animation.
+
+**How to apply:** Keep visual motion and turn-completion timing synchronized in both versions, while respecting reduced-motion settings.

@@ -8,6 +8,7 @@ import {
   repairLegacyGame,
   resolveTurn,
   shootSnake,
+  shootSnakes,
 } from "./game-engine.ts";
 
 function at(position, keys = 0) {
@@ -28,7 +29,7 @@ test("keys remain collectible but no longer affect gate movement", () => {
   assert.equal(turn.state.players[0].position, 17);
   assert.deepEqual(turn.state.players[0].unlockedGates, []);
   assert.equal(turn.state.players[0].keys, 1);
-  assert.equal(turn.state.players[0].bullets, 1);
+  assert.equal(turn.state.players[0].bullets, 0);
 
   const noKey = resolveTurn(at(15), 3);
   assert.deepEqual(noKey.path, [16, 17, 18]);
@@ -74,7 +75,7 @@ test("the movement path ends at the correct ladder and snake destinations", () =
   assert.equal(ladder.effect, "ladder");
   assert.equal(ladder.state.players[0].position, 28);
   assert.equal(ladder.state.players[0].keys, 2);
-  assert.equal(ladder.state.players[0].bullets, 1);
+  assert.equal(ladder.state.players[0].bullets, 0);
 
   const snake = resolveTurn(at(35, 1), 1);
   assert.deepEqual(snake.path, [36]);
@@ -84,13 +85,40 @@ test("the movement path ends at the correct ladder and snake destinations", () =
   assert.equal(snake.state.players[0].bullets, 1);
 });
 
-test("ammo pickups include ladder routes and never exceed five bullets", () => {
+test("bullets are collected only on the final landing, not when crossing or climbing", () => {
+  assert.equal(resolveTurn(at(5), 2).state.players[0].bullets, 0);
+  assert.equal(resolveTurn(at(5), 1).state.players[0].bullets, 1);
   const ladder = resolveTurn(at(45), 1);
   assert.equal(ladder.effect, "ladder");
   assert.equal(ladder.state.players[0].position, 66);
-  assert.equal(ladder.state.players[0].bullets, 2);
+  assert.equal(ladder.state.players[0].bullets, 0);
   assert.equal(ladder.state.players[0].keys, 1);
+  assert.equal(resolveTurn(at(58), 1).state.players[0].bullets, 0);
+});
 
+test("room 6 grants a bullet only when the panda stops exactly on 6", () => {
+  for (const [position, roll, destination, bullets] of [
+    [0, 6, 6, 1],
+    [5, 1, 6, 1],
+    [4, 3, 7, 0],
+    [5, 2, 7, 0],
+    [5, 6, 11, 0],
+  ]) {
+    const player = resolveTurn(at(position), roll).state.players[0];
+    assert.equal(player.position, destination);
+    assert.equal(player.bullets, bullets, `Starting ${position}, rolling ${roll}`);
+  }
+});
+
+test("all bullet rooms including 61 and 77 grant ammo when the panda stops there", () => {
+  for (const square of [6, 12, 25, 38, 63, 89, 61, 77]) {
+    assert.equal(resolveTurn(at(square - 1), 1).state.players[0].bullets, 1);
+  }
+  assert.equal(resolveTurn(at(98), 1).state.players[0].bullets, 1); // Snake ends at 61.
+  assert.equal(resolveTurn(at(97), 1).state.players[0].bullets, 1); // Snake ends at 77.
+});
+
+test("ammo never exceeds five bullets", () => {
   const almostFull = at(5);
   almostFull.players[0].bullets = MAX_BULLETS - 1;
   const pickup = resolveTurn(almostFull, 1);
@@ -137,6 +165,45 @@ test("a gun point pauses the turn until the player shoots or passes", () => {
   assert.deepEqual(passed.players[0].snakeStuns, { 98: 0, 99: 0 });
   assert.equal(passed.currentPlayerIndex, 1);
   assert.equal(passed.turnNumber, 2);
+});
+
+test("crossing gun rooms does not enable firing, and old off-gun choices resume safely", () => {
+  const armed = at(93);
+  armed.players[0].bullets = 2;
+  const crossing = resolveTurn(armed, 6);
+  assert.deepEqual(crossing.path, [94, 95, 96, 97, 98, 99]);
+  assert.equal(crossing.state.players[0].position, 61);
+  assert.equal(crossing.state.pendingFireForPlayerId, null);
+  assert.equal(crossing.state.currentPlayerIndex, 1);
+
+  armed.players[0].position = 61;
+  armed.pendingFireForPlayerId = armed.players[0].id;
+  assert.throws(() => shootSnake(armed, 98), /only from a gun room/);
+  const repaired = repairLegacyGame(armed);
+  assert.equal(repaired.pendingFireForPlayerId, null);
+  assert.equal(repaired.currentPlayerIndex, 1);
+  assert.equal(repaired.players[0].position, 61);
+});
+
+test("one bullet allows one snake; aiming at both costs two bullets", () => {
+  const oneBullet = at(93);
+  oneBullet.players[0].bullets = 1;
+  const singleChoice = resolveTurn(oneBullet, 1).state;
+  assert.throws(() => shootSnakes(singleChoice, [98, 99]), /one bullet per target/);
+  const single = shootSnakes(singleChoice, [98]);
+  assert.equal(single.players[0].bullets, 0);
+  assert.deepEqual(single.players[0].snakeStuns, { 98: 3, 99: 0 });
+
+  const twoBullets = at(93);
+  twoBullets.players[0].bullets = 2;
+  const bothChoice = resolveTurn(twoBullets, 1).state;
+  const both = shootSnakes(bothChoice, [98, 99]);
+  assert.equal(both.players[0].bullets, 0);
+  assert.deepEqual(both.players[0].snakeStuns, { 98: 3, 99: 3 });
+  assert.deepEqual(both.players[1].snakeStuns, { 98: 0, 99: 0 });
+  assert.equal(both.pendingFireForPlayerId, null);
+  assert.equal(both.currentPlayerIndex, 1);
+  assert.throws(() => shootSnakes(bothChoice, [98, 98]), /once each/);
 });
 
 test("a shot protects only its shooter for the next three of their dice rolls", () => {

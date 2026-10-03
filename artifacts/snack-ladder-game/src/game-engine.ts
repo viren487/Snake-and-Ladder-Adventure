@@ -90,8 +90,18 @@ export type TurnResolution = {
 
 /** Upgrade older rounds that had no record of opened gates or missed key tiles. */
 export function repairLegacyGame(state: GameState): GameState {
+  const pendingShooter = state.players.find((player) => player.id === state.pendingFireForPlayerId);
+  const validPendingShot = pendingShooter &&
+    (GUN_SQUARES as readonly number[]).includes(pendingShooter.position);
+  const nextPlayerIndex = state.pendingFireForPlayerId && !validPendingShot
+    ? (state.currentPlayerIndex + 1) % state.players.length
+    : state.currentPlayerIndex;
   return {
     ...state,
+    currentPlayerIndex: nextPlayerIndex,
+    message: state.pendingFireForPlayerId && !validPendingShot
+      ? `${state.players[nextPlayerIndex].name} is up next. Fire is available only from a gun room.`
+      : state.message,
     players: state.players.map((player) => {
       const legacy = player.unlockedGates === undefined;
       const unlockedGates = legacy
@@ -119,7 +129,7 @@ export function repairLegacyGame(state: GameState): GameState {
         },
       };
     }) as [Player, Player],
-    pendingFireForPlayerId: state.pendingFireForPlayerId ?? null,
+    pendingFireForPlayerId: validPendingShot ? state.pendingFireForPlayerId : null,
   };
 }
 
@@ -148,11 +158,13 @@ export function resolveTurn(state: GameState, roll: number): TurnResolution {
   let message: string;
   let winnerId: string | null = null;
   const originalSnakeStuns = { ...movingPlayer.snakeStuns };
-  const collectPickup = (square: number) => {
+  const collectKey = (square: number) => {
     if ((KEY_SQUARES as readonly number[]).includes(square)) {
       movingPlayer.keys += 1;
       keysFound += 1;
     }
+  };
+  const collectBullet = (square: number) => {
     if ((BULLET_PICKUP_SQUARES as readonly number[]).includes(square)) {
       if (movingPlayer.bullets < MAX_BULLETS) {
         movingPlayer.bullets += 1;
@@ -169,7 +181,7 @@ export function resolveTurn(state: GameState, roll: number): TurnResolution {
     for (let square = player.position + 1; square <= target; square += 1) {
       path.push(square);
       movingPlayer.position = square;
-      collectPickup(square);
+      collectKey(square);
     }
 
     message = `${player.name} moved to square ${movingPlayer.position}.`;
@@ -192,9 +204,9 @@ export function resolveTurn(state: GameState, roll: number): TurnResolution {
     } else if (ladder) {
       effect = "ladder";
       movingPlayer.position = ladder.to;
-      for (const pickupSquare of BULLET_PICKUP_SQUARES) {
+      for (const pickupSquare of KEY_SQUARES) {
         if (pickupSquare > ladder.from && pickupSquare <= ladder.to) {
-          collectPickup(pickupSquare);
+          collectKey(pickupSquare);
         }
       }
       message = `${player.name} climbed from ${ladder.from} to ${ladder.to}.`;
@@ -206,7 +218,9 @@ export function resolveTurn(state: GameState, roll: number): TurnResolution {
       message = `${player.name} hit the boom on square ${BOOM_SQUARE} and returned home.`;
     }
 
-    if (effect === "snake") collectPickup(movingPlayer.position);
+    if (effect === "snake") collectKey(movingPlayer.position);
+    // Ammo is earned only where the panda finally stops, not along its route.
+    collectBullet(movingPlayer.position);
     if (keysFound) message += ` Collected ${keysFound} torch key${keysFound === 1 ? "" : "s"}.`;
     if (bulletsFound) message += ` Picked up ${bulletsFound} bullet${bulletsFound === 1 ? "" : "s"}.`;
     if (ammoWasFull) message += ` Ammo is capped at ${MAX_BULLETS}.`;
@@ -220,9 +234,7 @@ export function resolveTurn(state: GameState, roll: number): TurnResolution {
   for (const snakeSquare of SHOOTABLE_SNAKE_SQUARES) {
     movingPlayer.snakeStuns[snakeSquare] = Math.max(0, originalSnakeStuns[snakeSquare] - 1);
   }
-  const reachedGun = path.some((square) =>
-    (GUN_SQUARES as readonly number[]).includes(square),
-  );
+  const reachedGun = target <= 100 && (GUN_SQUARES as readonly number[]).includes(movingPlayer.position);
   const canShootAnySnake = SHOOTABLE_SNAKE_SQUARES.some(
     (snakeSquare) => movingPlayer.snakeStuns[snakeSquare] === 0,
   );
@@ -231,7 +243,7 @@ export function resolveTurn(state: GameState, roll: number): TurnResolution {
       ? movingPlayer.id
       : null;
   if (pendingFireForPlayerId) {
-    message = `${player.name} reached a gun point. Aim at snake 98 or 99, or pass.`;
+    message = `${player.name} stopped in a gun room. Aim at snake 98, 99, or both with two bullets, or pass.`;
   }
 
   const nextState: GameState = {
@@ -259,33 +271,44 @@ function requirePendingShooter(state: GameState): [number, Player] {
     (player, index) => index === state.currentPlayerIndex && player.id === state.pendingFireForPlayerId,
   );
   if (playerIndex < 0) throw new Error("No player is waiting to fire.");
+  if (!(GUN_SQUARES as readonly number[]).includes(state.players[playerIndex].position)) {
+    throw new Error("You can fire only from a gun room.");
+  }
   return [playerIndex, state.players[playerIndex]];
 }
 
-/** Spend one bullet and protect this shooter from the chosen snake for their next three rolls. */
-export function shootSnake(state: GameState, snakeSquare: ShootableSnakeSquare): GameState {
-  if (!(SHOOTABLE_SNAKE_SQUARES as readonly number[]).includes(snakeSquare)) {
-    throw new RangeError("Aim at snake square 98 or 99.");
+/** Spend one bullet per target and protect the shooter for their next three rolls. */
+export function shootSnakes(state: GameState, snakeSquares: readonly ShootableSnakeSquare[]): GameState {
+  if (snakeSquares.length < 1 || snakeSquares.length > 2 ||
+    new Set(snakeSquares).size !== snakeSquares.length ||
+    snakeSquares.some((square) => !(SHOOTABLE_SNAKE_SQUARES as readonly number[]).includes(square))) {
+    throw new RangeError("Aim at snake 98, snake 99, or both once each.");
   }
   const [playerIndex, shooter] = requirePendingShooter(state);
-  if (shooter.bullets < 1) throw new Error("You need a bullet before firing.");
-  if (shooter.snakeStuns[snakeSquare] > 0) throw new Error("That snake is already stunned.");
+  if (shooter.bullets < snakeSquares.length) throw new Error("You need one bullet per target.");
+  if (snakeSquares.some((square) => shooter.snakeStuns[square] > 0)) {
+    throw new Error("That snake is already stunned.");
+  }
 
   const players = state.players.map((player) => ({
     ...player,
     snakeStuns: { ...emptySnakeStuns(), ...player.snakeStuns },
   })) as [Player, Player];
   const firingPlayer = players[playerIndex];
-  firingPlayer.bullets -= 1;
-  firingPlayer.snakeStuns[snakeSquare] = SNAKE_STUN_ROLLS;
+  firingPlayer.bullets -= snakeSquares.length;
+  for (const square of snakeSquares) firingPlayer.snakeStuns[square] = SNAKE_STUN_ROLLS;
   const nextPlayerIndex = (playerIndex + 1) % players.length;
   return {
     ...state,
     players,
     currentPlayerIndex: nextPlayerIndex,
     pendingFireForPlayerId: null,
-    message: `${firingPlayer.name} stunned the snake at ${snakeSquare} for their next ${SNAKE_STUN_ROLLS} rolls. ${players[nextPlayerIndex].name} is up next.`,
+    message: `${firingPlayer.name} stunned ${snakeSquares.length === 2 ? "both snakes at 98 and 99" : `the snake at ${snakeSquares[0]}`} for their next ${SNAKE_STUN_ROLLS} rolls, using ${snakeSquares.length} bullet${snakeSquares.length === 1 ? "" : "s"}. ${players[nextPlayerIndex].name} is up next.`,
   };
+}
+
+export function shootSnake(state: GameState, snakeSquare: ShootableSnakeSquare): GameState {
+  return shootSnakes(state, [snakeSquare]);
 }
 
 /** End the shooter's turn without spending a bullet. */
