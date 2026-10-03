@@ -15,8 +15,16 @@ import {
 const STORAGE_KEY = 'snack-ladder-adventure-v1';
 const EXTRA_BULLET_SQUARES = [61, 77] as const;
 const MYSTERY_BOX_SQUARES = [14, 35, 51, 76] as const;
-const MOVEMENT_STEP_DELAY_MS = 220;
+const MOVEMENT_STEP_DELAY_MS = 240;
 type WalkingPiece = { playerId: string; position: number };
+
+const SNAKE_ART: Record<string, string> = {
+  violet: new URL('./realistic-snake-violet.png', import.meta.url).href,
+  green: new URL('./realistic-snake-green.png', import.meta.url).href,
+  red: new URL('./realistic-snake-red.png', import.meta.url).href,
+  blue: new URL('./realistic-snake-blue.png', import.meta.url).href,
+  orange: new URL('./realistic-snake-orange.png', import.meta.url).href,
+};
 
 function readGame(): GameState {
   try {
@@ -129,79 +137,56 @@ function LadderArt({ from, to }: { from: number; to: number }) {
   );
 }
 
-function SnakeArt({ from, to, color, index }: { from: number; to: number; color: string; index: number }) {
+function SnakeArt({ from, to, color }: { from: number; to: number; color: string }) {
   const a = centerOf(from);
   const b = centerOf(to);
   const dx = b.x - a.x;
   const dy = b.y - a.y;
-  const bend = index % 2 ? 30 : -30;
-  const c1 = { x: a.x + dx * .28 + bend, y: a.y + dy * .22 };
-  const c2 = { x: a.x + dx * .72 - bend, y: a.y + dy * .78 };
-  const d = `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`;
-  const palettes: Record<string, { base: string; light: string; shade: string; belly: string }> = {
-    violet: { base: '#74309d', light: '#d3a0ea', shade: '#32154d', belly: '#d9b6c9' },
-    green: { base: '#267747', light: '#a6d17a', shade: '#123b2a', belly: '#c4d1a0' },
-    red: { base: '#b63232', light: '#f0a06b', shade: '#541d26', belly: '#e5c097' },
-    blue: { base: '#176da6', light: '#80c9df', shade: '#12304b', belly: '#bfd3c8' },
-    orange: { base: '#ba601f', light: '#ffd27d', shade: '#5a2d1b', belly: '#e8c08c' },
-  };
-  const palette = palettes[color] || palettes.violet;
-  const outlinePoints = Array.from({ length: 33 }, (_, i) => {
-    const t = i / 32;
-    const u = 1 - t;
-    const x = u ** 3 * a.x + 3 * u ** 2 * t * c1.x + 3 * u * t ** 2 * c2.x + t ** 3 * b.x;
-    const y = u ** 3 * a.y + 3 * u ** 2 * t * c1.y + 3 * u * t ** 2 * c2.y + t ** 3 * b.y;
-    const tx = 3 * u ** 2 * (c1.x - a.x) + 6 * u * t * (c2.x - c1.x) + 3 * t ** 2 * (b.x - c2.x);
-    const ty = 3 * u ** 2 * (c1.y - a.y) + 6 * u * t * (c2.y - c1.y) + 3 * t ** 2 * (b.y - c2.y);
-    const length = Math.hypot(tx, ty) || 1;
-    const radius = 1.8 + 7.2 * (1 - t ** 3);
-    const nx = -ty / length;
-    const ny = tx / length;
-    return {
-      upper: `${x + nx * radius} ${y + ny * radius}`,
-      lower: `${x - nx * radius} ${y - ny * radius}`,
-    };
-  });
-  const silhouette = `M ${outlinePoints[0].upper} ${outlinePoints.slice(1).map(point => `L ${point.upper}`).join(' ')} ${outlinePoints.slice(0, -1).reverse().map(point => `L ${point.lower}`).join(' ')} Z`;
-  const skinId = `snake-scales-${from}`;
-  const glossId = `snake-gloss-${from}`;
-  const headRotation = Math.atan2(dy, dx) * 180 / Math.PI;
+  const length = Math.hypot(dx, dy);
+  const width = Math.min(72, Math.max(42, length * .12));
+  const rotation = Math.atan2(-dx, dy) * 180 / Math.PI;
   return (
-    <g data-testid={`snake-art-${from}-${to}`}>
-      <defs>
-        <pattern id={skinId} width="12" height="10" patternUnits="userSpaceOnUse">
-          <rect width="12" height="10" fill={palette.base} />
-          <path d="M-3 0 Q2 5 7 0 M3 5 Q8 10 13 5" fill="none" stroke={palette.shade} strokeWidth="1.1" opacity=".62" />
-          <path d="M-2 1 Q2 4 6 1 M4 6 Q8 9 12 6" fill="none" stroke={palette.light} strokeWidth=".8" opacity=".72" />
-        </pattern>
-        <linearGradient id={glossId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={palette.light} stopOpacity=".76" />
-          <stop offset=".34" stopColor={palette.light} stopOpacity=".18" />
-          <stop offset=".62" stopColor={palette.shade} stopOpacity=".06" />
-          <stop offset="1" stopColor={palette.shade} stopOpacity=".55" />
-        </linearGradient>
-      </defs>
-      <path d={silhouette} fill={`url(#${skinId})`} stroke={palette.shade} strokeWidth="2.6" className="snake-silhouette" />
-      <path d={silhouette} fill={`url(#${glossId})`} className="snake-glaze" />
-      <path d={d} className="snake-back-highlight" />
-      <g transform={`translate(${a.x} ${a.y}) rotate(${headRotation})`}>
-        <path
-          className="snake-head"
-          d="M-17 0 C-14-6-8-9 0-8 C8-8 15-5 20 0 C14 5 7 8-1 8 C-9 8-14 5-17 0Z"
-          fill={`url(#${glossId})`}
-          style={{ color: palette.base, stroke: palette.shade }}
-        />
-        <path d="M-11 2 Q0 6 13 2" className="snake-jaw" stroke={palette.belly} />
-        <path d="M-7-4 Q-3-7 2-5 M3-5 Q7-7 11-3" className="snake-brow" stroke={palette.shade} />
-        <ellipse cx="-2" cy="-5" rx="2.5" ry="1.4" className="snake-eye" />
-        <ellipse cx="5" cy="5" rx="2.2" ry="1.2" className="snake-eye" />
-        <ellipse cx="-2" cy="-5" rx=".65" ry="1.25" className="snake-pupil" />
-        <ellipse cx="5" cy="5" rx=".6" ry="1.1" className="snake-pupil" />
-        <circle cx="-13" cy="-2" r=".9" className="snake-nostril" />
-        <circle cx="-13" cy="2" r=".7" className="snake-nostril" />
-        <path d="M-16 0 Q-22 1-26-2 M-22 1l-4 4" className="snake-tongue" />
-      </g>
+    <g data-testid={`snake-art-${from}-${to}`} transform={`translate(${a.x} ${a.y}) rotate(${rotation})`}>
+      <image
+        className="snake-photo"
+        href={SNAKE_ART[color] || SNAKE_ART.violet}
+        x={-width / 2}
+        y="0"
+        width={width}
+        height={length}
+        preserveAspectRatio="none"
+      />
     </g>
+  );
+}
+
+function PandaToken({ color, hopping }: { color: 'blue' | 'coral'; hopping: boolean }) {
+  const scarf = color === 'blue' ? '#25a9df' : '#f06e50';
+  const scarfShade = color === 'blue' ? '#0879ad' : '#c44839';
+  return (
+    <svg className={`panda-token ${hopping ? 'panda-token-hopping' : ''}`} viewBox="0 0 52 62" aria-hidden="true">
+      <ellipse cx="26" cy="57" rx="14" ry="3" fill="#10151b" opacity=".4" />
+      <ellipse cx="26" cy="47" rx="15" ry="11" fill={scarf} stroke="#473523" strokeWidth="1.5" />
+      <path d="M13 44q13 8 26 0v6q-13 9-26 0Z" fill={scarfShade} />
+      <path d="m35 48 8 5-7 3-4-7Z" fill={scarf} stroke="#473523" strokeWidth="1" strokeLinejoin="round" />
+      <circle cx="12" cy="17" r="8" fill="#24252a" />
+      <circle cx="40" cy="17" r="8" fill="#24252a" />
+      <circle cx="12" cy="17" r="3.2" fill="#efb7ad" />
+      <circle cx="40" cy="17" r="3.2" fill="#efb7ad" />
+      <path d="M8 28c0-12 7-20 18-20s18 8 18 20c0 11-7 18-18 18S8 39 8 28Z" fill="#fff7e8" stroke="#55412f" strokeWidth="1.5" />
+      <ellipse cx="17" cy="26" rx="5.6" ry="7.3" fill="#28282b" transform="rotate(18 17 26)" />
+      <ellipse cx="35" cy="26" rx="5.6" ry="7.3" fill="#28282b" transform="rotate(-18 35 26)" />
+      <circle cx="18.4" cy="25.8" r="2.3" fill="#fffdf5" />
+      <circle cx="33.6" cy="25.8" r="2.3" fill="#fffdf5" />
+      <circle cx="18.8" cy="26" r="1.3" fill="#18191c" />
+      <circle cx="33.2" cy="26" r="1.3" fill="#18191c" />
+      <ellipse cx="26" cy="34" rx="8.2" ry="5.7" fill="#fffdf5" stroke="#dfd5c5" strokeWidth=".7" />
+      <path d="M23 32q3-2 6 0-1.5 3.2-3 3.2T23 32Z" fill="#352724" />
+      <path d="M26 35v2.2q-2.2 2.3-4.2.2m4.2-.2q2.2 2.3 4.2.2" fill="none" stroke="#43312a" strokeWidth="1.2" strokeLinecap="round" />
+      <circle cx="12" cy="35" r="2" fill="#ee9989" opacity=".65" />
+      <circle cx="40" cy="35" r="2" fill="#ee9989" opacity=".65" />
+      <path d="M20 44q6 2 12 0" fill="none" stroke="#fff9e9" strokeWidth="1.4" opacity=".8" />
+    </svg>
   );
 }
 
@@ -232,21 +217,25 @@ function Board({ game, walking }: { game: GameState; walking: WalkingPiece | nul
     );
   }), []);
   const pieceStyle = (position: number, playerIndex: number) => {
-    const point = position > 0 ? centerOf(position) : { x: 24, y: 948 };
-    const player = game.players[playerIndex];
+    const point = position > 0 ? centerOf(position) : { x: 70, y: 948 };
     const stacked = game.players.some((other, index) => index !== playerIndex && other.position === position);
+    const offsetX = stacked ? playerIndex === 0 ? -8 : 8 : 0;
+    const offsetY = stacked ? playerIndex === 0 ? -5 : 5 : 0;
     return {
-      left: `${point.x / 10}%`,
-      top: `${point.y / 10}%`,
-      ...(stacked ? { marginLeft: playerIndex === 0 ? '-8%' : '8%', marginTop: playerIndex === 0 ? '-7%' : '7%' } : {}),
+      left: offsetX
+        ? `calc(${point.x / 10}% ${offsetX < 0 ? '-' : '+'} ${Math.abs(offsetX)}px)`
+        : `${point.x / 10}%`,
+      top: offsetY
+        ? `calc(${point.y / 10}% ${offsetY < 0 ? '-' : '+'} ${Math.abs(offsetY)}px)`
+        : `${point.y / 10}%`,
     };
   };
   return (
     <div className="board-wrap" data-testid="game-board">
       <div className="board-inner">
         <div className="board-grid">{cells}</div>
-        <svg className="board-svg" viewBox="0 0 1000 1000" aria-label="Illustrated snakes and ladders">
-          {SNAKES.map((snake, index) => <SnakeArt key={snake.from} from={snake.from} to={snake.to} color={snake.color} index={index} />)}
+        <svg className="board-svg" viewBox="0 0 1000 1000" aria-label="Photorealistic snakes and ladders">
+          {SNAKES.map(snake => <SnakeArt key={snake.from} from={snake.from} to={snake.to} color={snake.color} />)}
           {LADDERS.map(ladder => <LadderArt key={ladder.from} from={ladder.from} to={ladder.to} />)}
         </svg>
         <div className="crown-tile" data-testid="goal-crown" aria-label="Finish at square 100">
@@ -256,14 +245,21 @@ function Board({ game, walking }: { game: GameState; walking: WalkingPiece | nul
         {game.players.map((player, index) => {
           const position = walking?.playerId === player.id ? walking.position : player.position;
           const stacked = game.players.some((other, otherIndex) => otherIndex !== index && other.position === position);
+          const hopping = walking?.playerId === player.id;
           return (
             <div
               key={player.id}
-              className={`board-piece ${player.color === 'blue' ? 'blue-piece' : 'coral-piece'} ${stacked ? 'stacked' : ''}`}
+              className={`board-piece ${stacked ? 'stacked' : ''}`}
               style={pieceStyle(position, index)}
               data-testid={`piece-${player.id}`}
               aria-label={`${player.name} on square ${position || 'home'}`}
-            >{index + 1}</div>
+            >
+              <PandaToken
+                key={hopping ? `step-${position}` : `idle-${position}`}
+                color={player.color}
+                hopping={hopping}
+              />
+            </div>
           );
         })}
       </div>
