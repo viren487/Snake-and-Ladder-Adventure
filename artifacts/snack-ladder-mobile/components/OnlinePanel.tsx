@@ -55,6 +55,16 @@ export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, on
   }
 
   if (!room) {
+    if (!process.env.EXPO_PUBLIC_DOMAIN) {
+      return (
+        <View style={card} testID="online-unavailable">
+          <Text style={[styles.title, { color: colors.foreground }]}>Offline APK</Text>
+          <Text style={[styles.copy, { color: colors.mutedForeground }]}>
+            Local and Pass &amp; Play are available. For online rooms, build the APK again with a published backend URL.
+          </Text>
+        </View>
+      );
+    }
     const join = () => {
       if (code.length !== 6) { setLocalErr("Room codes have 6 letters or digits."); return; }
       setLocalErr(null);

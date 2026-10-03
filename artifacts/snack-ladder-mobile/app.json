@@ -16,6 +16,7 @@
       "supportsTablet": false
     },
     "android": {
+      "package": "com.snackladder.mobile",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#131a25"

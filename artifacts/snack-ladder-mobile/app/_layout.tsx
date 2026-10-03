@@ -4,7 +4,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
+// Offline APKs have no server; the panel explicitly disables creating online rooms.
+// Reserved .invalid also prevents relative API requests if an older saved seat exists.
+setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN || 'offline.invalid'}`);
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import {
   Nunito_400Regular,
