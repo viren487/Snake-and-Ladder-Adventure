@@ -6,25 +6,12 @@ import {
   squareAt,
   SNAKES,
   LADDERS,
-  BOOM_SQUARE,
   KEY_SQUARES,
   LOCKED_SQUARES,
   type GameState,
 } from './game-engine';
 
 const STORAGE_KEY = 'snack-ladder-adventure-v1';
-const EXTRA_BULLET_SQUARES = [61, 77] as const;
-const MYSTERY_BOX_SQUARES = [14, 35, 51, 76] as const;
-const MOVEMENT_STEP_DELAY_MS = 240;
-type WalkingPiece = { playerId: string; position: number };
-
-const SNAKE_ART: Record<string, string> = {
-  violet: new URL('./realistic-snake-violet.png', import.meta.url).href,
-  green: new URL('./realistic-snake-green.png', import.meta.url).href,
-  red: new URL('./realistic-snake-red.png', import.meta.url).href,
-  blue: new URL('./realistic-snake-blue.png', import.meta.url).href,
-  orange: new URL('./realistic-snake-orange.png', import.meta.url).href,
-};
 
 function readGame(): GameState {
   try {
@@ -48,58 +35,12 @@ function centerOf(square: number) {
   return { x: 50, y: 950 };
 }
 
-function BulletIcon({ square }: { square: number }) {
+function KeyIcon() {
   return (
-    <svg viewBox="0 0 48 48" aria-hidden="true" className="bullet-glyph" data-testid={`bullet-square-${square}`}>
-      <path d="M24 5C18 12 14 18 14 25v8h20v-8C34 18 30 12 24 5Z" fill="#dce6e9" stroke="#59401d" strokeWidth="2.5" />
-      <path d="M14 27h20v8H14z" fill="#e3a934" stroke="#59401d" strokeWidth="2" />
-      <path d="M16 31h16" stroke="#fff0ad" strokeWidth="2" strokeLinecap="round" />
-      <path d="M21 14c1-2 2-4 3-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" opacity=".8" />
-    </svg>
-  );
-}
-
-function MysteryBoxIcon({ square }: { square: number }) {
-  return (
-    <svg viewBox="0 0 56 56" aria-hidden="true" className="mystery-box-glyph" data-testid={`mystery-box-square-${square}`}>
-      <path d="M7 18 28 7l21 11-21 12Z" fill="#f5c85b" stroke="#53351e" strokeWidth="2.2" strokeLinejoin="round" />
-      <path d="M7 18 28 30v21L7 39Z" fill="#a34e9d" stroke="#53351e" strokeWidth="2.2" strokeLinejoin="round" />
-      <path d="M49 18 28 30v21l21-12Z" fill="#633b91" stroke="#3a2852" strokeWidth="2.2" strokeLinejoin="round" />
-      <path d="M25 9 30 11v38l-5 2Z" fill="#f4d374" opacity=".94" />
-      <path d="M8 18 28 29l20-11" fill="none" stroke="#ffe6a1" strokeWidth="2" />
-      <text x="38.5" y="43" textAnchor="middle" fill="#fff0a7" stroke="#482d62" strokeWidth=".7" paintOrder="stroke" fontSize="15" fontWeight="900" fontFamily="Fredoka, sans-serif">?</text>
-    </svg>
-  );
-}
-
-function GunIcon() {
-  return (
-    <svg viewBox="0 0 64 48" aria-hidden="true" className="gun-glyph">
-      <path d="M7 14q0-4 4-4h29l19 5v10H37l-5 5h-3l-5 12H12l4-15-7-3q-2-1-2-4Z" fill="#3d4550" stroke="#24232a" strokeWidth="2.5" strokeLinejoin="round" />
-      <path d="M13 13h27l13 4H17Z" fill="#d5aa4b" stroke="#63451f" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M27 29h10l-5 10h-9Z" fill="#9a5b32" stroke="#50351f" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M29 25v3q0 5 6 4" fill="none" stroke="#e8d6a5" strokeWidth="1.8" strokeLinecap="round" />
-      <circle cx="13" cy="18" r="1.5" fill="#f4cc69" />
-    </svg>
-  );
-}
-
-function BoomIcon() {
-  return (
-    <svg viewBox="0 0 64 64" aria-hidden="true" className="boom-glyph" data-testid={`boom-square-${BOOM_SQUARE}`}>
-      <defs>
-        <radialGradient id="boom-bomb-shell" cx="32%" cy="26%" r="76%">
-          <stop offset="0" stopColor="#55575d" />
-          <stop offset=".38" stopColor="#292a2f" />
-          <stop offset="1" stopColor="#090a0d" />
-        </radialGradient>
-      </defs>
-      <circle cx="29" cy="39" r="19" fill="url(#boom-bomb-shell)" stroke="#101115" strokeWidth="2.5" />
-      <ellipse cx="21" cy="29" rx="6.5" ry="3.5" fill="#8a8d91" opacity=".55" transform="rotate(-34 21 29)" />
-      <path d="M42 25 49 16" fill="none" stroke="#17181c" strokeWidth="6" strokeLinecap="round" />
-      <path d="M47 17q1-7 7-8" fill="none" stroke="#765338" strokeWidth="3.5" strokeLinecap="round" />
-      <path d="m55 3 1.6 4.2L61 9l-4 2.2-.5 4.6-3-3.2-4.4 1.2 2.4-3.9-2.4-3.9 4.5 1z" fill="#ffd34e" stroke="#e77b28" strokeWidth="1.4" strokeLinejoin="round" />
-      <circle cx="51" cy="9" r="1.2" fill="#fff4b0" />
+    <svg viewBox="0 0 48 48" aria-hidden="true" className="key-glyph">
+      <circle cx="16" cy="17" r="8" fill="none" stroke="currentColor" strokeWidth="5" />
+      <path d="M22 22 40 40m-7-7 5-5m-10 0 5-5" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="m8 11 4-4" stroke="#fff2b2" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -137,78 +78,44 @@ function LadderArt({ from, to }: { from: number; to: number }) {
   );
 }
 
-function SnakeArt({ from, to, color }: { from: number; to: number; color: string }) {
+function SnakeArt({ from, to, color, index }: { from: number; to: number; color: string; index: number }) {
   const a = centerOf(from);
   const b = centerOf(to);
   const dx = b.x - a.x;
   const dy = b.y - a.y;
-  const length = Math.hypot(dx, dy);
-  const width = Math.min(72, Math.max(42, length * .12));
-  const rotation = Math.atan2(-dx, dy) * 180 / Math.PI;
+  const bend = index % 2 ? 30 : -30;
+  const d = `M ${a.x} ${a.y} C ${a.x + dx * .28 + bend} ${a.y + dy * .22}, ${a.x + dx * .72 - bend} ${a.y + dy * .78}, ${b.x} ${b.y}`;
+  const colors: Record<string, string> = { violet: '#9951d4', green: '#43ae4b', red: '#eb4b3e', blue: '#278de3', orange: '#ed9129' };
+  const fill = colors[color] || '#7d5bce';
   return (
-    <g data-testid={`snake-art-${from}-${to}`} transform={`translate(${a.x} ${a.y}) rotate(${rotation})`}>
-      <image
-        className="snake-photo"
-        href={SNAKE_ART[color] || SNAKE_ART.violet}
-        x={-width / 2}
-        y="0"
-        width={width}
-        height={length}
-        preserveAspectRatio="none"
-      />
+    <g data-testid={`snake-art-${from}-${to}`}>
+      <path d={d} className="snake-body" stroke={fill} />
+      <path d={d} className="snake-highlight" />
+      <g transform={`translate(${a.x} ${a.y}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI + 90})`}>
+        <ellipse className="snake-head" cx="0" cy="0" rx="12" ry="11" fill={fill} />
+        <ellipse className="snake-eye" cx="-4" cy="-3" rx="3.2" ry="3.7" />
+        <ellipse className="snake-eye" cx="4" cy="-3" rx="3.2" ry="3.7" />
+        <circle className="snake-pupil" cx="-3.6" cy="-2.7" r="1.5" />
+        <circle className="snake-pupil" cx="4.4" cy="-2.7" r="1.5" />
+        <path d="M-3 5q3 3 6 0" fill="none" stroke="#fff4cd" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M-7-10l-3-5m17 5 3-5" stroke={fill} strokeWidth="3" strokeLinecap="round" />
+      </g>
     </g>
   );
 }
 
-function PandaToken({ color, hopping }: { color: 'blue' | 'coral'; hopping: boolean }) {
-  const scarf = color === 'blue' ? '#25a9df' : '#f06e50';
-  const scarfShade = color === 'blue' ? '#0879ad' : '#c44839';
-  return (
-    <svg className={`panda-token ${hopping ? 'panda-token-hopping' : ''}`} viewBox="0 0 52 62" aria-hidden="true">
-      <ellipse cx="26" cy="57" rx="14" ry="3" fill="#10151b" opacity=".4" />
-      <ellipse cx="26" cy="47" rx="15" ry="11" fill={scarf} stroke="#473523" strokeWidth="1.5" />
-      <path d="M13 44q13 8 26 0v6q-13 9-26 0Z" fill={scarfShade} />
-      <path d="m35 48 8 5-7 3-4-7Z" fill={scarf} stroke="#473523" strokeWidth="1" strokeLinejoin="round" />
-      <circle cx="12" cy="17" r="8" fill="#24252a" />
-      <circle cx="40" cy="17" r="8" fill="#24252a" />
-      <circle cx="12" cy="17" r="3.2" fill="#efb7ad" />
-      <circle cx="40" cy="17" r="3.2" fill="#efb7ad" />
-      <path d="M8 28c0-12 7-20 18-20s18 8 18 20c0 11-7 18-18 18S8 39 8 28Z" fill="#fff7e8" stroke="#55412f" strokeWidth="1.5" />
-      <ellipse cx="17" cy="26" rx="5.6" ry="7.3" fill="#28282b" transform="rotate(18 17 26)" />
-      <ellipse cx="35" cy="26" rx="5.6" ry="7.3" fill="#28282b" transform="rotate(-18 35 26)" />
-      <circle cx="18.4" cy="25.8" r="2.3" fill="#fffdf5" />
-      <circle cx="33.6" cy="25.8" r="2.3" fill="#fffdf5" />
-      <circle cx="18.8" cy="26" r="1.3" fill="#18191c" />
-      <circle cx="33.2" cy="26" r="1.3" fill="#18191c" />
-      <ellipse cx="26" cy="34" rx="8.2" ry="5.7" fill="#fffdf5" stroke="#dfd5c5" strokeWidth=".7" />
-      <path d="M23 32q3-2 6 0-1.5 3.2-3 3.2T23 32Z" fill="#352724" />
-      <path d="M26 35v2.2q-2.2 2.3-4.2.2m4.2-.2q2.2 2.3 4.2.2" fill="none" stroke="#43312a" strokeWidth="1.2" strokeLinecap="round" />
-      <circle cx="12" cy="35" r="2" fill="#ee9989" opacity=".65" />
-      <circle cx="40" cy="35" r="2" fill="#ee9989" opacity=".65" />
-      <path d="M20 44q6 2 12 0" fill="none" stroke="#fff9e9" strokeWidth="1.4" opacity=".8" />
-    </svg>
-  );
-}
-
-function Board({ game, walking }: { game: GameState; walking: WalkingPiece | null }) {
+function Board({ game }: { game: GameState }) {
   const cells = useMemo(() => Array.from({ length: 100 }, (_, i) => {
     const row = Math.floor(i / 10);
     const col = i % 10;
     const number = squareAt(row, col);
     const locked = (LOCKED_SQUARES as readonly number[]).includes(number);
     const key = (KEY_SQUARES as readonly number[]).includes(number);
-    const bullet = key || (EXTRA_BULLET_SQUARES as readonly number[]).includes(number);
-    const mysteryBox = (MYSTERY_BOX_SQUARES as readonly number[]).includes(number);
-    const gun = number === 94 || number === 95 || number === 96;
-    const boom = number === BOOM_SQUARE;
     const tone = locked ? 'locked' : key ? 'key-square' : number % 3 === 0 ? 'blue' : (row + col) % 2 === 0 ? 'green' : 'cream';
     return (
-      <div className={`board-cell ${tone} ${locked || key ? 'special' : ''}`} key={number} data-testid={`board-square-${number}`} aria-label={`Square ${number}${bullet ? key ? ', bullet pickup' : ', bullet' : ''}${mysteryBox ? ', mystery box' : ''}${gun ? ', gun' : ''}${boom ? ', boom trap' : ''}`}>
+      <div className={`board-cell ${tone} ${locked || key ? 'special' : ''}`} key={number} data-testid={`board-square-${number}`}>
         <span className="cell-number" data-testid={`square-number-${number}`}>{number}</span>
-        {bullet && <BulletIcon square={number} />}
-        {mysteryBox && <MysteryBoxIcon square={number} />}
-        {gun && <GunIcon />}
-        {boom && <BoomIcon />}
+        {key && <KeyIcon />}
         {locked && <>
           <span className="lock-caption">TORCH KEY<br />REQUIRED</span>
           <KeyRound className="locked-glyph" strokeWidth={2.2} />
@@ -217,51 +124,36 @@ function Board({ game, walking }: { game: GameState; walking: WalkingPiece | nul
     );
   }), []);
   const pieceStyle = (position: number, playerIndex: number) => {
-    const point = position > 0 ? centerOf(position) : { x: 70, y: 948 };
+    const point = position > 0 ? centerOf(position) : { x: 24, y: 948 };
+    const player = game.players[playerIndex];
     const stacked = game.players.some((other, index) => index !== playerIndex && other.position === position);
-    const offsetX = stacked ? playerIndex === 0 ? -8 : 8 : 0;
-    const offsetY = stacked ? playerIndex === 0 ? -5 : 5 : 0;
     return {
-      left: offsetX
-        ? `calc(${point.x / 10}% ${offsetX < 0 ? '-' : '+'} ${Math.abs(offsetX)}px)`
-        : `${point.x / 10}%`,
-      top: offsetY
-        ? `calc(${point.y / 10}% ${offsetY < 0 ? '-' : '+'} ${Math.abs(offsetY)}px)`
-        : `${point.y / 10}%`,
+      left: `${point.x / 10}%`,
+      top: `${point.y / 10}%`,
+      ...(stacked ? { marginLeft: playerIndex === 0 ? '-8%' : '8%', marginTop: playerIndex === 0 ? '-7%' : '7%' } : {}),
     };
   };
   return (
     <div className="board-wrap" data-testid="game-board">
       <div className="board-inner">
         <div className="board-grid">{cells}</div>
-        <svg className="board-svg" viewBox="0 0 1000 1000" aria-label="Photorealistic snakes and ladders">
-          {SNAKES.map(snake => <SnakeArt key={snake.from} from={snake.from} to={snake.to} color={snake.color} />)}
+        <svg className="board-svg" viewBox="0 0 1000 1000" aria-label="Illustrated snakes and ladders">
+          {SNAKES.map((snake, index) => <SnakeArt key={snake.from} from={snake.from} to={snake.to} color={snake.color} index={index} />)}
           {LADDERS.map(ladder => <LadderArt key={ladder.from} from={ladder.from} to={ladder.to} />)}
         </svg>
         <div className="crown-tile" data-testid="goal-crown" aria-label="Finish at square 100">
           <Crown />
           <span>100</span>
         </div>
-        {game.players.map((player, index) => {
-          const position = walking?.playerId === player.id ? walking.position : player.position;
-          const stacked = game.players.some((other, otherIndex) => otherIndex !== index && other.position === position);
-          const hopping = walking?.playerId === player.id;
-          return (
-            <div
-              key={player.id}
-              className={`board-piece ${stacked ? 'stacked' : ''}`}
-              style={pieceStyle(position, index)}
-              data-testid={`piece-${player.id}`}
-              aria-label={`${player.name} on square ${position || 'home'}`}
-            >
-              <PandaToken
-                key={hopping ? `step-${position}` : `idle-${position}`}
-                color={player.color}
-                hopping={hopping}
-              />
-            </div>
-          );
-        })}
+        {game.players.map((player, index) => (
+          <div
+            key={player.id}
+            className={`board-piece ${player.color === 'blue' ? 'blue-piece' : 'coral-piece'} ${game.players.some((other, i) => i !== index && other.position === player.position) ? 'stacked' : ''}`}
+            style={pieceStyle(player.position, index)}
+            data-testid={`piece-${player.id}`}
+            aria-label={`${player.name} on square ${player.position || 'home'}`}
+          >{index + 1}</div>
+        ))}
       </div>
       <svg className="home-roof" viewBox="0 0 100 75" aria-hidden="true">
         <path d="M6 42 50 7l44 35-8 9-36-28L14 51z" fill="#df4e36" stroke="#ffd77a" strokeWidth="5" strokeLinejoin="round" />
@@ -277,7 +169,6 @@ function App() {
   const [game, setGame] = useState<GameState>(readGame);
   const [rolling, setRolling] = useState(false);
   const [diceFace, setDiceFace] = useState<number | null>(game.lastRoll);
-  const [walking, setWalking] = useState<WalkingPiece | null>(null);
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(game)); } catch { /* Local play remains available without storage. */ }
@@ -286,46 +177,21 @@ function App() {
   const currentPlayer = game.players[game.currentPlayerIndex];
   const winner = game.players.find(player => player.id === game.winnerId);
 
-  const rollDice = async () => {
+  const rollDice = () => {
     if (rolling || game.winnerId) return;
     setRolling(true);
-    try {
-      const result = await new Promise<number>(resolve => {
-        let frames = 0;
-        const animation = window.setInterval(() => {
-          setDiceFace(1 + Math.floor(Math.random() * 6));
-          frames += 1;
-          if (frames >= 7) {
-            window.clearInterval(animation);
-            const settledRoll = 1 + Math.floor(Math.random() * 6);
-            setDiceFace(settledRoll);
-            resolve(settledRoll);
-          }
-        }, 85);
-      });
-
-      const player = game.players[game.currentPlayerIndex];
-      const destination = player.position + result;
-      const blockedByGate = player.keys === 0 && (LOCKED_SQUARES as readonly number[]).some(
-        square => square > player.position && square <= destination,
-      );
-
-      if (destination <= 100 && !blockedByGate) {
-        const firstStep = Math.max(1, player.position + 1);
-        const stepDelay = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-          ? 45
-          : MOVEMENT_STEP_DELAY_MS;
-        for (let position = firstStep; position <= destination; position += 1) {
-          setWalking({ playerId: player.id, position });
-          await new Promise<void>(resolve => window.setTimeout(resolve, stepDelay));
-        }
+    let frames = 0;
+    const animation = window.setInterval(() => {
+      setDiceFace(1 + Math.floor(Math.random() * 6));
+      frames += 1;
+      if (frames >= 7) {
+        window.clearInterval(animation);
+        const result = 1 + Math.floor(Math.random() * 6);
+        setDiceFace(result);
+        setGame(previous => playTurn(previous, result));
+        window.setTimeout(() => setRolling(false), 220);
       }
-
-      setGame(previous => playTurn(previous, result));
-    } finally {
-      setWalking(null);
-      window.setTimeout(() => setRolling(false), 220);
-    }
+    }, 85);
   };
 
   const startNewGame = () => {
@@ -351,7 +217,7 @@ function App() {
         </header>
 
         <div className="game-columns">
-          <Board game={game} walking={walking} />
+          <Board game={game} />
           <section className="side-panel" aria-label="Game controls and player status">
             <div className="turn-card">
               <div className="eyebrow" data-testid="turn-number">TURN {String(game.turnNumber).padStart(2, '0')}</div>

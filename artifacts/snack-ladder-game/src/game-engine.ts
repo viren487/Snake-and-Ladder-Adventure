@@ -33,7 +33,6 @@ export const LADDERS = [
 ] as const;
 
 export const KEY_SQUARES = [6, 12, 25, 38, 63, 89] as const;
-export const BOOM_SQUARE = 97 as const;
 export const LOCKED_SQUARES = [17, 44, 67] as const;
 
 export function createGame(): GameState {
@@ -111,11 +110,6 @@ export function playTurn(state: GameState, roll: number): GameState {
     } else if (ladder) {
       movingPlayer.position = ladder.to;
       message = `${player.name} climbed from ${ladder.from} to ${ladder.to}.`;
-    }
-
-    if (movingPlayer.position === BOOM_SQUARE) {
-      movingPlayer.position = 0;
-      message = `${player.name} hit the boom on square ${BOOM_SQUARE} and returned home.`;
     }
 
     if ((KEY_SQUARES as readonly number[]).includes(movingPlayer.position)) {
