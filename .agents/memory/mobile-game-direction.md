@@ -31,7 +31,15 @@ Key and crown progression follows the crown quest described in crown-quest.md; d
 
 **Why:** The user reiterated the exact-room requirement with room 6: stopping on 6 rewards a bullet; crossing 6 and continuing does not. Firing must remain at gun rooms, with single-target and both-target aiming restricted by available bullets. The shooter-scoped stun is the interpretation of “next 3 dice” used for the current implementation.
 
-**How to apply:** Keep the browser version as the reference. During the later mobile port, copy the same inventory, firing, and per-player countdown rules before restoring full cross-platform parity.
+**How to apply:** Keep the browser version as the reference and apply gameplay changes to both versions. Do not weaken cross-platform parity by ignoring inventory, firing, per-player countdowns, quest progress or turn messages.
+
+## Saved-round compatibility
+
+Older native rounds must retain players, positions, ammunition and turn progress. Preserve obsolete keys as history, not as crown keys. Do not grant retroactive ammunition from a saved position. If a save cannot be understood safely, preserve it and show an explicit warning rather than silently replacing it.
+
+**Why:** Aligning the two games should not erase an existing round or invent pickups that never occurred.
+
+**How to apply:** Default absent ammo, stun and quest fields when migrating; validate present fields before loading. Keep earlier save versions intact during upgrades.
 
 ## Required animation visibility
 

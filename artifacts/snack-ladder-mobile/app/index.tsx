@@ -21,30 +21,43 @@ import Animated, {
   useSharedValue,
   withSequence,
   withTiming,
+  withRepeat,
+  useReducedMotion,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useGameSounds } from "@/hooks/useGameSounds";
+import { isSavedGame } from "@/lib/saved-game";
+import { ShotAnimation, SHOT_DURATION_MS, type Shot } from "@/components/ShotAnimation";
 import {
   BOOM_SQUARE,
   KEY_SQUARES,
   LADDERS,
   LOCKED_SQUARES,
+  BULLET_PICKUP_SQUARES,
+  GUN_SQUARES,
+  MAX_BULLETS,
+  SHOOTABLE_SNAKE_SQUARES,
+  SNAKE_STUN_ROLLS,
   SNAKES,
   createGame,
   resolveTurn,
   repairLegacyGame,
+  shootSnakes,
+  passFire,
   squareAt,
   type GameState,
   type Player,
+  type ShootableSnakeSquare,
 } from "@/lib/game-engine";
 
-const STORAGE_KEY = "snack-ladder-adventure-v2";
-const LEGACY_STORAGE_KEY = "snack-ladder-adventure-v1";
-const EXTRA_BULLET_SQUARES = [61, 77] as const;
+const STORAGE_KEY = "snack-ladder-adventure-v4";
+const PREVIOUS_STORAGE_KEY = "snack-ladder-adventure-v3";
+const LEGACY_STORAGE_KEY = "snack-ladder-adventure-v2";
+const OLDEST_STORAGE_KEY = "snack-ladder-adventure-v1";
 const MYSTERY_BOX_SQUARES = [14, 35, 51, 76] as const;
-const GUN_SQUARES = [94, 95, 96] as const;
 const STEP_DELAY_MS = 270;
+const SPECIAL_MOVE_MS = { ladder: 2200, snake: 2000, boom: 700, torch: 1100, return: 1100 } as const;
 
 const PANDA_IMAGES = {
   blue: require("../assets/images/panda-token-blue.png"),
@@ -72,6 +85,7 @@ type WalkState = {
   playerId: string;
   position: number;
   isSpecialMove: boolean;
+  effect?: keyof typeof SPECIAL_MOVE_MS;
 };
 
 type Point = { x: number; y: number };
@@ -93,40 +107,6 @@ function getCellCenter(square: number, boardSize: number): Point {
   };
 }
 
-function isSavedGame(value: unknown): value is GameState {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<GameState>;
-  return (
-    Array.isArray(candidate.players) &&
-    candidate.players.length === 2 &&
-    candidate.players.every(
-      (player, index) =>
-        player &&
-        player.id === `player-${index + 1}` &&
-        typeof player.name === "string" &&
-        player.color === (index === 0 ? "blue" : "coral") &&
-        Number.isInteger(player.position) &&
-        player.position >= 0 &&
-        player.position <= 100 &&
-        Number.isInteger(player.keys) &&
-        player.keys >= 0 &&
-        (player.unlockedGates === undefined ||
-          (Array.isArray(player.unlockedGates) && player.unlockedGates.every(
-            (gate) => (LOCKED_SQUARES as readonly number[]).includes(gate),
-          ))),
-    ) &&
-    Number.isInteger(candidate.currentPlayerIndex) &&
-    (candidate.currentPlayerIndex === 0 || candidate.currentPlayerIndex === 1) &&
-    Number.isInteger(candidate.turnNumber) &&
-    candidate.turnNumber! >= 1 &&
-    (candidate.lastRoll === null ||
-      (Number.isInteger(candidate.lastRoll) && candidate.lastRoll! >= 1 && candidate.lastRoll! <= 6)) &&
-    (candidate.winnerId === null ||
-      candidate.players.some((player) => player.id === candidate.winnerId && player.position === 100)) &&
-    typeof candidate.message === "string"
-  );
-}
-
 function Token({
   player,
   index,
@@ -135,6 +115,7 @@ function Token({
   stacked,
   hopping,
   specialMove,
+  moveDuration,
 }: {
   player: Player;
   index: number;
@@ -143,6 +124,7 @@ function Token({
   stacked: boolean;
   hopping: boolean;
   specialMove: boolean;
+  moveDuration: number;
 }) {
   const cellSize = boardSize / 10;
   const tokenWidth = cellSize * 0.65;
@@ -156,9 +138,11 @@ function Token({
   const x = useSharedValue(targetX);
   const y = useSharedValue(targetY);
   const hop = useSharedValue(0);
+  const sway = useSharedValue(0);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
-    const duration = specialMove ? 540 : 250;
+    const duration = reducedMotion ? 0 : specialMove ? moveDuration : 250;
     x.value = withTiming(targetX, {
       duration,
       easing: Easing.out(Easing.cubic),
@@ -168,7 +152,16 @@ function Token({
       easing: Easing.out(Easing.cubic),
     });
 
-    if (hopping && !specialMove) {
+    if (hopping && specialMove && !reducedMotion) {
+      hop.value = withRepeat(withSequence(
+        withTiming(-cellSize * 0.1, { duration: 180 }),
+        withTiming(0, { duration: 180 }),
+      ), Math.ceil(duration / 360));
+      sway.value = withRepeat(withSequence(
+        withTiming(-5, { duration: 180 }),
+        withTiming(5, { duration: 180 }),
+      ), Math.ceil(duration / 360));
+    } else if (hopping && !specialMove && !reducedMotion) {
       hop.value = withSequence(
         withTiming(-cellSize * 0.2, { duration: 115, easing: Easing.out(Easing.cubic) }),
         withTiming(0, { duration: 155, easing: Easing.inOut(Easing.cubic) }),
@@ -176,12 +169,14 @@ function Token({
     } else {
       hop.value = withTiming(0, { duration: 120 });
     }
-  }, [cellSize, hopping, specialMove, targetX, targetY, x, y, hop]);
+    if (!specialMove || !hopping) sway.value = withTiming(0, { duration: 120 });
+  }, [cellSize, hopping, specialMove, moveDuration, reducedMotion, targetX, targetY, x, y, hop, sway]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: x.value },
       { translateY: y.value + hop.value },
+      { rotate: `${sway.value}deg` },
     ],
   }));
 
@@ -314,10 +309,12 @@ function Board({
   game,
   walking,
   size,
+  shot,
 }: {
   game: GameState;
   walking: WalkState | null;
   size: number;
+  shot: Shot | null;
 }) {
   const colors = useColors();
   const cellSize = size / 10;
@@ -329,7 +326,7 @@ function Board({
         const number = squareAt(row, column);
         const locked = (LOCKED_SQUARES as readonly number[]).includes(number);
         const keySquare = (KEY_SQUARES as readonly number[]).includes(number);
-        const bullet = (EXTRA_BULLET_SQUARES as readonly number[]).includes(number);
+        const bullet = (BULLET_PICKUP_SQUARES as readonly number[]).includes(number);
         const mystery = (MYSTERY_BOX_SQUARES as readonly number[]).includes(number);
         const gun = (GUN_SQUARES as readonly number[]).includes(number);
         const backgroundColor = locked
@@ -404,14 +401,13 @@ function Board({
                   {cell.locked && (
                     <View style={styles.cellMarker}>
                       <MaterialCommunityIcons
-                        name={game.players[game.currentPlayerIndex].unlockedGates?.includes(cell.number)
-                          ? "lock-open-variant" : "lock"}
+                        name={game.players[game.currentPlayerIndex].hasTorch ? "key-variant" : "lock"}
                         size={cellSize * 0.3}
                         color={colors.primaryForeground}
                       />
                     </View>
                   )}
-                  {cell.keySquare && (
+                  {cell.keySquare && !cell.locked && (
                     <View style={styles.cellMarker}>
                       <MaterialCommunityIcons name="key-variant" size={cellSize * 0.34} color={colors.primaryForeground} />
                     </View>
@@ -479,8 +475,15 @@ function Board({
             },
           ]}
           testID="goal-crown"
+          accessibilityLabel={game.players[game.currentPlayerIndex].crownKeyRoom !== null
+            ? "100: return with torch and key to claim the crown"
+            : "100: crown locked; first collect a torch, then a black-room key"}
         >
           <MaterialCommunityIcons name="crown" size={cellSize * 0.43} color={colors.primaryForeground} />
+          {game.players[game.currentPlayerIndex].crownKeyRoom === null && (
+            <MaterialCommunityIcons name={game.players[game.currentPlayerIndex].hasTorch ? "lock" : "flashlight"}
+              size={cellSize * 0.23} color={colors.primaryForeground} />
+          )}
           <Text style={[styles.goalNumber, { color: colors.primaryForeground, fontSize: cellSize * 0.22 }]}>100</Text>
         </View>
 
@@ -501,9 +504,20 @@ function Board({
               stacked={stacked}
               hopping={walking?.playerId === player.id}
               specialMove={walking?.playerId === player.id && walking.isSpecialMove}
+              moveDuration={walking?.effect ? SPECIAL_MOVE_MS[walking.effect] : 540}
             />
           );
         })}
+        {shot && <ShotAnimation from={getCellCenter(shot.from, size)}
+          targets={shot.targets.map((square) => ({ square, ...getCellCenter(square, size) }))} />}
+        {(walking?.effect === "torch" || walking?.effect === "return") && (
+          <View style={[styles.questPickup, { backgroundColor: colors.card }]} testID="quest-pickup">
+            <MaterialCommunityIcons name={walking.effect === "torch" ? "flashlight" : "lock"} size={24} color={colors.primary} />
+            <Text style={[styles.keyCountText, { color: colors.foreground }]}>
+              {walking.effect === "torch" ? "Torch collected! Returning Home" : "Find a black-room key. Returning Home"}
+            </Text>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -568,11 +582,24 @@ function PlayerRow({
         <Text style={[styles.playerPosition, { color: colors.mutedForeground }]}>
           {player.position ? `SQUARE ${player.position}` : "AT HOME"}
         </Text>
+        <Text style={[styles.playerPosition, { color: colors.mutedForeground }]} testID={`quest-${player.id}`}>
+          {player.hasTorch ? player.crownKeyRoom !== null ? `Torch · key from ${player.crownKeyRoom}` : "Torch · find a black-room key" : "Find torch at 100"}
+          {player.legacyKeys ? ` · Old keys: ${player.legacyKeys}` : ""}
+        </Text>
+        {SHOOTABLE_SNAKE_SQUARES.filter((square) => player.snakeStuns[square] > 0).map((square) => (
+          <Text key={square} style={[styles.playerPosition, { color: colors.primary }]} testID={`stun-${player.id}-${square}`}>
+            Snake {square}: {player.snakeStuns[square]} own rolls safe
+          </Text>
+        ))}
       </View>
       <View style={[styles.playerDot, { backgroundColor: playerColor }]} />
       <View style={[styles.keyCount, { backgroundColor: colors.muted }]}>
         <MaterialCommunityIcons name="key-variant" size={13} color={colors.primary} />
-        <Text style={[styles.keyCountText, { color: colors.foreground }]}>{player.keys}</Text>
+        <Text style={[styles.keyCountText, { color: colors.foreground }]}>{player.keys}/1</Text>
+      </View>
+      <View style={[styles.keyCount, { backgroundColor: colors.muted }]} testID={`ammo-${player.id}`}>
+        <MaterialCommunityIcons name="bullet" size={13} color={colors.primary} />
+        <Text style={[styles.keyCountText, { color: colors.foreground }]}>{player.bullets}/{MAX_BULLETS}</Text>
       </View>
     </View>
   );
@@ -583,12 +610,20 @@ export default function GameScreen() {
   const sounds = useGameSounds();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const reducedMotion = useReducedMotion();
   const [game, setGame] = useState<GameState>(createGame);
   const [hydrated, setHydrated] = useState(false);
   const [rolling, setRolling] = useState(false);
   const [diceFace, setDiceFace] = useState<number | null>(null);
   const [walking, setWalking] = useState<WalkState | null>(null);
   const [storageError, setStorageError] = useState(false);
+  const [saveBlocked, setSaveBlocked] = useState(false);
+  const [firing, setFiring] = useState(false);
+  const [shot, setShot] = useState<Shot | null>(null);
+  const [selectedTargets, setSelectedTargets] = useState<ShootableSnakeSquare[]>([]);
+  const scrollRef = useRef<ScrollView>(null);
+  const boardTop = useRef(0);
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const rollInFlight = useRef(false);
   const screenMounted = useRef(true);
   useEffect(() => {
@@ -601,17 +636,25 @@ export default function GameScreen() {
     const loadSavedGame = async () => {
       try {
         const currentSave = await AsyncStorage.getItem(STORAGE_KEY);
-        const saved = currentSave ?? await AsyncStorage.getItem(LEGACY_STORAGE_KEY);
+        const saved = currentSave ?? await AsyncStorage.getItem(PREVIOUS_STORAGE_KEY)
+          ?? await AsyncStorage.getItem(LEGACY_STORAGE_KEY)
+          ?? await AsyncStorage.getItem(OLDEST_STORAGE_KEY);
         if (!mounted) return;
         if (saved) {
           const parsed: unknown = JSON.parse(saved);
           if (isSavedGame(parsed)) {
             setGame(repairLegacyGame(parsed));
             setDiceFace(parsed.lastRoll);
+          } else {
+            setSaveBlocked(true);
+            setStorageError(true);
           }
         }
       } catch {
-        if (mounted) setStorageError(true);
+        if (mounted) {
+          setStorageError(true);
+          setSaveBlocked(true);
+        }
       } finally {
         if (mounted) setHydrated(true);
       }
@@ -624,9 +667,12 @@ export default function GameScreen() {
   }, []);
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || saveBlocked) return;
     let active = true;
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(game))
+    const serialized = JSON.stringify(game);
+    saveQueue.current = saveQueue.current.catch(() => undefined)
+      .then(() => AsyncStorage.setItem(STORAGE_KEY, serialized));
+    saveQueue.current
       .then(() => {
         if (active) setStorageError(false);
       })
@@ -636,16 +682,48 @@ export default function GameScreen() {
     return () => {
       active = false;
     };
-  }, [game, hydrated]);
+  }, [game, hydrated, saveBlocked]);
 
   const currentPlayer = game.players[game.currentPlayerIndex];
+  const waitingToFire = game.pendingFireForPlayerId === currentPlayer.id;
+  const busy = rolling || firing;
+  const fireAt = async () => {
+    if (!hydrated || rollInFlight.current || !waitingToFire || !selectedTargets.length) return;
+    rollInFlight.current = true;
+    setFiring(true);
+    try {
+      const nextGame = shootSnakes(game, selectedTargets);
+      scrollRef.current?.scrollTo({ y: Math.max(0, boardTop.current - topInset), animated: false });
+      await delay(50);
+      if (!screenMounted.current) return;
+      setShot({ from: currentPlayer.position, targets: [...selectedTargets] });
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => undefined);
+      await delay(SHOT_DURATION_MS);
+      if (!screenMounted.current) return;
+      setGame(nextGame);
+      setSelectedTargets([]);
+    } catch {
+      Alert.alert("Shot not completed", "Choose an available snake and check your bullets, then try again.");
+    } finally {
+      rollInFlight.current = false;
+      if (screenMounted.current) {
+        setShot(null);
+        setFiring(false);
+      }
+    }
+  };
+  const passShot = () => {
+    if (rollInFlight.current || !waitingToFire) return;
+    setGame(passFire(game));
+    setSelectedTargets([]);
+  };
   const winner = game.players.find((player) => player.id === game.winnerId);
   const boardSize = Math.min(Math.max(width - 42, 300), 440);
   const topInset = Platform.OS === "web" ? 67 : Math.max(insets.top, 12) + 8;
   const bottomInset = Platform.OS === "web" ? 34 : Math.max(insets.bottom, 12) + 8;
 
   const rollDice = async () => {
-    if (!hydrated || rollInFlight.current || game.winnerId) return;
+    if (!hydrated || rollInFlight.current || game.winnerId || game.pendingFireForPlayerId) return;
     rollInFlight.current = true;
     setRolling(true);
     sounds.play("dice");
@@ -668,12 +746,20 @@ export default function GameScreen() {
           setWalking({ playerId: player.id, position, isSpecialMove: false });
           sounds.play("step");
           void Haptics.selectionAsync().catch(() => undefined);
-          await delay(STEP_DELAY_MS);
+          await delay(reducedMotion ? 45 : STEP_DELAY_MS);
           if (!screenMounted.current) return;
         }
 
         const resolvedPlayer = nextGame.players.find((item) => item.id === player.id);
         if (resolvedPlayer && resolution.effect) {
+          if (resolution.effect === "torch" || resolution.effect === "return") {
+            setWalking({ playerId: player.id, position: 100, isSpecialMove: false, effect: resolution.effect });
+            await delay(reducedMotion ? 150 : SPECIAL_MOVE_MS[resolution.effect]);
+            if (!screenMounted.current) return;
+            setWalking({ playerId: player.id, position: 0, isSpecialMove: true });
+            await delay(reducedMotion ? 45 : 600);
+            if (!screenMounted.current) return;
+          } else {
           if (resolution.effect === "ladder" || resolution.effect === "snake") {
             sounds.play(resolution.effect);
           }
@@ -681,9 +767,11 @@ export default function GameScreen() {
             playerId: player.id,
             position: resolvedPlayer.position,
             isSpecialMove: true,
+            effect: resolution.effect,
           });
-          await delay(700);
+          await delay(reducedMotion ? 45 : SPECIAL_MOVE_MS[resolution.effect] + 80);
           if (!screenMounted.current) return;
+          }
         }
       }
 
@@ -710,8 +798,11 @@ export default function GameScreen() {
         text: "New game",
         style: "destructive",
         onPress: () => {
+          if (!screenMounted.current || rollInFlight.current) return;
           setGame(createGame());
           setDiceFace(null);
+          setSelectedTargets([]);
+          setSaveBlocked(false);
         },
       },
     ]);
@@ -731,6 +822,7 @@ export default function GameScreen() {
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       <StatusBar style="light" />
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[
           styles.content,
           { paddingTop: topInset, paddingBottom: bottomInset, width },
@@ -780,7 +872,9 @@ export default function GameScreen() {
           )}
         </View>
 
-        <Board game={game} walking={walking} size={boardSize} />
+        <View onLayout={(event) => { boardTop.current = event.nativeEvent.layout.y; }}>
+          <Board game={game} walking={walking} size={boardSize} shot={shot} />
+        </View>
 
         <View style={[styles.playersCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {game.players.map((player, index) => (
@@ -792,16 +886,59 @@ export default function GameScreen() {
             />
           ))}
         </View>
+        <View style={[styles.messageCard, { backgroundColor: colors.card, borderColor: colors.border }]} testID="quest-status">
+          <MaterialCommunityIcons name="flashlight" size={20} color={colors.primary} />
+          <Text style={[styles.messageText, { color: colors.foreground }]}>
+            {!currentPlayer.hasTorch ? "Stage 1/3 · Reach 100 for a torch, then return Home."
+              : currentPlayer.crownKeyRoom === null ? "Stage 2/3 · Land in black room 17, 44 or 67 for one key."
+                : winner ? "Stage 3/3 · Crown claimed!" : `Stage 3/3 · Key from ${currentPlayer.crownKeyRoom} ready. Reach 100 for the crown.`}
+          </Text>
+        </View>
 
         {winner ? (
           <View style={[styles.winnerCard, { backgroundColor: colors.accent }]}>
             <MaterialCommunityIcons name="trophy" size={21} color={colors.accentForeground} />
             <Text style={[styles.winnerText, { color: colors.accentForeground }]}>Crown claimed. Play again?</Text>
           </View>
+        ) : waitingToFire ? (
+          <View style={[styles.aimCard, { backgroundColor: colors.card, borderColor: colors.border }]} testID="aim-controls">
+            <Text style={[styles.rollTitle, { color: colors.foreground }]}>AIM FROM GUN ROOM {currentPlayer.position}</Text>
+            <Text style={[styles.rulesText, { color: colors.mutedForeground }]}>
+              One bullet per snake. Hits protect only your panda for its next {SNAKE_STUN_ROLLS} rolls.
+            </Text>
+            <View style={styles.aimOptions}>
+              {([[98], [99], [98, 99]] as ShootableSnakeSquare[][]).map((targets) => {
+                const disabled = busy || currentPlayer.bullets < targets.length ||
+                  targets.some((square) => currentPlayer.snakeStuns[square] > 0);
+                const selected = selectedTargets.length === targets.length &&
+                  targets.every((square) => selectedTargets.includes(square));
+                const label = targets.length === 2 ? "Both · 2 bullets" : `${targets[0]} · 1 bullet`;
+                return (
+                  <Pressable key={targets.join("-")} testID={`aim-${targets.join("-")}`}
+                    accessibilityRole="radio" accessibilityLabel={`Aim at ${label}`}
+                    accessibilityState={{ disabled, checked: selected }} disabled={disabled}
+                    onPress={() => { if (!rollInFlight.current) setSelectedTargets(targets); }}
+                    style={[styles.aimOption, { borderColor: selected ? colors.primary : colors.border,
+                      backgroundColor: selected ? colors.secondary : colors.card, opacity: disabled ? 0.4 : 1 }]}>
+                    <Text style={[styles.keyCountText, { color: colors.foreground }]}>{label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Pressable onPress={fireAt} disabled={busy || !selectedTargets.length}
+              accessibilityRole="button" accessibilityLabel="Fire at selected snakes" testID="button-fire"
+              style={[styles.aimOption, { backgroundColor: colors.primary, opacity: busy || !selectedTargets.length ? 0.5 : 1 }]}>
+              <Text style={[styles.rollTitle, { color: colors.primaryForeground }]}>{firing ? "FIRING…" : "FIRE"}</Text>
+            </Pressable>
+            <Pressable onPress={passShot} disabled={busy} accessibilityRole="button" testID="button-pass"
+              style={[styles.aimOption, { borderColor: colors.border, opacity: busy ? 0.4 : 1 }]}>
+              <Text style={[styles.keyCountText, { color: colors.foreground }]}>Pass · keep bullets</Text>
+            </Pressable>
+          </View>
         ) : (
           <Pressable
             onPress={rollDice}
-            disabled={rolling}
+            disabled={busy}
             accessibilityRole="button"
             accessibilityLabel="Roll the dice"
             testID="button-roll"
@@ -845,13 +982,13 @@ export default function GameScreen() {
         <View style={styles.rulesLine}>
           <MaterialCommunityIcons name="information-outline" size={16} color={colors.mutedForeground} />
           <Text style={[styles.rulesText, { color: colors.mutedForeground }]}>
-            Collect keys as you pass. Opened gates stay open for your panda. Snakes slide you down; ladders lift you up. Reach 100 exactly to win.
+            First reach 100 for a torch and return Home. With the torch, land in black room 17, 44 or 67 for one key; then return to 100 for the crown. Gates never block movement. Bullets only on final landing, max 5. Stop on 94–96 to fire at 98, 99 or both (2 bullets). Hits last for your next 3 rolls. Exact roll required at 100.
           </Text>
         </View>
 
         {storageError && (
           <Text style={[styles.storageWarning, { color: colors.destructive }]}>
-            This round may not be saved on this phone.
+            {saveBlocked ? "The saved round could not be opened. It has not been replaced. Start a new game to save again." : "This round may not be saved on this phone."}
           </Text>
         )}
         {sounds.error && !sounds.muted && (
@@ -862,7 +999,7 @@ export default function GameScreen() {
 
         <Pressable
           onPress={startNewGame}
-          disabled={rolling}
+          disabled={busy}
           accessibilityRole="button"
           accessibilityLabel="Start a new game"
           testID="button-new-game"
@@ -870,7 +1007,7 @@ export default function GameScreen() {
             styles.newGameButton,
             {
               borderColor: colors.border,
-              opacity: rolling ? 0.5 : pressed ? 0.65 : 1,
+              opacity: busy ? 0.5 : pressed ? 0.65 : 1,
             },
           ]}
         >
@@ -883,6 +1020,10 @@ export default function GameScreen() {
 }
 
 const styles = StyleSheet.create({
+  questPickup: { position: "absolute", top: "40%", left: "8%", right: "8%", zIndex: 35, padding: 14, borderRadius: 12, alignItems: "center", gap: 8 },
+  aimCard: { width: "100%", borderRadius: 20, padding: 16, borderWidth: 1, gap: 12 },
+  aimOptions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  aimOption: { borderWidth: 1, borderRadius: 12, padding: 12, alignItems: "center", justifyContent: "center" },
   screen: {
     flex: 1,
   },
