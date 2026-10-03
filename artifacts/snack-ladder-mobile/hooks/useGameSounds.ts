@@ -1,8 +1,19 @@
-import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from "expo-audio";
+import {
+  useAudioPlayer,
+  useAudioPlayerStatus,
+  setAudioModeAsync,
+} from "expo-audio";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
 
 export type GameSound = "dice" | "step" | "ladder" | "snake";
+
+function isAppInactive() {
+  return (
+    AppState.currentState === "background" ||
+    AppState.currentState === "inactive"
+  );
+}
 
 /** Four one-shot effects only: no music, loops, recording or background playback. */
 export function useGameSounds() {
@@ -16,6 +27,7 @@ export function useGameSounds() {
   const snakeStatus = useAudioPlayerStatus(snake);
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(false);
+  const playbackRequestVersion = useRef(0);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -32,6 +44,7 @@ export function useGameSounds() {
     dice.loop = step.loop = ladder.loop = snake.loop = false;
     const subscription = AppState.addEventListener("change", (state) => {
       if (state !== "active") {
+        playbackRequestVersion.current += 1;
         dice.pause();
         step.pause();
         ladder.pause();
@@ -41,19 +54,34 @@ export function useGameSounds() {
     return () => subscription.remove();
   }, [dice, step, ladder, snake]);
 
-  const play = useCallback((sound: GameSound) => {
-    if (mutedRef.current || AppState.currentState === "background") return;
-    const player = { dice, step, ladder, snake }[sound];
-    // Audio errors never interrupt a dice turn or hold the movement lock.
-    try {
-      void player.seekTo(0).catch((error: unknown) => setPlaybackError(String(error)));
-      player.play();
-    } catch (error) {
-      setPlaybackError(String(error));
-    }
-  }, [dice, step, ladder, snake]);
+  const play = useCallback(
+    (sound: GameSound) => {
+      if (mutedRef.current || isAppInactive()) return;
+      const requestVersion = playbackRequestVersion.current;
+      const player = { dice, step, ladder, snake }[sound];
+      try {
+        player.pause();
+        void player
+          .seekTo(0)
+          .then(() => {
+            if (
+              requestVersion === playbackRequestVersion.current &&
+              !mutedRef.current &&
+              !isAppInactive()
+            ) {
+              player.play();
+            }
+          })
+          .catch((error: unknown) => setPlaybackError(String(error)));
+      } catch (error) {
+        setPlaybackError(String(error));
+      }
+    },
+    [dice, step, ladder, snake],
+  );
 
   const toggleMuted = useCallback(() => {
+    playbackRequestVersion.current += 1;
     mutedRef.current = !mutedRef.current;
     setMuted(mutedRef.current);
     if (mutedRef.current) {
@@ -68,6 +96,11 @@ export function useGameSounds() {
     play,
     muted,
     toggleMuted,
-    error: playbackError || diceStatus.error || stepStatus.error || ladderStatus.error || snakeStatus.error,
+    error:
+      playbackError ||
+      diceStatus.error ||
+      stepStatus.error ||
+      ladderStatus.error ||
+      snakeStatus.error,
   };
 }
