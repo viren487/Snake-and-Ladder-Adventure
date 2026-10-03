@@ -27,7 +27,7 @@ Collectible and gate rules must not permanently trap a panda because a roll skip
 
 ## Browser-first keys and ammunition
 
-Keep keys collectible and visible, but suspend their gate effect for now. Bullets are collected only when the panda stops on a bullet room, including a snake's final destination—not when crossing a tile or taking a ladder past it. Keep the five-bullet cap. Fire is available only when the panda stops in a gun room. Aim choices are 98, 99, or both; each targeted snake costs one bullet, so both requires two. A hit makes that snake harmless only for the shooter’s next three dice rolls; the countdown advances on that player’s rolls, not the opponent’s.
+Key and crown progression follows the crown quest described in crown-quest.md; do not revive movement-blocking gates. Bullets are collected only when the panda stops on a bullet room, including a snake's final destination—not when crossing a tile or taking a ladder past it. Keep the five-bullet cap. Fire is available only when the panda stops in a gun room. Aim choices are 98, 99, or both; each targeted snake costs one bullet, so both requires two. A hit makes that snake harmless only for the shooter’s next three dice rolls; the countdown advances on that player’s rolls, not the opponent’s.
 
 **Why:** The user reiterated the exact-room requirement with room 6: stopping on 6 rewards a bullet; crossing 6 and continuing does not. Firing must remain at gun rooms, with single-target and both-target aiming restricted by available bullets. The shooter-scoped stun is the interpretation of “next 3 dice” used for the current implementation.
 
