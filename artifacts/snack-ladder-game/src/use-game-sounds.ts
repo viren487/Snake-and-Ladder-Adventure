@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type GameSound = "dice" | "step" | "ladder" | "snake";
+export type GameSound = "dice" | "step" | "ladder" | "snake" | "bullet" | "key";
+type PickupState = { bullets: number; crownKeyRoom: number | null };
 
 const SOUND_FILES: Record<GameSound, string> = {
   dice: new URL("./sounds/dice.wav", import.meta.url).href,
   step: new URL("./sounds/step.wav", import.meta.url).href,
   ladder: new URL("./sounds/ladder.wav", import.meta.url).href,
   snake: new URL("./sounds/snake.wav", import.meta.url).href,
+  bullet: new URL("./sounds/bullet.wav", import.meta.url).href,
+  key: new URL("./sounds/key.wav", import.meta.url).href,
 };
 
 /** Short one-shot effects only: no background music or looping playback. */
@@ -22,6 +25,8 @@ export function useGameSounds() {
       step: 0.38,
       ladder: 0.5,
       snake: 0.45,
+      bullet: 0.55,
+      key: 0.55,
     };
     const created = {} as Record<GameSound, HTMLAudioElement>;
     for (const sound of Object.keys(SOUND_FILES) as GameSound[]) {
@@ -66,6 +71,11 @@ export function useGameSounds() {
     }
   }, []);
 
+  const playPickups = useCallback((before: PickupState, after: PickupState) => {
+    if (after.bullets > before.bullets) play("bullet");
+    if (before.crownKeyRoom === null && after.crownKeyRoom !== null) play("key");
+  }, [play]);
+
   const toggleMuted = useCallback(() => {
     mutedRef.current = !mutedRef.current;
     setMuted(mutedRef.current);
@@ -74,5 +84,5 @@ export function useGameSounds() {
     }
   }, []);
 
-  return { play, muted, toggleMuted, error };
+  return { play, playPickups, muted, toggleMuted, error };
 }

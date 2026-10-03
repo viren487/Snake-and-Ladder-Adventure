@@ -11,11 +11,19 @@ Finish the browser game first and use it as the reference version before moving 
 
 ## Sound scope
 
-Use short action sound effects for dice, panda movement, ladder climbing and snake bites. Do not add background music.
+Use short action sound effects for dice, panda movement, ladder climbing, snake bites, bullet collection and key collection. Give bullet and key pickups distinct sounds. Do not add background music.
 
-**Why:** The user explicitly requested these effects and said not to add background music.
+**Why:** The user explicitly requested these effects, later asked for separate bullet/key pickup sounds, and said not to add background music.
 
 **How to apply:** Keep audio event-driven and non-looping; audio failure must never block a turn.
+
+## Game-focused controls
+
+Prefer compact symbols and counts for powers, with detailed actions and rules revealed on request rather than permanently occupying space.
+
+**Why:** The user asked that the power stash take less space so the game feels easier, and that rules stay hidden until clicked.
+
+**How to apply:** Keep the board and dice prominent. Preserve clear, accessible power names and required landing decisions, but avoid adding always-visible forms or help paragraphs.
 
 ## Playability constraint
 

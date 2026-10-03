@@ -1,4 +1,4 @@
-import { KEY_SQUARES, LOCKED_SQUARES, MAX_BULLETS, SHOOTABLE_SNAKE_SQUARES, SNAKE_STUN_ROLLS, type GameState } from "./game-engine.ts";
+import { KEY_SQUARES, LOCKED_SQUARES, MAX_BULLETS, SHOOTABLE_SNAKE_SQUARES, SNAKE_STUN_ROLLS, isValidPowerState, type GameState } from "./game-engine.ts";
 
 /** Optional new fields accept old rounds; malformed fields never reach the engine. */
 export function isSavedGame(value: unknown): value is GameState {
@@ -40,6 +40,6 @@ export function isSavedGame(value: unknown): value is GameState {
     (game.pendingFireForPlayerId === undefined || game.pendingFireForPlayerId === null ||
       (game.winnerId === null &&
         game.players[game.currentPlayerIndex!]?.id === game.pendingFireForPlayerId)) &&
-    typeof game.message === "string"
+    typeof game.message === "string" && isValidPowerState(game)
   );
 }

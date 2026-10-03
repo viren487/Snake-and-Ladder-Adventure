@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createGame,
+  choosePower,
   MAX_BULLETS,
   KEY_SQUARES,
   passFire,
@@ -202,7 +203,7 @@ test("crossing gun rooms does not enable firing, and old off-gun choices resume 
   assert.deepEqual(crossing.path, [94, 95, 96, 97, 98, 99]);
   assert.equal(crossing.state.players[0].position, 61);
   assert.equal(crossing.state.pendingFireForPlayerId, null);
-  assert.equal(crossing.state.currentPlayerIndex, 1);
+  assert.equal(crossing.state.currentPlayerIndex, 0);
 
   armed.players[0].position = 61;
   armed.pendingFireForPlayerId = armed.players[0].id;
@@ -350,7 +351,8 @@ test("1000 seeded rounds reach winners without a gate deadlock", () => {
       assert.notEqual(resolved.state, game);
       game = resolved.state.pendingFireForPlayerId
         ? passFire(resolved.state)
-        : resolved.state;
+        : resolved.state.pendingChoice?.kind === "mystery"
+          ? choosePower(resolved.state, "extraDice") : resolved.state;
     }
     assert.ok(game.winnerId, `Round ${round} did not finish`);
   }

@@ -202,6 +202,7 @@
 .dice-button:active:not(:disabled) { transform:translateY(3px); box-shadow:0 2px 0 #a9782a; }
 .dice-button:disabled { opacity:.58; cursor:not-allowed; }
 .dice-face { font:700 44px/1 'Fredoka',sans-serif; }
+.dice-pips { display:block; width:62px; height:62px; }
 .dice-face.rolling { animation:dice-jiggle .18s infinite alternate; }
 .roll-copy { font:600 17px/1.2 'Fredoka',sans-serif; color:#fff0cb; }
 .roll-hint { font-size:11px; color:#aab4c3; margin-top:5px; line-height:1.4; }
@@ -229,6 +230,17 @@
 .sound-error { color:#ffcfbf; font-size:11px; line-height:1.4; margin-top:-9px; padding:0 4px; }
 .rules-card { border-top:1px solid #3b4250; padding:15px 4px 0; }
 .rules-title { font:600 14px 'Fredoka',sans-serif; color:#f2d899; margin-bottom:9px; }
+.rules-card > summary { list-style:none; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:8px; min-height:30px; margin:0; }
+.rules-card > summary::-webkit-details-marker { display:none; }
+.rules-card > summary:focus-visible { outline:2px solid #ffe08a; outline-offset:4px; border-radius:5px; }
+.rules-card[open] > summary { margin-bottom:12px; }
+.rules-drawer-chevron { transition:transform .18s; }
+.rules-card[open] .rules-drawer-chevron { transform:rotate(180deg); }
+.rule-line > svg { flex-shrink:0; }
+.planted-bomb { position:absolute; z-index:6; transform:translate(-50%,-50%); display:grid; place-items:center; padding:2px; border-radius:5px; background:#15181e; border:1px solid currentColor; pointer-events:none; }
+.planted-bomb-blue { color:#36b8e6; }
+.planted-bomb-coral { color:#ef7653; }
+.planted-bomb-armed { box-shadow:0 0 7px #f4c25b; }
 .rules-list { display:grid; gap:7px; }
 .rule-line { display:flex; align-items:center; gap:8px; color:#aab3c1; font-size:11px; line-height:1.25; }
 .rule-swatch { width:18px;height:7px;border-radius:10px; flex:0 0 auto; }

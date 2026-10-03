@@ -8,7 +8,7 @@
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:engine": "node --experimental-strip-types --test src/game-engine.test.mjs"
+    "test:engine": "node --experimental-strip-types --test src/*.test.mjs"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",

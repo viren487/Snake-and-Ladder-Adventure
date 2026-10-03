@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { CircleDot, Crosshair, Crown, Dices, Flashlight, KeyRound, LockKeyhole, RotateCcw, Sparkles, Trophy, Volume2, VolumeX } from 'lucide-react';
+import { Bomb, ChevronDown, CircleDot, Crosshair, Crown, Dices, Flashlight, KeyRound, LockKeyhole, RotateCcw, ShieldPlus, Sparkles, Trophy, Volume2, VolumeX, Wrench } from 'lucide-react';
 import {
   BULLET_PICKUP_SQUARES,
   createGame,
@@ -17,17 +17,27 @@ import {
   BOOM_SQUARE,
   LOCKED_SQUARES,
   KEY_SQUARES,
+  MYSTERY_BOX_SQUARES,
+  choosePower,
+  plantBomb,
+  detonateBomb,
+  useExtraDice,
+  resolveDefense,
+  isValidPowerState,
   type ShootableSnakeSquare,
   type GameState,
+  type TurnResolution,
 } from './game-engine';
 import { useGameSounds } from './use-game-sounds';
 import { ShotAnimation } from './ShotAnimation';
+import { PowerControls } from './PowerControls';
+import { DicePips } from './DicePips';
 
-const STORAGE_KEY = 'snack-ladder-adventure-v4';
+const STORAGE_KEY = 'snack-ladder-adventure-v5';
+const QUEST_STORAGE_KEY = 'snack-ladder-adventure-v4';
 const PREVIOUS_STORAGE_KEY = 'snack-ladder-adventure-v3';
 const LEGACY_STORAGE_KEY = 'snack-ladder-adventure-v2';
 const OLDEST_STORAGE_KEY = 'snack-ladder-adventure-v1';
-const MYSTERY_BOX_SQUARES = [14, 35, 51, 76] as const;
 const MOVEMENT_STEP_DELAY_MS = 240;
 const SPECIAL_MOVE_DURATION_MS = { ladder: 2200, snake: 2000, boom: 700 } as const;
 const SPECIAL_MOVE_STYLE = {
@@ -49,16 +59,19 @@ const SNAKE_ART: Record<string, string> = {
   orange: new URL('./realistic-snake-orange.png', import.meta.url).href,
 };
 
-function readGame(): GameState {
+function readGame(): { game: GameState; error: string | null; blocked: boolean } {
   try {
-    for (const storageKey of [STORAGE_KEY, PREVIOUS_STORAGE_KEY, LEGACY_STORAGE_KEY, OLDEST_STORAGE_KEY]) {
+    for (const storageKey of [STORAGE_KEY, QUEST_STORAGE_KEY, PREVIOUS_STORAGE_KEY, LEGACY_STORAGE_KEY, OLDEST_STORAGE_KEY]) {
       const saved = localStorage.getItem(storageKey);
       if (!saved) continue;
       const value: unknown = JSON.parse(saved);
-      if (isSavedGame(value)) return repairLegacyGame(value);
+      if (!isSavedGame(value)) throw new Error('Invalid saved round');
+      return { game: repairLegacyGame(value), error: null, blocked: false };
     }
-  } catch { /* A damaged or unavailable save starts a fresh round. */ }
-  return createGame();
+  } catch {
+    return { game: createGame(), error: 'The saved round could not be opened. It has not been replaced. Start a new game to save again.', blocked: true };
+  }
+  return { game: createGame(), error: null, blocked: false };
 }
 
 function isSavedGame(value: unknown): value is GameState {
@@ -104,7 +117,7 @@ function isSavedGame(value: unknown): value is GameState {
     (game.pendingFireForPlayerId === undefined ||
       game.pendingFireForPlayerId === null ||
       game.players[game.currentPlayerIndex!]?.id === game.pendingFireForPlayerId) &&
-    typeof game.message === 'string';
+    typeof game.message === 'string' && isValidPowerState(game);
 }
 
 function centerOf(square: number) {
@@ -360,6 +373,15 @@ function Board({
           ))}
           {LADDERS.map(ladder => <LadderArt key={ladder.from} from={ladder.from} to={ladder.to} />)}
         </svg>
+        {game.bombs.map((bomb) => {
+          const point = centerOf(bomb.square);
+          const owner = game.players.find((player) => player.id === bomb.ownerId)!;
+          return <span key={bomb.id} className={`planted-bomb planted-bomb-${owner.color} ${bomb.armed ? 'planted-bomb-armed' : ''}`}
+            style={{ left: `${point.x / 10 + 2.5}%`, top: `${point.y / 10 + 2.5}%` }}
+            data-testid={`planted-bomb-${bomb.square}`} aria-label={`${owner.name}'s planted bomb in house ${bomb.square}${bomb.armed ? ', rival stopped here' : ''}`}>
+            <Bomb size={15} />
+          </span>;
+        })}
         <div className={`crown-tile ${activePlayer.crownKeyRoom === null ? 'crown-locked' : ''}`} data-testid="goal-crown"
           aria-label={!activePlayer.hasTorch ? '100: collect torch and return Home; crown locked' : activePlayer.crownKeyRoom === null ? '100: crown locked; collect a black-room key first' : '100: crown unlocked; return here to win'}>
           <Crown className="goal-crown-icon" />
@@ -450,7 +472,13 @@ function Board({
 }
 
 function App() {
-  const [game, setGame] = useState<GameState>(readGame);
+  const [initialSave] = useState(readGame);
+  const [game, setGame] = useState<GameState>(initialSave.game);
+  const [saveBlocked, setSaveBlocked] = useState(initialSave.blocked);
+  const [storageError, setStorageError] = useState(initialSave.error);
+  const [powerError, setPowerError] = useState<string | null>(null);
+  const latestGame = useRef(game);
+  latestGame.current = game;
   const [rolling, setRolling] = useState(false);
   const [diceFace, setDiceFace] = useState<number | null>(game.lastRoll);
   const [walking, setWalking] = useState<WalkingPiece | null>(null);
@@ -468,8 +496,14 @@ function App() {
   }, []);
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(game)); } catch { /* Local play remains available without storage. */ }
-  }, [game]);
+    if (saveBlocked) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(game));
+      setStorageError(null);
+    } catch {
+      setStorageError('This round could not be saved in this browser. Keep this tab open to continue playing.');
+    }
+  }, [game, saveBlocked]);
 
   const currentPlayer = game.players[game.currentPlayerIndex];
   const winner = game.players.find(player => player.id === game.winnerId);
@@ -477,6 +511,63 @@ function App() {
   const availableTargets = SHOOTABLE_SNAKE_SQUARES.filter(
     (square) => currentPlayer.snakeStuns[square] === 0,
   );
+  const applyPower = (command: (state: GameState) => GameState) => {
+    if (rollInFlight.current || fireInFlight.current) return;
+    try {
+      const next = command(latestGame.current);
+      latestGame.current = next;
+      setGame(next);
+      setPowerError(null);
+    } catch (error) {
+      setPowerError(error instanceof Error ? error.message : 'This power could not be used.');
+    }
+  };
+  const applyAnimatedPower = async (command: (state: GameState) => TurnResolution, movingId?: string) => {
+    if (rollInFlight.current || fireInFlight.current) return;
+    rollInFlight.current = true;
+    setRolling(true);
+    const mobile = window.matchMedia('(max-width: 820px)').matches;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    try {
+      const before = latestGame.current;
+      const resolution = command(before);
+      const id = movingId ?? before.players[before.currentPlayerIndex].id;
+      const moved = resolution.state.players.find((player) => player.id === id)!;
+      const effect = resolution.effect;
+      if (effect) {
+        if (mobile) {
+          scrollToGameSection('[data-testid="game-board"]');
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 70));
+          if (!screenMounted.current) return;
+        }
+        if (effect === 'torch' || effect === 'return') {
+          setWalking({ playerId: id, position: 100, effect });
+          await new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 150 : 1100));
+          if (!screenMounted.current) return;
+          setWalking({ playerId: id, position: 0, effect: 'step' });
+          await new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 45 : 300));
+        } else {
+          if (effect === 'snake' || effect === 'ladder') sounds.play(effect);
+          setWalking({ playerId: id, position: moved.position, effect });
+          await new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 45 : SPECIAL_MOVE_DURATION_MS[effect] + 80));
+        }
+        if (!screenMounted.current) return;
+      }
+      sounds.playPickups(before.players.find((player) => player.id === id)!, moved);
+      latestGame.current = resolution.state;
+      setGame(resolution.state);
+      setPowerError(null);
+      if (mobile && effect) scrollToGameSection('[data-testid="game-controls"]');
+    } catch (error) {
+      setPowerError(error instanceof Error ? error.message : 'The power could not finish.');
+    } finally {
+      rollInFlight.current = false;
+      if (screenMounted.current) {
+        setWalking(null);
+        setRolling(false);
+      }
+    }
+  };
 
   const selectTarget = (square: ShootableSnakeSquare) => {
     if (firing || !waitingToFire || !availableTargets.includes(square)) return;
@@ -521,7 +612,8 @@ function App() {
   };
 
   const rollDice = async () => {
-    if (rollInFlight.current || game.winnerId || game.pendingFireForPlayerId) return;
+    if (rollInFlight.current || fireInFlight.current || latestGame.current.winnerId ||
+      latestGame.current.pendingFireForPlayerId || latestGame.current.pendingChoice) return;
     rollInFlight.current = true;
     setRolling(true);
     sounds.play('dice');
@@ -540,8 +632,9 @@ function App() {
         }, 85);
       });
 
-      const player = game.players[game.currentPlayerIndex];
-      const resolution = resolveTurn(game, result);
+      const before = latestGame.current;
+      const player = before.players[before.currentPlayerIndex];
+      const resolution = resolveTurn(before, result);
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       const stepDelay = reducedMotion
         ? 45
@@ -570,7 +663,9 @@ function App() {
         if (!screenMounted.current) return;
       }
 
+      if (resolvedPlayer) sounds.playPickups(player, resolvedPlayer);
       setGame(resolution.state);
+      latestGame.current = resolution.state;
     } finally {
       rollInFlight.current = false;
       if (screenMounted.current) {
@@ -582,13 +677,19 @@ function App() {
 
   const startNewGame = () => {
     if (rollInFlight.current || fireInFlight.current) return;
+    if (!window.confirm('Start a new game? This replaces the saved round in this browser.')) return;
     const fresh = createGame();
     setGame(fresh);
+    latestGame.current = fresh;
+    setSaveBlocked(false);
+    setPowerError(null);
+    setStorageError(null);
     setDiceFace(null);
     setSelectedTargets([]);
     setShot(null);
     try {
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(QUEST_STORAGE_KEY);
       localStorage.removeItem(PREVIOUS_STORAGE_KEY);
       localStorage.removeItem(LEGACY_STORAGE_KEY);
       localStorage.removeItem(OLDEST_STORAGE_KEY);
@@ -647,7 +748,7 @@ function App() {
               ) : (
                 <>
                   <div className="turn-name" data-testid="current-player">{currentPlayer.name}'s turn</div>
-                  <div className="turn-sub">{waitingToFire ? 'Aim carefully, or pass this shot.' : 'Pass the board, take your chance.'}</div>
+                  <div className="turn-sub">{game.pendingChoice ? 'Resolve your landing choice before rolling.' : waitingToFire ? 'Aim carefully, or pass this shot.' : 'Use a saved power, or roll the dice.'}</div>
                 </>
               )}
               <div className="player-stack">
@@ -678,6 +779,28 @@ function App() {
                 ) : null;
               })}
             </div>
+
+            <PowerControls
+              playerName={currentPlayer.name}
+              powers={currentPlayer.powers} pending={game.pendingChoice}
+              extraRollCredits={currentPlayer.extraRollCredits}
+              busy={rolling || firing} actionsEnabled={!winner && !waitingToFire && !game.pendingChoice}
+              bombs={game.bombs.map((bomb) => ({ ...bomb,
+                ownerName: game.players.find((player) => player.id === bomb.ownerId)!.name,
+                owned: bomb.ownerId === currentPlayer.id,
+                ready: bomb.armed && game.players.some((player) => player.id !== bomb.ownerId && player.position === bomb.square),
+              }))}
+              onChoose={(power) => applyPower((state) => choosePower(state, power))}
+              onDefense={(use) => { void applyAnimatedPower((state) => resolveDefense(state, use)); }}
+              onPlant={(square) => applyPower((state) => plantBomb(state, square))}
+              onExtraDice={() => applyPower(useExtraDice)}
+              onDetonate={(id) => { void applyAnimatedPower(
+                (state) => ({ state: detonateBomb(state, id), path: [], effect: 'boom' }),
+                game.players.find((player) => player.id !== currentPlayer.id)!.id,
+              ); }}
+            />
+            {powerError && <div className="sound-error" role="alert">{powerError}</div>}
+            {storageError && <div className="sound-error" role="alert" data-testid="storage-warning">{storageError}</div>}
 
             {winner ? (
               <div className="win-banner" data-testid="winner-banner"><Trophy size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} /> Crown claimed!</div>
@@ -719,8 +842,9 @@ function App() {
               </div>
             ) : (
               <div className="roll-area">
-                <button className="dice-button" onClick={rollDice} disabled={rolling || !!winner} aria-label="Roll the dice" data-testid="button-roll">
-                  <span className={`dice-face ${rolling ? 'rolling' : ''}`} data-testid="dice-result">{diceFace ?? '—'}</span>
+                <button className="dice-button" onClick={rollDice} disabled={rolling || !!winner || !!game.pendingChoice} aria-label="Roll the dice" data-testid="button-roll">
+                  <span className={`dice-face ${rolling ? 'rolling' : ''}`} data-testid="dice-result"
+                    role="img" aria-label={`Dice showing ${diceFace ?? 1}`}><DicePips value={diceFace ?? 1} /></span>
                 </button>
                 <div>
                   <div className="roll-copy">{rolling ? 'Rolling…' : game.lastRoll ? `Last roll · ${game.lastRoll}` : 'Ready when you are'}</div>
@@ -728,7 +852,7 @@ function App() {
                 </div>
               </div>
             )}
-            {!winner && !waitingToFire && <button className="primary-action" onClick={rollDice} disabled={rolling} data-testid="button-roll-turn"><Dices size={17} /> {rolling ? 'Rolling the dice…' : 'Roll the dice'}</button>}
+            {!winner && !waitingToFire && <button className="primary-action" onClick={rollDice} disabled={rolling || !!game.pendingChoice} data-testid="button-roll-turn"><Dices size={17} /> {game.pendingChoice ? 'Choose your power first' : rolling ? 'Rolling the dice…' : 'Roll the dice'}</button>}
 
             <div className="message-card" aria-live="polite" data-testid="game-message">
               <Sparkles className="message-icon" size={16} />
@@ -736,17 +860,24 @@ function App() {
             </div>
             {sounds.error && <div className="sound-error" role="status">Sound effects could not play, but the game will continue.</div>}
 
-            <div className="rules-card">
-              <div className="rules-title">A few things to know</div>
-              <div className="rules-list">
+            <details className="rules-card" data-testid="rules-drawer">
+              <summary className="rules-title" data-testid="rules-drawer-toggle">A few things to know <ChevronDown size={17} className="rules-drawer-chevron" /></summary>
+              <div className="rules-list" data-testid="rules-content">
                 <div className="rule-line"><span className="rule-swatch" style={{ background: '#dc8540' }} /> Ladders lift you up; snakes send you sliding.</div>
+                <div className="rule-line"><Dices size={13} /> A valid six earns another chance. Overshooting 100 does not.</div>
+                <div className="rule-line"><Sparkles size={13} /> Rooms 14, 35, 51 and 76 let you choose a Bomb, Anti-Venom, Defuser Kit or Extra Dice.</div>
+                <div className="rule-line"><Bomb size={13} /> Plant a bomb in any house, then detonate on your turn when the rival stops there. The blast sends them Home, not their inventory.</div>
                 <div className="rule-line"><Flashlight size={13} color="#f0c65a" /> First arrival at 100 gives a torch and returns you Home, not a crown.</div>
                 <div className="rule-line"><KeyRound size={13} color="#f0c65a" /> With your torch, land in black room 17, 44 or 67 for one key.</div>
-                <div className="rule-line"><CircleDot size={13} color="#dce6e9" /> Land in a bullet room to collect ammo; carry up to {MAX_BULLETS}.</div>
+                <div className="rule-line"><LockKeyhole size={13} /> Reach 100 without a black-room key and return Home to try again. Torch and key progress survive blasts.</div>
+                <div className="rule-line"><CircleDot size={13} color="#dce6e9" /> Stop on {BULLET_PICKUP_SQUARES.join(', ')} to collect ammo, not while crossing; carry up to {MAX_BULLETS}.</div>
                 <div className="rule-line"><Crosshair size={13} color="#f0c65a" /> Stop in a gun room to shoot 98, 99, or both with two bullets. Hits last for your next {SNAKE_STUN_ROLLS} rolls.</div>
+                <div className="rule-line"><ShieldPlus size={13} /> Use one Anti-Venom before a bite to stay in that snake room. Keeping it means sliding down.</div>
+                <div className="rule-line"><Wrench size={13} /> A Defuser Kit protects one visit to boom room 97 or removes a rival's planted bomb.</div>
+                <div className="rule-line"><Dices size={13} /> Use Extra Dice before rolling to bank one additional roll. A valid six gives a separate bonus and does not spend that credit.</div>
                 <div className="rule-line"><Crown size={13} color="#f0c65a" /> Return to 100 with your torch and key to unlock the crown. An exact roll is required.</div>
               </div>
-            </div>
+            </details>
             <button className="primary-action" onClick={startNewGame} disabled={rolling || firing} data-testid="button-new-game">
               <RotateCcw size={15} /> New game
             </button>

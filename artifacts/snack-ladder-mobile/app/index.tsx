@@ -29,6 +29,8 @@ import { useColors } from "@/hooks/useColors";
 import { useGameSounds } from "@/hooks/useGameSounds";
 import { isSavedGame } from "@/lib/saved-game";
 import { ShotAnimation, SHOT_DURATION_MS, type Shot } from "@/components/ShotAnimation";
+import { PowerControls } from "@/components/PowerControls";
+import { RulesDrawer } from "@/components/RulesDrawer";
 import {
   BOOM_SQUARE,
   KEY_SQUARES,
@@ -40,6 +42,12 @@ import {
   SHOOTABLE_SNAKE_SQUARES,
   SNAKE_STUN_ROLLS,
   SNAKES,
+  MYSTERY_BOX_SQUARES,
+  choosePower,
+  plantBomb,
+  detonateBomb,
+  useExtraDice,
+  resolveDefense,
   createGame,
   resolveTurn,
   repairLegacyGame,
@@ -47,15 +55,16 @@ import {
   passFire,
   squareAt,
   type GameState,
+  type TurnResolution,
   type Player,
   type ShootableSnakeSquare,
 } from "@/lib/game-engine";
 
-const STORAGE_KEY = "snack-ladder-adventure-v4";
+const STORAGE_KEY = "snack-ladder-adventure-v5";
+const QUEST_STORAGE_KEY = "snack-ladder-adventure-v4";
 const PREVIOUS_STORAGE_KEY = "snack-ladder-adventure-v3";
 const LEGACY_STORAGE_KEY = "snack-ladder-adventure-v2";
 const OLDEST_STORAGE_KEY = "snack-ladder-adventure-v1";
-const MYSTERY_BOX_SQUARES = [14, 35, 51, 76] as const;
 const STEP_DELAY_MS = 270;
 const SPECIAL_MOVE_MS = { ladder: 2200, snake: 2000, boom: 700, torch: 1100, return: 1100 } as const;
 
@@ -487,6 +496,18 @@ function Board({
           <Text style={[styles.goalNumber, { color: colors.primaryForeground, fontSize: cellSize * 0.22 }]}>100</Text>
         </View>
 
+        {game.bombs.map((bomb) => {
+          const point = getCellCenter(bomb.square, size);
+          const owner = game.players.find((player) => player.id === bomb.ownerId)!;
+          return <View key={bomb.id} testID={`planted-bomb-${bomb.square}`}
+            accessibilityLabel={`${owner.name}'s planted bomb in house ${bomb.square}`}
+            pointerEvents="none" style={{ position: "absolute", zIndex: 6, left: point.x + cellSize * 0.25 - 9,
+              top: point.y + cellSize * 0.25 - 9, width: 18, height: 18, borderRadius: 4,
+              alignItems: "center", justifyContent: "center", backgroundColor: colors.card,
+              borderWidth: 1, borderColor: bomb.armed ? colors.primary : owner.color === "blue" ? "#36b8e6" : "#ef7653" }}>
+            <MaterialCommunityIcons name="bomb" size={14} color={owner.color === "blue" ? "#36b8e6" : "#ef7653"} />
+          </View>;
+        })}
         {game.players.map((player, index) => {
           const position =
             walking?.playerId === player.id ? walking.position : player.position;
@@ -539,10 +560,13 @@ function DiceFace({
     <View
       style={[styles.dieFace, { backgroundColor: faceColor, borderColor }]}
       accessibilityLabel={value ? `Dice showing ${value}` : "Ready to roll"}
+      accessibilityRole="image"
+      testID="dice-result"
     >
       {pips.map(([column, row], index) => (
         <View
           key={index}
+          testID="dice-pip"
           style={[
             styles.diePip,
             {
@@ -623,8 +647,11 @@ export default function GameScreen() {
   const [selectedTargets, setSelectedTargets] = useState<ShootableSnakeSquare[]>([]);
   const scrollRef = useRef<ScrollView>(null);
   const boardTop = useRef(0);
+  const controlsTop = useRef(0);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const rollInFlight = useRef(false);
+  const latestGame = useRef(game);
+  latestGame.current = game;
   const screenMounted = useRef(true);
   useEffect(() => {
     screenMounted.current = true;
@@ -636,7 +663,8 @@ export default function GameScreen() {
     const loadSavedGame = async () => {
       try {
         const currentSave = await AsyncStorage.getItem(STORAGE_KEY);
-        const saved = currentSave ?? await AsyncStorage.getItem(PREVIOUS_STORAGE_KEY)
+        const saved = currentSave ?? await AsyncStorage.getItem(QUEST_STORAGE_KEY)
+          ?? await AsyncStorage.getItem(PREVIOUS_STORAGE_KEY)
           ?? await AsyncStorage.getItem(LEGACY_STORAGE_KEY)
           ?? await AsyncStorage.getItem(OLDEST_STORAGE_KEY);
         if (!mounted) return;
@@ -721,9 +749,61 @@ export default function GameScreen() {
   const boardSize = Math.min(Math.max(width - 42, 300), 440);
   const topInset = Platform.OS === "web" ? 67 : Math.max(insets.top, 12) + 8;
   const bottomInset = Platform.OS === "web" ? 34 : Math.max(insets.bottom, 12) + 8;
+  const applyPower = (command: (state: GameState) => GameState) => {
+    if (!hydrated || rollInFlight.current) return;
+    try {
+      const next = command(latestGame.current);
+      latestGame.current = next;
+      setGame(next);
+    } catch (error) {
+      Alert.alert("Power not available", error instanceof Error ? error.message : "Please try again.");
+    }
+  };
+  const applyAnimatedPower = async (command: (state: GameState) => TurnResolution, movingId?: string) => {
+    if (!hydrated || rollInFlight.current) return;
+    rollInFlight.current = true;
+    setRolling(true);
+    try {
+      const before = latestGame.current;
+      const resolution = command(before);
+      const id = movingId ?? before.players[before.currentPlayerIndex].id;
+      const moved = resolution.state.players.find((player) => player.id === id)!;
+      const effect = resolution.effect;
+      if (effect) {
+        scrollRef.current?.scrollTo({ y: Math.max(0, boardTop.current - topInset), animated: false });
+        await delay(50);
+        if (!screenMounted.current) return;
+        if (effect === "torch" || effect === "return") {
+          setWalking({ playerId: id, position: 100, isSpecialMove: false, effect });
+          await delay(reducedMotion ? 150 : SPECIAL_MOVE_MS[effect]);
+          if (!screenMounted.current) return;
+          setWalking({ playerId: id, position: 0, isSpecialMove: true });
+          await delay(reducedMotion ? 45 : 600);
+        } else {
+          if (effect === "snake" || effect === "ladder") sounds.play(effect);
+          setWalking({ playerId: id, position: moved.position, isSpecialMove: true, effect });
+          await delay(reducedMotion ? 45 : SPECIAL_MOVE_MS[effect] + 80);
+        }
+        if (!screenMounted.current) return;
+      }
+      sounds.playPickups(before.players.find((player) => player.id === id)!, moved);
+      latestGame.current = resolution.state;
+      setGame(resolution.state);
+      if (effect) scrollRef.current?.scrollTo({ y: Math.max(0, controlsTop.current - topInset), animated: false });
+    } catch (error) {
+      Alert.alert("Power not completed", error instanceof Error ? error.message : "Please try again.");
+    } finally {
+      rollInFlight.current = false;
+      if (screenMounted.current) {
+        setWalking(null);
+        setRolling(false);
+      }
+    }
+  };
 
   const rollDice = async () => {
-    if (!hydrated || rollInFlight.current || game.winnerId || game.pendingFireForPlayerId) return;
+    if (!hydrated || rollInFlight.current || latestGame.current.winnerId ||
+      latestGame.current.pendingFireForPlayerId || latestGame.current.pendingChoice) return;
     rollInFlight.current = true;
     setRolling(true);
     sounds.play("dice");
@@ -737,8 +817,9 @@ export default function GameScreen() {
       setDiceFace(roll);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
 
-      const player = game.players[game.currentPlayerIndex];
-      const resolution = resolveTurn(game, roll);
+      const before = latestGame.current;
+      const player = before.players[before.currentPlayerIndex];
+      const resolution = resolveTurn(before, roll);
       const nextGame = resolution.state;
 
       if (resolution.path.length > 0) {
@@ -775,7 +856,9 @@ export default function GameScreen() {
         }
       }
 
+      sounds.playPickups(player, nextGame.players.find((item) => item.id === player.id)!);
       setGame(nextGame);
+      latestGame.current = nextGame;
       if (nextGame.winnerId) {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
       }
@@ -799,7 +882,9 @@ export default function GameScreen() {
         style: "destructive",
         onPress: () => {
           if (!screenMounted.current || rollInFlight.current) return;
-          setGame(createGame());
+          const fresh = createGame();
+          latestGame.current = fresh;
+          setGame(fresh);
           setDiceFace(null);
           setSelectedTargets([]);
           setSaveBlocked(false);
@@ -895,6 +980,28 @@ export default function GameScreen() {
           </Text>
         </View>
 
+        <View onLayout={(event) => { controlsTop.current = event.nativeEvent.layout.y; }}>
+        <PowerControls
+          playerName={currentPlayer.name}
+          powers={currentPlayer.powers} pending={game.pendingChoice}
+          extraRollCredits={currentPlayer.extraRollCredits}
+          busy={busy} actionsEnabled={!winner && !waitingToFire && !game.pendingChoice}
+          bombs={game.bombs.map((bomb) => ({ ...bomb,
+            ownerName: game.players.find((player) => player.id === bomb.ownerId)!.name,
+            owned: bomb.ownerId === currentPlayer.id,
+            ready: bomb.armed && game.players.some((player) => player.id !== bomb.ownerId && player.position === bomb.square),
+          }))}
+          onChoose={(power) => applyPower((state) => choosePower(state, power))}
+          onDefense={(use) => { void applyAnimatedPower((state) => resolveDefense(state, use)); }}
+          onPlant={(square) => applyPower((state) => plantBomb(state, square))}
+          onExtraDice={() => applyPower(useExtraDice)}
+          onDetonate={(id) => { void applyAnimatedPower(
+            (state) => ({ state: detonateBomb(state, id), path: [], effect: "boom" }),
+            game.players.find((player) => player.id !== currentPlayer.id)!.id,
+          ); }}
+        />
+        </View>
+
         {winner ? (
           <View style={[styles.winnerCard, { backgroundColor: colors.accent }]}>
             <MaterialCommunityIcons name="trophy" size={21} color={colors.accentForeground} />
@@ -938,7 +1045,7 @@ export default function GameScreen() {
         ) : (
           <Pressable
             onPress={rollDice}
-            disabled={busy}
+            disabled={busy || !!game.pendingChoice}
             accessibilityRole="button"
             accessibilityLabel="Roll the dice"
             testID="button-roll"
@@ -958,7 +1065,7 @@ export default function GameScreen() {
             />
             <View style={styles.rollCopy}>
               <Text style={[styles.rollTitle, { color: colors.primaryForeground }]}>
-                {rolling ? "ROLLING…" : "ROLL THE DICE"}
+                {game.pendingChoice ? "CHOOSE YOUR POWER FIRST" : rolling ? "ROLLING…" : "ROLL THE DICE"}
               </Text>
               <Text style={[styles.rollSubtitle, { color: colors.primaryForeground }]}>
                 {rolling
@@ -979,12 +1086,17 @@ export default function GameScreen() {
           </Text>
         </View>
 
+        <RulesDrawer>
         <View style={styles.rulesLine}>
           <MaterialCommunityIcons name="information-outline" size={16} color={colors.mutedForeground} />
           <Text style={[styles.rulesText, { color: colors.mutedForeground }]}>
-            First reach 100 for a torch and return Home. With the torch, land in black room 17, 44 or 67 for one key; then return to 100 for the crown. Gates never block movement. Bullets only on final landing, max 5. Stop on 94–96 to fire at 98, 99 or both (2 bullets). Hits last for your next 3 rolls. Exact roll required at 100.
+            First reach 100 for a torch and return Home. With the torch, stop in black room 17, 44 or 67 for one key; then return to 100 for the crown. Without a key, 100 returns you Home to retry. Gates never block movement.{"\n\n"}
+            Bullets only on final landing in 6, 12, 25, 38, 61, 63, 77 or 89, max 5. Stop on 94–96 to fire at 98, 99 or both (2 bullets). Hits protect your panda for its next 3 rolls. A valid six grants another chance; overshooting 100 does not. Exact roll required at 100.{"\n\n"}
+            Mystery rooms 14, 35, 51 and 76 let you choose a Bomb, Anti-Venom, Defuser Kit or Extra Dice. Plant on any house; manually detonate on your turn after the rival stops there. Blasts send the rival Home without losing torch, key or inventory.{"\n\n"}
+            Use Anti-Venom before a bite to stay in that snake room. One Defuser Kit protects a visit to boom room 97 or removes a rival planted bomb. Activate Extra Dice before rolling to bank one additional roll; a valid six gives a separate bonus and does not spend that credit.
           </Text>
         </View>
+        </RulesDrawer>
 
         {storageError && (
           <Text style={[styles.storageWarning, { color: colors.destructive }]}>

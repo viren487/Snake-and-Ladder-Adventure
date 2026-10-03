@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createGame, passFire, playTurn, repairLegacyGame, resolveTurn } from "../lib/game-engine.ts";
+import { createGame, choosePower, passFire, playTurn, repairLegacyGame, resolveTurn } from "../lib/game-engine.ts";
 import { isSavedGame } from "../lib/saved-game.ts";
 
 function at(position, keys = 0) {
@@ -132,7 +132,8 @@ test("1000 complete seeded games never deadlock at a gate", () => {
         assert.ok(player.keys >= 0);
       }
       assert.notEqual(resolved.state, game);
-      game = resolved.state.pendingFireForPlayerId ? passFire(resolved.state) : resolved.state;
+      game = resolved.state.pendingFireForPlayerId ? passFire(resolved.state)
+        : resolved.state.pendingChoice?.kind === "mystery" ? choosePower(resolved.state, "extraDice") : resolved.state;
     }
     assert.ok(game.winnerId, `Round ${round} never finished`);
   }
