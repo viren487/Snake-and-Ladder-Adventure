@@ -1,22 +1,30 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Crown, Dices, KeyRound, RotateCcw, Sparkles, Trophy, Volume2, VolumeX } from 'lucide-react';
+import { CircleDot, Crosshair, Crown, Dices, KeyRound, RotateCcw, Sparkles, Trophy, Volume2, VolumeX } from 'lucide-react';
 import {
+  BULLET_PICKUP_SQUARES,
   createGame,
+  GUN_SQUARES,
+  MAX_BULLETS,
   repairLegacyGame,
+  passFire,
   resolveTurn,
+  shootSnake,
+  SHOOTABLE_SNAKE_SQUARES,
+  SNAKE_STUN_ROLLS,
   squareAt,
   SNAKES,
   LADDERS,
   BOOM_SQUARE,
   KEY_SQUARES,
   LOCKED_SQUARES,
+  type ShootableSnakeSquare,
   type GameState,
 } from './game-engine';
 import { useGameSounds } from './use-game-sounds';
 
-const STORAGE_KEY = 'snack-ladder-adventure-v2';
+const STORAGE_KEY = 'snack-ladder-adventure-v3';
+const PREVIOUS_STORAGE_KEY = 'snack-ladder-adventure-v2';
 const LEGACY_STORAGE_KEY = 'snack-ladder-adventure-v1';
-const EXTRA_BULLET_SQUARES = [61, 77] as const;
 const MYSTERY_BOX_SQUARES = [14, 35, 51, 76] as const;
 const MOVEMENT_STEP_DELAY_MS = 240;
 type WalkingPiece = {
@@ -35,8 +43,9 @@ const SNAKE_ART: Record<string, string> = {
 
 function readGame(): GameState {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (saved) {
+    for (const storageKey of [STORAGE_KEY, PREVIOUS_STORAGE_KEY, LEGACY_STORAGE_KEY]) {
+      const saved = localStorage.getItem(storageKey);
+      if (!saved) continue;
       const value: unknown = JSON.parse(saved);
       if (isSavedGame(value)) return repairLegacyGame(value);
     }
@@ -60,6 +69,14 @@ function isSavedGame(value: unknown): value is GameState {
       player.position <= 100 &&
       Number.isInteger(player.keys) &&
       player.keys >= 0 &&
+      (player.bullets === undefined ||
+        (Number.isInteger(player.bullets) && player.bullets >= 0 && player.bullets <= MAX_BULLETS)) &&
+      (player.snakeStuns === undefined ||
+        SHOOTABLE_SNAKE_SQUARES.every((square) =>
+          Number.isInteger(player.snakeStuns[square]) &&
+          player.snakeStuns[square] >= 0 &&
+          player.snakeStuns[square] <= SNAKE_STUN_ROLLS,
+        )) &&
       (player.unlockedGates === undefined ||
         (Array.isArray(player.unlockedGates) &&
           player.unlockedGates.every((gate) =>
@@ -73,6 +90,9 @@ function isSavedGame(value: unknown): value is GameState {
     game.turnNumber! >= 1 &&
     (game.lastRoll === null || (Number.isInteger(game.lastRoll) && game.lastRoll! >= 1 && game.lastRoll! <= 6)) &&
     (game.winnerId === null || game.players.some((player) => player.id === game.winnerId)) &&
+    (game.pendingFireForPlayerId === undefined ||
+      game.pendingFireForPlayerId === null ||
+      game.players[game.currentPlayerIndex!]?.id === game.pendingFireForPlayerId) &&
     typeof game.message === 'string';
 }
 
@@ -174,7 +194,7 @@ function LadderArt({ from, to }: { from: number; to: number }) {
   );
 }
 
-function SnakeArt({ from, to, color }: { from: number; to: number; color: string }) {
+function SnakeArt({ from, to, color, sleeping }: { from: number; to: number; color: string; sleeping: boolean }) {
   const a = centerOf(from);
   const b = centerOf(to);
   const dx = b.x - a.x;
@@ -183,7 +203,7 @@ function SnakeArt({ from, to, color }: { from: number; to: number; color: string
   const width = Math.min(72, Math.max(42, length * .12));
   const rotation = Math.atan2(-dx, dy) * 180 / Math.PI;
   return (
-    <g data-testid={`snake-art-${from}-${to}`} transform={`translate(${a.x} ${a.y}) rotate(${rotation})`}>
+    <g className={sleeping ? 'snake-art-stunned' : ''} data-testid={`snake-art-${from}-${to}`} transform={`translate(${a.x} ${a.y}) rotate(${rotation})`}>
       <image
         className="snake-photo"
         href={SNAKE_ART[color] || SNAKE_ART.violet}
@@ -235,33 +255,44 @@ function PandaToken({
   );
 }
 
-function Board({ game, walking }: { game: GameState; walking: WalkingPiece | null }) {
-  const openGates = game.players[game.currentPlayerIndex].unlockedGates;
+function Board({
+  game,
+  walking,
+  aiming,
+  onAimTarget,
+}: {
+  game: GameState;
+  walking: WalkingPiece | null;
+  aiming: boolean;
+  onAimTarget: (square: ShootableSnakeSquare) => void;
+}) {
+  const activePlayer = game.players[game.currentPlayerIndex];
+  const activeStuns = activePlayer.snakeStuns ?? { 98: 0, 99: 0 };
   const cells = useMemo(() => Array.from({ length: 100 }, (_, i) => {
     const row = Math.floor(i / 10);
     const col = i % 10;
     const number = squareAt(row, col);
-    const locked = (LOCKED_SQUARES as readonly number[]).includes(number);
+    const gate = (LOCKED_SQUARES as readonly number[]).includes(number);
     const key = (KEY_SQUARES as readonly number[]).includes(number);
-    const bullet = key || (EXTRA_BULLET_SQUARES as readonly number[]).includes(number);
+    const bullet = (BULLET_PICKUP_SQUARES as readonly number[]).includes(number);
     const mysteryBox = (MYSTERY_BOX_SQUARES as readonly number[]).includes(number);
-    const gun = number === 94 || number === 95 || number === 96;
+    const gun = (GUN_SQUARES as readonly number[]).includes(number);
     const boom = number === BOOM_SQUARE;
-    const tone = locked ? 'locked' : key ? 'key-square' : number % 3 === 0 ? 'blue' : (row + col) % 2 === 0 ? 'green' : 'cream';
+    const tone = gate ? 'locked' : key ? 'key-square' : number % 3 === 0 ? 'blue' : (row + col) % 2 === 0 ? 'green' : 'cream';
     return (
-      <div className={`board-cell ${tone} ${locked || key ? 'special' : ''}`} key={number} data-testid={`board-square-${number}`} aria-label={`Square ${number}${locked && openGates.includes(number) ? ', open gate for current player' : ''}${bullet ? key ? ', bullet pickup' : ', bullet' : ''}${mysteryBox ? ', mystery box' : ''}${gun ? ', gun' : ''}${boom ? ', boom trap' : ''}`}>
+      <div className={`board-cell ${tone} ${gate || key ? 'special' : ''}`} key={number} data-testid={`board-square-${number}`} aria-label={`Square ${number}${gate ? ', open gate; keys are not required' : ''}${bullet ? ', bullet pickup' : ''}${mysteryBox ? ', mystery box' : ''}${gun ? ', gun' : ''}${boom ? ', boom trap' : ''}`}>
         <span className="cell-number" data-testid={`square-number-${number}`}>{number}</span>
         {bullet && <BulletIcon square={number} />}
         {mysteryBox && <MysteryBoxIcon square={number} />}
         {gun && <GunIcon />}
         {boom && <BoomIcon />}
-        {locked && <>
-          <span className="lock-caption">{openGates.includes(number) ? 'OPEN FOR<br />YOUR PANDA' : <>TORCH KEY<br />REQUIRED</>}</span>
-          <KeyRound className={`locked-glyph ${openGates.includes(number) ? 'gate-open-glyph' : ''}`} strokeWidth={2.2} />
+        {gate && <>
+          <span className="lock-caption">GATE OPEN</span>
+          <KeyRound className="locked-glyph gate-open-glyph" strokeWidth={2.2} />
         </>}
       </div>
     );
-  }), [openGates]);
+  }), []);
   const pieceStyle = (position: number, playerIndex: number) => {
     const point = position > 0 ? centerOf(position) : { x: 70, y: 948 };
     const stacked = game.players.some((other, index) => index !== playerIndex && other.position === position);
@@ -281,13 +312,56 @@ function Board({ game, walking }: { game: GameState; walking: WalkingPiece | nul
       <div className="board-inner">
         <div className="board-grid">{cells}</div>
         <svg className="board-svg" viewBox="0 0 1000 1000" aria-label="Photorealistic snakes and ladders">
-          {SNAKES.map(snake => <SnakeArt key={snake.from} from={snake.from} to={snake.to} color={snake.color} />)}
+          {SNAKES.map(snake => (
+            <SnakeArt
+              key={snake.from}
+              from={snake.from}
+              to={snake.to}
+              color={snake.color}
+              sleeping={SHOOTABLE_SNAKE_SQUARES.includes(snake.from as ShootableSnakeSquare) && activeStuns[snake.from as ShootableSnakeSquare] > 0}
+            />
+          ))}
           {LADDERS.map(ladder => <LadderArt key={ladder.from} from={ladder.from} to={ladder.to} />)}
         </svg>
         <div className="crown-tile" data-testid="goal-crown" aria-label="Finish at square 100">
           <Crown />
           <span>100</span>
         </div>
+        {SHOOTABLE_SNAKE_SQUARES.map((square) => {
+          const rounds = activeStuns[square];
+          if (rounds <= 0) return null;
+          const point = centerOf(square);
+          return (
+            <div
+              className="snake-stun-badge"
+              key={`stun-${square}`}
+              style={{ left: `${point.x / 10}%`, top: `${point.y / 10}%` }}
+              data-testid={`snake-stun-${square}`}
+              aria-label={`Snake ${square} is stunned for ${rounds} more rolls by ${activePlayer.name}`}
+            >
+              ZZ · {rounds}
+            </div>
+          );
+        })}
+        {aiming && SHOOTABLE_SNAKE_SQUARES.map((square) => {
+          const rounds = activeStuns[square];
+          const point = centerOf(square);
+          return (
+            <button
+              type="button"
+              className={`aim-target ${rounds > 0 ? 'aim-target-sleeping' : ''}`}
+              key={`aim-${square}`}
+              style={{ left: `${point.x / 10}%`, top: `${point.y / 10}%` }}
+              onClick={() => onAimTarget(square)}
+              disabled={rounds > 0}
+              aria-label={rounds > 0 ? `Snake at square ${square} is already stunned for ${rounds} rolls` : `Aim at snake at square ${square}`}
+              data-testid={`aim-target-${square}`}
+            >
+              <Crosshair size={17} />
+              <span>{rounds > 0 ? `ZZ ${rounds}` : square}</span>
+            </button>
+          );
+        })}
         {game.players.map((player, index) => {
           const position = walking?.playerId === player.id ? walking.position : player.position;
           const stacked = game.players.some((other, otherIndex) => otherIndex !== index && other.position === position);
@@ -326,6 +400,7 @@ function App() {
   const [rolling, setRolling] = useState(false);
   const [diceFace, setDiceFace] = useState<number | null>(game.lastRoll);
   const [walking, setWalking] = useState<WalkingPiece | null>(null);
+  const [aiming, setAiming] = useState(false);
   const sounds = useGameSounds();
   const rollInFlight = useRef(false);
   const screenMounted = useRef(true);
@@ -339,11 +414,41 @@ function App() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(game)); } catch { /* Local play remains available without storage. */ }
   }, [game]);
 
+  useEffect(() => {
+    if (!aiming || !window.matchMedia('(max-width: 820px)').matches) return;
+    document.querySelector('[data-testid="game-board"]')?.scrollIntoView({
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      block: 'center',
+    });
+  }, [aiming]);
+
   const currentPlayer = game.players[game.currentPlayerIndex];
   const winner = game.players.find(player => player.id === game.winnerId);
+  const waitingToFire = game.pendingFireForPlayerId === currentPlayer.id;
+  const availableTargets = SHOOTABLE_SNAKE_SQUARES.filter(
+    (square) => currentPlayer.snakeStuns[square] === 0,
+  );
+
+  const fireAt = (square: ShootableSnakeSquare) => {
+    setGame(shootSnake(game, square));
+    setAiming(false);
+    if (window.matchMedia('(max-width: 820px)').matches) {
+      window.setTimeout(() => {
+        document.querySelector('[data-testid="game-controls"]')?.scrollIntoView({
+          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+          block: 'start',
+        });
+      }, 50);
+    }
+  };
+
+  const passShot = () => {
+    setGame(passFire(game));
+    setAiming(false);
+  };
 
   const rollDice = async () => {
-    if (rollInFlight.current || game.winnerId) return;
+    if (rollInFlight.current || game.winnerId || game.pendingFireForPlayerId) return;
     rollInFlight.current = true;
     setRolling(true);
     sounds.play('dice');
@@ -397,8 +502,10 @@ function App() {
     const fresh = createGame();
     setGame(fresh);
     setDiceFace(null);
+    setAiming(false);
     try {
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(PREVIOUS_STORAGE_KEY);
       localStorage.removeItem(LEGACY_STORAGE_KEY);
     } catch { /* Ignore unavailable storage. */ }
   };
@@ -430,8 +537,8 @@ function App() {
         </header>
 
         <div className="game-columns">
-          <Board game={game} walking={walking} />
-          <section className="side-panel" aria-label="Game controls and player status">
+          <Board game={game} walking={walking} aiming={waitingToFire && aiming} onAimTarget={fireAt} />
+          <section className="side-panel" aria-label="Game controls and player status" data-testid="game-controls">
             <div className="turn-card">
               <div className="eyebrow" data-testid="turn-number">TURN {String(game.turnNumber).padStart(2, '0')}</div>
               {winner ? (
@@ -442,7 +549,7 @@ function App() {
               ) : (
                 <>
                   <div className="turn-name" data-testid="current-player">{currentPlayer.name}'s turn</div>
-                  <div className="turn-sub">Pass the board, take your chance.</div>
+                  <div className="turn-sub">{waitingToFire ? 'Aim carefully, or pass this shot.' : 'Pass the board, take your chance.'}</div>
                 </>
               )}
               <div className="player-stack">
@@ -452,13 +559,47 @@ function App() {
                     <span className="player-label">{player.name}</span>
                     <span className="player-position" data-testid={`position-${player.id}`}>{player.position ? `#${player.position}` : 'HOME'}</span>
                     <span className="keys-chip" data-testid={`keys-${player.id}`}><KeyRound size={12} /> {player.keys}</span>
+                    <span className="ammo-chip" data-testid={`bullets-${player.id}`} aria-label={`${player.bullets} of ${MAX_BULLETS} bullets`}>
+                      <CircleDot size={12} /> {player.bullets}/{MAX_BULLETS}
+                    </span>
                   </div>
                 ))}
               </div>
+              {SHOOTABLE_SNAKE_SQUARES.map((square) => {
+                const rounds = currentPlayer.snakeStuns[square];
+                return rounds > 0 ? (
+                  <div className="stun-summary" key={`active-stun-${square}`} data-testid={`stun-summary-${square}`}>
+                    Snake {square} is asleep for {rounds} more of your rolls.
+                  </div>
+                ) : null;
+              })}
             </div>
 
             {winner ? (
               <div className="win-banner" data-testid="winner-banner"><Trophy size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} /> Crown claimed!</div>
+            ) : waitingToFire ? (
+              <div className="fire-choice-card" data-testid="fire-choice">
+                <div className="fire-choice-title"><Crosshair size={17} /> Gun point reached</div>
+                <div className="fire-choice-copy">
+                  {aiming
+                    ? 'Choose an awake snake at square 98 or 99. A shot uses one bullet.'
+                    : `${currentPlayer.bullets} bullet${currentPlayer.bullets === 1 ? '' : 's'} available. A hit keeps that snake asleep for your next ${SNAKE_STUN_ROLLS} rolls.`}
+                </div>
+                <div className="fire-choice-actions">
+                  <button
+                    className="primary-action"
+                    onClick={() => setAiming((value) => !value)}
+                    disabled={rolling || (aiming && availableTargets.length === 0)}
+                    aria-pressed={aiming}
+                    data-testid="button-fire"
+                  >
+                    <Crosshair size={16} /> {aiming ? 'Cancel aim' : 'Fire'}
+                  </button>
+                  <button className="secondary-action" onClick={passShot} disabled={rolling} data-testid="button-pass-fire">
+                    Pass this shot
+                  </button>
+                </div>
+              </div>
             ) : (
               <div className="roll-area">
                 <button className="dice-button" onClick={rollDice} disabled={rolling || !!winner} aria-label="Roll the dice" data-testid="button-roll">
@@ -470,7 +611,7 @@ function App() {
                 </div>
               </div>
             )}
-            {!winner && <button className="primary-action" onClick={rollDice} disabled={rolling} data-testid="button-roll-turn"><Dices size={17} /> {rolling ? 'Rolling the dice…' : 'Roll the dice'}</button>}
+            {!winner && !waitingToFire && <button className="primary-action" onClick={rollDice} disabled={rolling} data-testid="button-roll-turn"><Dices size={17} /> {rolling ? 'Rolling the dice…' : 'Roll the dice'}</button>}
 
             <div className="message-card" aria-live="polite" data-testid="game-message">
               <Sparkles className="message-icon" size={16} />
@@ -482,7 +623,9 @@ function App() {
               <div className="rules-title">A few things to know</div>
               <div className="rules-list">
                 <div className="rule-line"><span className="rule-swatch" style={{ background: '#dc8540' }} /> Ladders lift you up; snakes send you sliding.</div>
-                <div className="rule-line"><KeyRound size={13} color="#f0c65a" /> Collect keys as you pass; gates you open stay open for your panda.</div>
+                <div className="rule-line"><KeyRound size={13} color="#f0c65a" /> Keys are saved, but gates do not need them right now.</div>
+                <div className="rule-line"><CircleDot size={13} color="#dce6e9" /> Collect bullets as you move; carry up to {MAX_BULLETS}.</div>
+                <div className="rule-line"><Crosshair size={13} color="#f0c65a" /> At a gun, shoot snake 98 or 99 to stun it for your next {SNAKE_STUN_ROLLS} rolls.</div>
                 <div className="rule-line"><Crown size={13} color="#f0c65a" /> Reach 100 with an exact roll to win.</div>
               </div>
             </div>
