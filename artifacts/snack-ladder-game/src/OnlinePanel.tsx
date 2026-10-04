@@ -21,9 +21,10 @@ export interface OnlinePanelProps {
   onRematch: () => void;
   onRetry: () => void;
   resumeCode?: string;
+  pendingAdmission?: boolean;
 }
 
-export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, onLeave, onRematch, onRetry, resumeCode }: OnlinePanelProps) {
+export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, onLeave, onRematch, onRetry, resumeCode, pendingAdmission }: OnlinePanelProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
@@ -46,13 +47,13 @@ export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, on
   if (!room && resumeCode) {
     return (
       <section className="op" aria-label="Restoring online room" data-testid="online-restoring">
-        <div className="eyebrow">Restoring room</div>
+        <div className="eyebrow">{pendingAdmission ? 'Recovering saved join request' : 'Restoring room'}</div>
         <div className="op-codeval" data-testid="room-code">{resumeCode}</div>
-        <p className="op-note" role="status">{busy ? 'Reconnecting to your seat...' : 'Your seat is saved on this device.'}</p>
+        <p className="op-note" role="status">{busy ? 'Reconnecting to your seat...' : pendingAdmission ? 'Retry recovers your original request without taking another seat. Keep this device’s saved data.' : 'Your seat is saved on this device.'}</p>
         {error && <p className="op-err" role="alert" data-testid="online-error">{error}</p>}
         <div className="op-row">
           <button type="button" className="op-btn gold" data-testid="retry-online" disabled={busy} onClick={onRetry}><RefreshCw size={14} /> Retry</button>
-          <button type="button" className="op-btn" data-testid="leave-online-room" onClick={onLeave}><LogOut size={14} /> Back to local play</button>
+          {!pendingAdmission && <button type="button" className="op-btn" data-testid="leave-online-room" disabled={busy} onClick={onLeave}><LogOut size={14} /> Back to local play</button>}
         </div>
       </section>
     );

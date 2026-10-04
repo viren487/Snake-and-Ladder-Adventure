@@ -5,6 +5,11 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface AdmissionTicket {
+  /** @pattern ^[a-f0-9]{64}$ */
+  token: string;
+}
+
 export interface RoomCreateInput {
   /** @maxLength 24 */
   name?: string;
@@ -13,11 +18,15 @@ export interface RoomCreateInput {
      * @maximum 4
      */
   maxPlayers?: number;
+  /** @pattern ^[a-f0-9]{64}$ */
+  admissionToken?: string;
 }
 
 export interface RoomMemberInput {
   /** @maxLength 24 */
   name?: string;
+  /** @pattern ^[a-f0-9]{64}$ */
+  admissionToken?: string;
 }
 
 export interface RoomSession {

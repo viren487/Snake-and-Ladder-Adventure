@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdmissionTicket,
   HealthStatus,
   OnlineRoom,
   RoomAction,
@@ -54,6 +55,74 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getPrepareRoomAdmissionUrl = () => {
+
+
+
+
+  return `/api/rooms/admission-ticket`
+}
+
+export const prepareRoomAdmission = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdmissionTicket> => {
+
+  return customFetch<AdmissionTicket>(getPrepareRoomAdmissionUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPrepareRoomAdmissionMutationKey = () => ['prepareRoomAdmission'] as const;
+
+export const getPrepareRoomAdmissionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof prepareRoomAdmission>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof prepareRoomAdmission>>, TError,void, TContext> => {
+
+const mutationKey = getPrepareRoomAdmissionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof prepareRoomAdmission>>, void> = () => {
+
+
+          return  prepareRoomAdmission(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PrepareRoomAdmissionMutationResult = NonNullable<Awaited<ReturnType<typeof prepareRoomAdmission>>>
+
+    export type PrepareRoomAdmissionMutationError = ErrorType<unknown>
+
+
+    export const usePrepareRoomAdmission = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof prepareRoomAdmission>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof prepareRoomAdmission>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getPrepareRoomAdmissionMutationOptions(options));
+    }
 
 export const getCreateGameRoomUrl = () => {
 

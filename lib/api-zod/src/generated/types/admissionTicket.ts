@@ -6,9 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface RoomMemberInput {
-  /** @maxLength 24 */
-  name?: string;
+export interface AdmissionTicket {
   /** @pattern ^[a-f0-9]{64}$ */
-  admissionToken?: string;
+  token: string;
 }

@@ -15,6 +15,12 @@ Online rounds must not replace existing local saves. Restoring an online seat me
 
 **How to apply:** Keep online session storage separate from local game saves; explain original-device restoration in UI. Never put seat credentials in invite codes or links.
 
+Persist a cryptographically random admission credential before requesting a room or seat. Reuse that request after a timeout or app reload, and recover ownership before checking whether the room is full. Do not discard recovery on an ambiguous transport failure.
+
+**Why:** A mobile join timed out after the server had allocated its seat; retrying as a fresh join took another seat. A longer timeout alone cannot prevent this.
+
+**How to apply:** Keep pending admission separate from local rounds. Treat create and join as idempotent ownership operations, including recovery after the last seat starts a match. Only a definite rejection permits a fresh request.
+
 Restore the local round before clearing the online-session flag on exit; do not await storage between those steps.
 
 **Why:** Native storage writes can yield to rendering. Clearing the flag first temporarily enables offline autosaves while the displayed state is still the online round.

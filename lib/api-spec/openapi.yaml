@@ -11,6 +11,16 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /rooms/admission-ticket:
+    post:
+      operationId: prepareRoomAdmission
+      tags: [multiplayer]
+      responses:
+        "200":
+          description: Cryptographically random recovery credential; save on this device before admission.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdmissionTicket" }
   /rooms:
     post:
       operationId: createGameRoom
@@ -39,7 +49,7 @@ paths:
             schema: { $ref: "#/components/schemas/RoomMemberInput" }
       responses:
         "200":
-          description: Second player admitted.
+          description: Player admitted, or the same original seat recovered after a lost response.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/RoomAdmission" }
@@ -93,15 +103,22 @@ components:
       type: http
       scheme: bearer
   schemas:
+    AdmissionTicket:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string, pattern: "^[a-f0-9]{64}$" }
     RoomCreateInput:
       type: object
       properties:
         name: { type: string, maxLength: 24 }
         maxPlayers: { type: integer, minimum: 2, maximum: 4, default: 2 }
+        admissionToken: { type: string, pattern: "^[a-f0-9]{64}$" }
     RoomMemberInput:
       type: object
       properties:
         name: { type: string, maxLength: 24 }
+        admissionToken: { type: string, pattern: "^[a-f0-9]{64}$" }
     RoomSession:
       type: object
       required: [code, token, playerId]

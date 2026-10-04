@@ -2,7 +2,7 @@ import * as React from "react";
 import { useEffect, useRef, type Dispatch, type SetStateAction, type RefObject } from "react";
 import { AppState, AccessibilityInfo } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useOnlineRoom, isRoomSession, type RoomStorage } from "@workspace/api-client-react";
+import { useOnlineRoom, isRoomSession, isPendingAdmission, type RoomStorage } from "@workspace/api-client-react";
 import type { GameState, ShootableSnakeSquare } from "@/lib/game-engine";
 import type { RoomSnapshot } from "@workspace/game-core/online";
 import type { useGameSounds } from "./useGameSounds";
@@ -22,7 +22,7 @@ const storage: RoomStorage = {
     const raw = await AsyncStorage.getItem("snake-ladder-online-seat-v1");
     if (!raw) return null;
     const value: unknown = JSON.parse(raw);
-    if (!isRoomSession(value)) throw new Error("Invalid room seat");
+    if (!isRoomSession(value) && !isPendingAdmission(value)) throw new Error("Invalid room seat");
     return value;
   },
   async save(session) {

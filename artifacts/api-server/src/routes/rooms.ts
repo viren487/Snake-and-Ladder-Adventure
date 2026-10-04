@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { CreateGameRoomBody, JoinGameRoomBody, ActInGameRoomBody } from "@workspace/api-zod";
-import { createRoom, joinRoom, readRoom, actInRoom, RoomError } from "../lib/game-rooms";
+import { createRoom, joinRoom, readRoom, actInRoom, prepareAdmission, RoomError } from "../lib/game-rooms";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -37,15 +37,19 @@ function route(work: (req: Request, res: Response) => Promise<void>) {
     }
   };
 }
+router.post("/admission-ticket", route(async (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json(prepareAdmission());
+}));
 router.post("/", route(async (req, res) => {
   const body = CreateGameRoomBody.safeParse(req.body);
   if (!body.success) throw new RoomError(400, "Use a name up to 24 characters and choose 2, 3 or 4 players.");
-  res.status(201).json(await createRoom(body.data.name, body.data.maxPlayers));
+  res.status(201).json(await createRoom(body.data.name, body.data.maxPlayers, body.data.admissionToken));
 }));
 router.post("/:code/join", route(async (req, res) => {
   const body = JoinGameRoomBody.safeParse(req.body);
   if (!body.success) throw new RoomError(400, "Player name must be at most 24 characters.");
-  res.json(await joinRoom(codeOf(req), body.data.name));
+  res.json(await joinRoom(codeOf(req), body.data.name, body.data.admissionToken));
 }));
 router.get("/:code", route(async (req, res) => { res.json(await readRoom(codeOf(req), tokenOf(req))); }));
 router.post("/:code/actions", route(async (req, res) => {

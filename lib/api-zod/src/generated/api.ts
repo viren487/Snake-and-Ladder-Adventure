@@ -8,17 +8,27 @@
 import * as zod from 'zod';
 
 
+export const prepareRoomAdmissionResponseTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const PrepareRoomAdmissionResponse = zod.object({
+  "token": zod.string().regex(prepareRoomAdmissionResponseTokenRegExp)
+})
+
+
 export const createGameRoomBodyNameMax = 24;
 
 export const createGameRoomBodyMaxPlayersDefault = 2;
 export const createGameRoomBodyMaxPlayersMin = 2;
 export const createGameRoomBodyMaxPlayersMax = 4;
 
+export const createGameRoomBodyAdmissionTokenRegExp = new RegExp('^[a-f0-9]{64}$');
 
 
 export const CreateGameRoomBody = zod.object({
   "name": zod.string().max(createGameRoomBodyNameMax).optional(),
-  "maxPlayers": zod.number().int().min(createGameRoomBodyMaxPlayersMin).max(createGameRoomBodyMaxPlayersMax).default(createGameRoomBodyMaxPlayersDefault)
+  "maxPlayers": zod.number().int().min(createGameRoomBodyMaxPlayersMin).max(createGameRoomBodyMaxPlayersMax).default(createGameRoomBodyMaxPlayersDefault),
+  "admissionToken": zod.string().regex(createGameRoomBodyAdmissionTokenRegExp).optional()
 })
 
 export const createGameRoomResponseRoomMaxPlayersMin = 2;
@@ -70,10 +80,12 @@ export const JoinGameRoomParams = zod.object({
 
 export const joinGameRoomBodyNameMax = 24;
 
+export const joinGameRoomBodyAdmissionTokenRegExp = new RegExp('^[a-f0-9]{64}$');
 
 
 export const JoinGameRoomBody = zod.object({
-  "name": zod.string().max(joinGameRoomBodyNameMax).optional()
+  "name": zod.string().max(joinGameRoomBodyNameMax).optional(),
+  "admissionToken": zod.string().regex(joinGameRoomBodyAdmissionTokenRegExp).optional()
 })
 
 export const joinGameRoomResponseRoomMaxPlayersMin = 2;

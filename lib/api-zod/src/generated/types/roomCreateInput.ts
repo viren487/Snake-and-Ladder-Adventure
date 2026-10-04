@@ -14,4 +14,6 @@ export interface RoomCreateInput {
      * @maximum 4
      */
   maxPlayers?: number;
+  /** @pattern ^[a-f0-9]{64}$ */
+  admissionToken?: string;
 }

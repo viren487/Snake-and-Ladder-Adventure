@@ -775,7 +775,7 @@ function App() {
             <div className="top-chip" data-testid="game-mode"><i /> {online.session ? 'ONLINE · TWO DEVICES' : 'LOCAL · PASS & PLAY'}</div>
           </div>
         </header>
-        <OnlinePanel room={online.room} resumeCode={online.session?.code}
+        <OnlinePanel room={online.room} pendingAdmission={!!online.pendingAdmission} resumeCode={online.session?.code ?? (online.pendingAdmission ? online.pendingAdmission.code ?? "Creating room" : undefined)}
           busy={online.busy || rolling || firing || online.loadingSession} connected={online.connected}
           error={online.error} onCreate={online.create} onJoin={online.join}
           onLeave={leaveOnline} onRematch={() => { void online.action({ type: 'rematch' }); }}

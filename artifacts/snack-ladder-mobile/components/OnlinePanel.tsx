@@ -22,9 +22,10 @@ export interface OnlinePanelProps {
   onRematch: () => void;
   onRetry: () => void;
   resumeCode?: string;
+  pendingAdmission?: boolean;
 }
 
-export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, onLeave, onRematch, onRetry, resumeCode }: OnlinePanelProps) {
+export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, onLeave, onRematch, onRetry, resumeCode, pendingAdmission }: OnlinePanelProps) {
   const colors = useColors();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -45,13 +46,13 @@ export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, on
   if (!room && resumeCode) {
     return (
       <View style={card} testID="online-restoring">
-        <Text style={[styles.copy, { color: colors.mutedForeground }]}>RESTORING ROOM</Text>
+        <Text style={[styles.copy, { color: colors.mutedForeground }]}>{pendingAdmission ? "RECOVERING SAVED JOIN" : "RESTORING ROOM"}</Text>
         <Text style={[styles.code, { color: colors.primary }]} testID="room-code">{resumeCode}</Text>
-        <Text style={[styles.copy, { color: colors.mutedForeground }]} accessibilityLiveRegion="polite">{busy ? "Reconnecting to your seat..." : "Your seat is saved on this device."}</Text>
+        <Text style={[styles.copy, { color: colors.mutedForeground }]} accessibilityLiveRegion="polite">{busy ? "Reconnecting to your seat..." : pendingAdmission ? "Retry recovers your original request without taking another seat. Keep this device's saved data." : "Your seat is saved on this device."}</Text>
         {error ? <Text style={[styles.copy, { color: colors.destructive }]} accessibilityRole="alert">{error}</Text> : null}
         <View style={styles.row}>
           <Btn gold icon="refresh" text="Retry" disabled={busy} onPress={onRetry} testID="retry-online" />
-          <Btn icon="logout" text="Back to local play" onPress={onLeave} testID="leave-online-room" />
+          {!pendingAdmission && <Btn icon="logout" text="Back to local play" disabled={busy} onPress={onLeave} testID="leave-online-room" />}
         </View>
       </View>
     );

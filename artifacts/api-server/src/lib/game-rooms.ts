@@ -56,9 +56,29 @@ async function locked<T>(code: string, callback: (room: StoredRoom) => T): Promi
   } finally { client.release(); }
 }
 
-export async function createRoom(name?: string, maxPlayers = 2): Promise<{ session: RoomSession; room: RoomSnapshot }> {
+export function prepareAdmission() { return { token: newToken() }; }
+
+export async function createRoom(name?: string, maxPlayers = 2, admissionToken?: string): Promise<{ session: RoomSession; room: RoomSnapshot }> {
   if (!Number.isInteger(maxPlayers) || maxPlayers < 2 || maxPlayers > 4) throw new RoomError(400, "Choose 2, 3 or 4 players.");
-  const token = newToken();
+  const token = admissionToken ?? newToken();
+  if (!/^[a-f0-9]{64}$/.test(token)) throw new RoomError(400, "Invalid admission credential.");
+  const client = await pool.connect();
+  try {
+  await client.query("BEGIN");
+  // Serializes duplicate creates across processes without storing raw credentials.
+  await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [digest(token)]);
+  const previous = await client.query<StoredRoom>(
+    "SELECT * FROM game_rooms WHERE members @> $1::jsonb LIMIT 1 FOR UPDATE",
+    [JSON.stringify([{ tokenHash: digest(token) }])],
+  );
+  if (previous.rows[0]) {
+    const room = previous.rows[0];
+    if (!isValidPowerState(room.game)) throw new RoomError(500, "This saved online round could not be read safely.");
+    const member = room.members.find((item) => item.tokenHash === digest(token))!;
+    if (member.id !== "player-1") throw new RoomError(409, "This credential already belongs to a joined room.");
+    await client.query("COMMIT");
+    return { session: { code: room.code, token, playerId: member.id }, room: roomSnapshot(room, member) };
+  }
   const member: Member = { id: "player-1", name: nameFor(name, "Player 1"), tokenHash: digest(token), lastSeen: Date.now() };
   const game = createGame(maxPlayers);
   game.players[0].name = member.name;
@@ -66,17 +86,31 @@ export async function createRoom(name?: string, maxPlayers = 2): Promise<{ sessi
     receipts: [], transition: null, rematch_votes: [], ready_at: new Date() };
   for (let attempt = 0; attempt < 8; attempt++) {
     stored.code = newCode();
-    const result = await pool.query(`INSERT INTO game_rooms (code,status,version,game,members,receipts,
+    const result = await client.query(`INSERT INTO game_rooms (code,status,version,game,members,receipts,
       transition,rematch_votes,ready_at) VALUES ($1,$2,0,$3::jsonb,$4::jsonb,'[]'::jsonb,null,'[]'::jsonb,now())
       ON CONFLICT (code) DO NOTHING RETURNING code`,
     [stored.code, stored.status, JSON.stringify(game), JSON.stringify(stored.members)]);
-    if (result.rowCount) return { session: { code: stored.code, token, playerId: member.id }, room: roomSnapshot(stored, member) };
+    if (result.rowCount) {
+      await client.query("COMMIT");
+      return { session: { code: stored.code, token, playerId: member.id }, room: roomSnapshot(stored, member) };
+    }
   }
   throw new RoomError(503, "Could not allocate a room code. Please try again.");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally { client.release(); }
 }
-export async function joinRoom(code: string, name?: string) {
-  const token = newToken();
+export async function joinRoom(code: string, name?: string, admissionToken?: string) {
+  const token = admissionToken ?? newToken();
+  if (!/^[a-f0-9]{64}$/.test(token)) throw new RoomError(400, "Invalid admission credential.");
   return locked(code, (room) => {
+    // Check recovery before fullness: the last seat may have started the match.
+    const existing = room.members.find((member) => member.tokenHash === digest(token));
+    if (existing) {
+      existing.lastSeen = Date.now();
+      return { session: { code, token, playerId: existing.id }, room: roomSnapshot(room, existing) };
+    }
     if (room.status === "closed") throw new RoomError(410, "This room has ended. Create a new room.");
     if (room.status !== "waiting" || room.members.length >= room.game.players.length) throw new RoomError(409, "This room is full or already playing.");
     const slot = room.members.length;
