@@ -177,13 +177,26 @@
 .board-cell.key-room-lit { background:radial-gradient(circle at 50% 55%,#6d5827,#211e23 75%);box-shadow:inset 0 0 0 2px #f0c65a,inset 0 0 15px #f6d97066; }
 .key-dark-glyph { opacity:.4;filter:none; }
 .key-revealed-glyph { color:#ffdf76;filter:drop-shadow(0 0 5px #ffdc70); }
-.quest-card { grid-column:1/-1;padding:14px 15px;border:1px solid #766340;border-radius:16px;background:linear-gradient(145deg,#333041,#252b3b); }
-.quest-title { color:#f1d492;font:600 10px 'DM Mono',monospace;letter-spacing:1px; }
-.quest-steps { display:flex;justify-content:space-between;gap:6px;margin-top:10px; }
-.quest-steps span { display:flex;align-items:center;gap:4px;color:#8c96a8;font-size:11px; }
-.quest-steps .quest-current { color:#ffdc83; }
-.quest-steps .quest-done { color:#8ee0aa; }
-.quest-card p { margin:10px 0 0;color:#e1dcd2;font-size:12px;line-height:1.45; }
+.game-progress-card { grid-column:1/-1; padding:13px 15px; border:1px solid #766340; border-radius:16px; background:linear-gradient(145deg,#333041,#252b3b); }
+.game-progress-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.game-progress-title { color:#f1d492; font:600 10px 'DM Mono',monospace; letter-spacing:1px; }
+.game-progress-player { margin-top:3px; color:#b8c0ce; font:500 9px 'DM Mono',monospace; }
+.game-progress-count { flex:0 0 auto; padding:4px 7px; border:1px solid #766340; border-radius:9px; color:#ffe2a0; font:600 10px 'DM Mono',monospace; }
+.game-progress-steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0; margin:11px 0 10px; padding:0; list-style:none; }
+.game-progress-step { position:relative; z-index:0; display:flex; min-width:0; flex-direction:column; align-items:center; gap:3px; text-align:center; }
+.game-progress-step:not(:last-child)::after { content:''; position:absolute; z-index:-1; top:16px; left:calc(50% + 18px); right:calc(-50% + 18px); height:2px; background:#454d5c; }
+.game-progress-step.is-complete:not(:last-child)::after { background:#4bb982; }
+.game-progress-icon { position:relative; z-index:1; display:grid; width:34px; height:34px; place-items:center; border:1px solid #535c6d; border-radius:50%; background:#202838; color:#7f899a; }
+.game-progress-step.is-complete .game-progress-icon { border-color:#64d49a; background:#244b3b; color:#a9f1c4; }
+.game-progress-step.is-current .game-progress-icon { border-color:#f0c65a; background:#5d4927; color:#ffe49b; box-shadow:0 0 12px #e5b84955; }
+.game-progress-step.is-ended .game-progress-icon { border-color:#687081; color:#9aa3b2; }
+.game-progress-label { color:#bac2ce; font:600 11px 'Fredoka',sans-serif; }
+.game-progress-state { color:#7f899a; font:600 8px 'DM Mono',monospace; letter-spacing:.5px; }
+.game-progress-step.is-complete .game-progress-label,.game-progress-step.is-complete .game-progress-state { color:#9ce7b8; }
+.game-progress-step.is-current .game-progress-label,.game-progress-step.is-current .game-progress-state { color:#ffe19a; }
+.game-progress-next { padding:8px 10px; border:1px solid #5a5360; border-radius:10px; background:#1d2432b8; }
+.game-progress-next > span { color:#f1d492; font:600 9px 'DM Mono',monospace; letter-spacing:.8px; }
+.game-progress-next p { margin:4px 0 0; color:#e1dcd2; font-size:11px; line-height:1.4; }
 .player-quest { display:flex;align-items:center;gap:4px;padding:5px 7px 0;color:#d5c6a0;font-size:10px; }
 .board-piece { position:absolute; z-index:7; width:7.2%; height:8.2%; display:grid; place-items:center; transform:translate(-50%,-55%); transition:left .21s cubic-bezier(.2,.8,.25,1),top .21s cubic-bezier(.2,.8,.25,1); }
 .board-piece.stacked { z-index:8; }
@@ -233,7 +246,16 @@
 .primary-action:active { transform:translateY(2px); box-shadow:0 2px 0 #9a5a20; }
 .fire-choice-card { display:grid; gap:10px; padding:15px; border:1px solid #836340; border-radius:17px; background:linear-gradient(145deg,#392d2c,#252a39 70%); box-shadow:0 8px 20px #0b0e1677; }
 .fire-choice-title { display:flex; align-items:center; gap:8px; color:#ffe6a7; font:600 17px/1.15 'Fredoka',sans-serif; }
+.fire-gun-icon { position:relative; display:grid; width:23px; height:18px; flex:0 0 auto; place-items:center; }
+.fire-choice-card .gun-glyph { position:relative; right:auto; bottom:auto; width:23px; height:18px; transform:scaleX(-1); }
+.mobile-gun-status .gun-glyph path:first-of-type,.fire-gun-icon .gun-glyph path:first-of-type { fill:#687786; stroke:#f1d89a; }
+.mobile-gun-status .gun-glyph path:nth-of-type(2),.fire-gun-icon .gun-glyph path:nth-of-type(2) { fill:#f0c458; stroke:#624820; }
+.mobile-gun-status .gun-glyph path:nth-of-type(3),.fire-gun-icon .gun-glyph path:nth-of-type(3) { fill:#a9643a; stroke:#f0d3a6; }
+.mobile-gun-status .gun-glyph path:nth-of-type(4),.fire-gun-icon .gun-glyph path:nth-of-type(4) { stroke:#fff0c3; }
+.mobile-gun-status .gun-glyph circle,.fire-gun-icon .gun-glyph circle { fill:#fff1bd; }
+.fire-ammo-count { display:inline-flex; align-items:center; gap:3px; margin-left:auto; padding:3px 6px; border:1px solid #647b89; border-radius:8px; background:#172735; color:#d5f0f3; font:600 9px 'DM Mono',monospace; white-space:nowrap; }
 .fire-choice-copy { color:#c5c7d0; font-size:11px; line-height:1.4; }
+.mobile-gun-status { display:none; }
 .fire-choice-actions { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
 .aim-options { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
 .aim-option { display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 4px; border:1px solid #687086; border-radius:10px; background:#2d3547; color:#e8e7dd; font:600 15px 'Fredoka',sans-serif; cursor:pointer; }
@@ -339,8 +361,12 @@
   .turn-card .player-position { font-size:9px; }
   .turn-card .keys-chip,.turn-card .ammo-chip { gap:2px; font-size:8px; }
   .turn-card .player-quest { display:none; }
-  .side-panel > .quest-card { order:3; padding:10px 12px; }
-  .quest-card p { margin-top:6px; }
+  .side-panel > .game-progress-card { order:3; padding:10px 12px; }
+  .game-progress-steps { margin:9px 0; }
+  .game-progress-icon { width:32px; height:32px; }
+  .game-progress-step:not(:last-child)::after { top:15px; }
+  .game-progress-next { padding:7px 8px; }
+  .game-progress-next p { font-size:10px; }
   .side-panel > .sound-error[data-testid="storage-warning"] { order:4; }
   .side-panel > .message-card { order:5; }
   .side-panel > .sound-error[role="status"] { order:6; }
@@ -360,13 +386,27 @@
   .play-control-dock .pc-ico-knife { grid-column:5; grid-row:2; }
   .play-control-dock .pc-ico-list { grid-column:6; grid-row:2; }
   .play-control-dock .pc-credit,.play-control-dock .pc-chip { grid-column:1/-1; justify-self:center; }
+  .play-control-dock .mobile-gun-status { position:absolute; z-index:3; top:46px; left:calc(25% - clamp(18px,5.5vw,21px)); display:flex; width:clamp(36px,11vw,42px); height:clamp(36px,11vw,42px); flex-direction:column; align-items:center; justify-content:center; gap:1px; border:1px solid #d7c58f; border-radius:13px; background:linear-gradient(145deg,#3c4558,#252c3b); box-shadow:0 3px 0 #171d2a,0 5px 10px #100b1880; color:#f3dfa9; }
+  .mobile-gun-status .gun-glyph { position:relative; right:auto; bottom:auto; width:22px; height:16px; transform:scaleX(-1); }
+  .mobile-gun-status > span { font:700 8px/1 'DM Mono',monospace; letter-spacing:-.2px; }
   .play-control-dock .roll-area { position:absolute; z-index:2; top:0; left:50%; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:5px; width:max-content; padding:0; border:0; border-radius:0; background:transparent; transform:translateX(-50%); }
   .play-control-dock .dice-button { width:clamp(54px,16vw,64px); min-width:54px; padding:3px; border-radius:15px; touch-action:manipulation; }
   .play-control-dock .dice-face { display:grid; width:100%; height:100%; place-items:center; }
   .play-control-dock .dice-pips { width:100%; height:100%; }
   .mobile-turn-indicator { display:block; min-height:12px; max-width:112px; color:#f6e5b8; font:600 9px/1.2 'DM Mono',monospace; letter-spacing:.7px; text-align:center; text-transform:uppercase; }
   .mobile-choice-hint { padding:5px 8px; }
-  .play-control-dock > .fire-choice-card,.play-control-dock > .win-banner,.play-control-dock > .mobile-choice-hint,.play-control-dock > .sound-error { width:100%; }
+  .play-control-dock > .fire-choice-card { align-self:flex-start; width:min(242px,68%); padding:9px; gap:7px; }
+  .fire-choice-title { flex-wrap:wrap; gap:4px; font-size:13px; }
+  .fire-gun-icon { width:20px; height:16px; }
+  .fire-choice-card .gun-glyph { width:20px; height:16px; }
+  .fire-ammo-count { gap:2px; padding:3px 5px; font-size:8px; }
+  .fire-choice-copy { font-size:10px; }
+  .fire-choice-card .aim-options { gap:4px; }
+  .fire-choice-card .aim-option { min-width:0; padding:7px 2px; font-size:12px; }
+  .fire-choice-card .aim-option small { font-size:8px; }
+  .fire-choice-actions { gap:5px; }
+  .fire-choice-actions .primary-action,.fire-choice-actions .secondary-action { min-width:0; padding:8px 4px; font-size:11px; }
+  .play-control-dock > .win-banner,.play-control-dock > .mobile-choice-hint,.play-control-dock > .sound-error { width:100%; }
   .rules-card { display:none; }
 }
 @media (max-width: 390px) {

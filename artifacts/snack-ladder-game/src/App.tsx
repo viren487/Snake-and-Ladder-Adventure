@@ -640,6 +640,23 @@ function App() {
 
   const currentPlayer = game.players[game.currentPlayerIndex];
   const winner = game.players.find(player => player.id === game.winnerId);
+  const playerClaimedCrown = currentPlayer.id === game.winnerId || (game.winnerIds ?? []).includes(currentPlayer.id);
+  const matchComplete = !!game.winnerId;
+  const progressStage = currentPlayer.crownKeyRoom !== null ? 3 : currentPlayer.hasTorch ? 2 : 1;
+  const completedProgressSteps = playerClaimedCrown ? 3 : currentPlayer.crownKeyRoom !== null ? 2 : currentPlayer.hasTorch ? 1 : 0;
+  const torchProgressState = currentPlayer.hasTorch ? 'complete' : matchComplete ? 'ended' : 'current';
+  const keyProgressState = currentPlayer.crownKeyRoom !== null ? 'complete' : !currentPlayer.hasTorch ? 'locked' : matchComplete ? 'ended' : 'current';
+  const crownProgressState = playerClaimedCrown ? 'complete' : matchComplete ? 'ended' : currentPlayer.crownKeyRoom !== null ? 'current' : 'locked';
+  const progressTaskTitle = playerClaimedCrown ? 'QUEST COMPLETE' : matchComplete ? 'MATCH COMPLETE' : 'NEXT TASK';
+  const progressTask = playerClaimedCrown
+    ? 'Crown claimed. Your quest is complete.'
+    : matchComplete
+      ? `${winner?.name ?? 'An opponent'} claimed the crown. The match is over.`
+      : !currentPlayer.hasTorch
+        ? 'Reach 100 to collect the torch; you will return Home.'
+        : currentPlayer.crownKeyRoom === null
+          ? 'Land exactly in black room 17, 44, or 67 to collect one key.'
+          : `Key from room ${currentPlayer.crownKeyRoom} secured. Reach 100 again with an exact roll to claim the crown.`;
   useEffect(() => { sounds.setCelebrating(!!game.winnerId); }, [game.winnerId, sounds.setCelebrating]);
   const waitingToFire = game.pendingFireForPlayerId === currentPlayer.id;
   const mobileTurnLabel = winner
@@ -993,19 +1010,36 @@ function App() {
             {!!game.winnerId && <MatchCelebration players={game.players} winnerIds={game.winnerIds ?? [game.winnerId]} loserId={game.loserId ?? game.players.find((p) => p.id !== game.winnerId)!.id} />}
             {!!game.winnerId && <button type="button" className="primary-action" data-testid="celebration-music" disabled={sounds.muted} onClick={() => sounds.setCelebrating(true)}>Play celebration music</button>}
           <section className="side-panel" aria-label="Game controls and player status" data-testid="game-controls">
-            <div className="quest-card" data-testid="quest-status">
-              <div className="quest-title">QUEST · STAGE {!currentPlayer.hasTorch ? 1 : currentPlayer.crownKeyRoom === null ? 2 : 3}/3</div>
-              <div className="quest-steps">
-                <span className={currentPlayer.hasTorch ? 'quest-done' : 'quest-current'}><Flashlight size={14} /> Torch</span>
-                <span className={currentPlayer.crownKeyRoom !== null ? 'quest-done' : currentPlayer.hasTorch ? 'quest-current' : ''}><KeyRound size={14} /> One key</span>
-                <span className={winner ? 'quest-done' : currentPlayer.crownKeyRoom !== null ? 'quest-current' : ''}><Crown size={14} /> Crown</span>
+            <section className="game-progress-card" data-testid="game-progress" aria-label={`${currentPlayer.name}'s game progress`}>
+              <div className="game-progress-heading">
+                <div>
+                  <div className="game-progress-title">GAME PROGRESS</div>
+                  <div className="game-progress-player">{currentPlayer.name} · STAGE {progressStage}/3</div>
+                </div>
+                <span className="game-progress-count" data-testid="game-progress-count">{completedProgressSteps}/3</span>
               </div>
-              <p>{winner ? 'Torch, key and crown collected!' : !currentPlayer.hasTorch
-                ? 'First reach 100 for your torch, then return Home. The crown is locked.'
-                : currentPlayer.crownKeyRoom === null
-                  ? 'Your torch is ready! Land in black room 17, 44 or 67 to collect one key.'
-                  : `Key from room ${currentPlayer.crownKeyRoom} is ready. Reach 100 again with an exact roll to claim the crown.`}</p>
-            </div>
+              <ol className="game-progress-steps">
+                <li className={`game-progress-step is-${torchProgressState}`} data-testid="progress-torch" data-state={torchProgressState} aria-current={torchProgressState === 'current' ? 'step' : undefined}>
+                  <span className="game-progress-icon"><Flashlight size={16} /></span>
+                  <span className="game-progress-label">Torch</span>
+                  <span className="game-progress-state">{torchProgressState === 'complete' ? 'DONE' : torchProgressState === 'current' ? 'NEXT' : 'ENDED'}</span>
+                </li>
+                <li className={`game-progress-step is-${keyProgressState}`} data-testid="progress-key" data-state={keyProgressState} aria-current={keyProgressState === 'current' ? 'step' : undefined}>
+                  <span className="game-progress-icon"><KeyRound size={16} /></span>
+                  <span className="game-progress-label">Key</span>
+                  <span className="game-progress-state">{keyProgressState === 'complete' ? 'DONE' : keyProgressState === 'current' ? 'NEXT' : keyProgressState === 'ended' ? 'ENDED' : 'LOCKED'}</span>
+                </li>
+                <li className={`game-progress-step is-${crownProgressState}`} data-testid="progress-crown" data-state={crownProgressState} aria-current={crownProgressState === 'current' ? 'step' : undefined}>
+                  <span className="game-progress-icon"><Crown size={16} /></span>
+                  <span className="game-progress-label">Crown</span>
+                  <span className="game-progress-state">{crownProgressState === 'complete' ? 'DONE' : crownProgressState === 'current' ? 'NEXT' : crownProgressState === 'ended' ? 'ENDED' : 'LOCKED'}</span>
+                </li>
+              </ol>
+              <div className="game-progress-next" data-testid="game-progress-next" aria-live="polite">
+                <span>{progressTaskTitle}</span>
+                <p>{progressTask}</p>
+              </div>
+            </section>
             <div className="turn-card">
               <div className="eyebrow" data-testid="turn-number">TURN {String(game.turnNumber).padStart(2, '0')}</div>
               {winner ? (
@@ -1091,6 +1125,10 @@ function App() {
                 { type: 'detonate', bombId: id },
               ); }}
             />
+            {!game.pendingChoice && <div className="mobile-gun-status" data-testid="mobile-gun-status" role="img" aria-label={`Gun ammo: ${currentPlayer.bullets} of ${MAX_BULLETS} bullets`}>
+              <GunIcon />
+              <span>{currentPlayer.bullets}/{MAX_BULLETS}</span>
+            </div>}
             {powerError && <div className="sound-error" role="alert">{powerError}</div>}
             {storageError && <div className="sound-error" role="alert" data-testid="storage-warning">{storageError}</div>}
 
@@ -1098,9 +1136,13 @@ function App() {
               <div className="win-banner" data-testid="winner-banner"><Trophy size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} /> Crown claimed!</div>
             ) : waitingToFire ? (
               <div className="fire-choice-card" data-testid="fire-choice">
-                <div className="fire-choice-title"><Crosshair size={17} /> Gun room · {currentPlayer.position}</div>
+                <div className="fire-choice-title">
+                  <span className="fire-gun-icon"><GunIcon /></span>
+                  <span>Gun room · {currentPlayer.position}</span>
+                  <span className="fire-ammo-count" data-testid="fire-ammo-count"><CircleDot size={12} /> {currentPlayer.bullets}/{MAX_BULLETS}</span>
+                </div>
                 <div className="fire-choice-copy">
-                  {currentPlayer.bullets} bullet{currentPlayer.bullets === 1 ? '' : 's'} available. Choose your aim; each target costs one bullet.
+                  Choose your aim; each target costs one bullet.
                 </div>
                 <div className="aim-options" role="group" aria-label="Choose snakes to aim at">
                   {SHOOTABLE_SNAKE_SQUARES.map((square) => (
