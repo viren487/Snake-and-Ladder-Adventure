@@ -4,6 +4,9 @@ import './PowerControls.css';
 
 export type PowerKind = 'bomb' | 'antiVenom' | 'defuser' | 'extraDice';
 export interface PowerControlsProps {
+  position: number;
+  detonationBombs: { id: string; square: number; ownerName: string }[];
+  detonationDisabled: boolean;
   playerName: string;
   powers: Record<PowerKind, number>;
   pending: { kind: 'mystery' | 'snake' | 'bomb'; square: number } | null;
@@ -20,7 +23,7 @@ export interface PowerControlsProps {
 
 const LABELS: Record<PowerKind, string> = { bomb: 'Bomb', antiVenom: 'Anti-Venom', defuser: 'Defuser Kit', extraDice: 'Extra Dice' };
 const BLURB: Record<PowerKind, string> = {
-  bomb: 'Plant on any house',
+  bomb: 'Plant in your current room',
   antiVenom: 'Blocks one snake bite',
   defuser: 'Disarms one bomb',
   extraDice: 'Bank one extra roll',
@@ -28,48 +31,26 @@ const BLURB: Record<PowerKind, string> = {
 const ORDER: PowerKind[] = ['bomb', 'antiVenom', 'defuser', 'extraDice'];
 const ICONS = { bomb: Bomb, antiVenom: ShieldPlus, defuser: Wrench, extraDice: Dices };
 
-export function PowerControls({ playerName, powers, pending, bombs, busy, actionsEnabled, extraRollCredits, onChoose, onDefense, onPlant, onDetonate, onExtraDice }: PowerControlsProps) {
-  const [value, setValue] = useState('');
-  const [error, setError] = useState('');
+export function PowerControls({ position, detonationBombs, detonationDisabled, playerName, powers, pending, bombs, busy, actionsEnabled, extraRollCredits, onChoose, onDefense, onPlant, onDetonate, onExtraDice }: PowerControlsProps) {
   const [plantOpen, setPlantOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [info, setInfo] = useState<PowerKind | null>(null);
   const inventoryOk = !busy && actionsEnabled && !pending;
-  const canPlant = inventoryOk && powers.bomb > 0;
+  const canPlant = inventoryOk && powers.bomb > 0 && position >= 1 && position <= 100 && !bombs.some((bomb) => bomb.square === position);
 
   const plant = () => {
-    const text = value.trim();
-    const square = Number(text);
-    if (!/^\d+$/.test(text) || square < 1 || square > 100) return setError('Enter a house from 1 to 100.');
-    if (bombs.some((b) => b.square === square)) return setError(`House ${square} already holds a bomb.`);
-    setError('');
-    onPlant(square);
-    setValue('');
+    if (!canPlant) return;
+    onPlant(position);
     setPlantOpen(false);
   };
-
   const defenseKind = pending?.kind === 'snake' ? 'antiVenom' : 'defuser';
   const hasDefense = pending && pending.kind !== 'mystery' ? powers[defenseKind] > 0 : false;
-  const readyBombs = bombs.filter((b) => b.owned && b.ready);
+  const readyBombs = detonationBombs;
   const otherBombs = bombs.filter((b) => !(b.owned && b.ready));
 
   return (
     <section className="pc" data-testid="power-controls" aria-label={`${playerName}'s powers`}>
       <div className="pc-copy" style={{ fontSize: 10 }}>{playerName} · Powers</div>
-      {pending?.kind === 'mystery' && (
-        <div role="group" aria-label="Choose one mystery power">
-          <div className="pc-title"><Gift size={18} /> Mystery box on {pending.square}: pick one</div>
-          <div className="pc-grid" style={{ marginTop: 8 }}>
-            {ORDER.map((p) => (
-              <button key={p} type="button" className="pc-btn" disabled={busy} onClick={() => onChoose(p)}
-                data-testid={`choose-power-${p}`} aria-label={`Choose ${LABELS[p]}`}>
-                {LABELS[p]}<small>{BLURB[p]}</small>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {pending && pending.kind !== 'mystery' && (
         <div role="group" aria-label={pending.kind === 'snake' ? 'Snake bite defense' : 'Bomb defense'}>
           <div className="pc-title">
@@ -127,9 +108,9 @@ export function PowerControls({ playerName, powers, pending, bombs, busy, action
           <span className="pc-credit" data-testid="extra-roll-credits" aria-live="polite" aria-label={`Armed extra rolls: ${extraRollCredits}`}>+{extraRollCredits} roll</span>
         )}
         {readyBombs.map((b) => (
-          <button key={b.id} type="button" className="pc-chip" disabled={busy || !actionsEnabled} onClick={() => onDetonate(b.id)}
-            data-testid={`detonate-bomb-${b.id}`} aria-label={`Detonate bomb on house ${b.square}`} title={`Detonate bomb on house ${b.square}`}>
-            <Bomb size={15} /> Boom {b.square}
+          <button key={b.id} type="button" className="pc-chip" disabled={detonationDisabled} onClick={() => onDetonate(b.id)}
+            data-testid={`detonate-bomb-${b.id}`} aria-label={`${b.ownerName}: Use bomb in room ${b.square}`} title={`Detonate bomb on house ${b.square}`}>
+            <Bomb size={15} /> {b.ownerName}: Use bomb · {b.square}
           </button>
         ))}
         {otherBombs.length > 0 && (
@@ -142,20 +123,11 @@ export function PowerControls({ playerName, powers, pending, bombs, busy, action
 
       {info && <p className="pc-copy" role="status">{LABELS[info]}: {BLURB[info]}. Used only from a hazard prompt when you land on one.</p>}
 
-      {plantOpen && (
-        <div>
-          <div className="pc-row">
-            <input id="pc-bomb-square" className="pc-input" inputMode="numeric" pattern="[0-9]*" maxLength={3} value={value}
-              placeholder="House 1-100" data-testid="bomb-square-input" aria-label="Bomb house number" aria-invalid={!!error}
-              disabled={!canPlant}
-              onChange={(e) => { setValue(e.target.value.replace(/\D/g, '')); setError(''); }}
-              onKeyDown={(e) => { if (e.key === 'Enter' && canPlant) plant(); }} />
-            <button type="button" className="pc-btn gold" disabled={!canPlant || !value} onClick={plant}
-              data-testid="plant-bomb" aria-label="Plant bomb">Plant</button>
-          </div>
-          {error && <p className="pc-error" role="alert">{error}</p>}
-        </div>
-      )}
+      {plantOpen && (<div className="pc-row">
+        <span className="pc-copy">Current room: {position || "Home"}</span>
+        <button type="button" className="pc-btn gold" disabled={!canPlant} onClick={plant}
+          data-testid="plant-bomb" aria-label={`Plant bomb in room ${position}`}>Plant here · {position}</button>
+      </div>)}
 
       {listOpen && otherBombs.length > 0 && (
         <ul className="pc-list">

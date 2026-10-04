@@ -1,10 +1,13 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
 
 export type PowerKind = "bomb" | "antiVenom" | "defuser" | "extraDice";
 export interface PowerControlsProps {
+  position: number;
+  detonationBombs: { id: string; square: number; ownerName: string }[];
+  detonationDisabled: boolean;
   playerName: string;
   powers: Record<PowerKind, number>;
   pending: { kind: "mystery" | "snake" | "bomb"; square: number } | null;
@@ -21,7 +24,7 @@ export interface PowerControlsProps {
 
 const LABELS: Record<PowerKind, string> = { bomb: "Bomb", antiVenom: "Anti-Venom", defuser: "Defuser Kit", extraDice: "Extra Dice" };
 const BLURB: Record<PowerKind, string> = {
-  bomb: "Plant on any house",
+  bomb: "Plant in your current room",
   antiVenom: "Blocks one snake bite",
   defuser: "Disarms one bomb",
   extraDice: "Bank one extra roll",
@@ -34,27 +37,19 @@ const ICONS: Record<PowerKind, "bomb" | "shield-plus" | "wrench" | "dice-multipl
   extraDice: "dice-multiple",
 };
 
-export function PowerControls({ playerName, powers, pending, bombs, busy, actionsEnabled, extraRollCredits, onChoose, onDefense, onPlant, onDetonate, onExtraDice }: PowerControlsProps) {
+export function PowerControls({ position, detonationBombs, detonationDisabled, playerName, powers, pending, bombs, busy, actionsEnabled, extraRollCredits, onChoose, onDefense, onPlant, onDetonate, onExtraDice }: PowerControlsProps) {
   const colors = useColors();
-  const [value, setValue] = useState("");
-  const [error, setError] = useState("");
   const [plantOpen, setPlantOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [info, setInfo] = useState<PowerKind | null>(null);
   const inventoryOk = !busy && actionsEnabled && !pending;
-  const canPlant = inventoryOk && powers.bomb > 0;
+  const canPlant = inventoryOk && powers.bomb > 0 && position >= 1 && position <= 100 && !bombs.some((bomb) => bomb.square === position);
 
   const plant = () => {
-    const text = value.trim();
-    const square = Number(text);
-    if (!/^\d+$/.test(text) || square < 1 || square > 100) return setError("Enter a house from 1 to 100.");
-    if (bombs.some((b) => b.square === square)) return setError(`House ${square} already holds a bomb.`);
-    setError("");
-    onPlant(square);
-    setValue("");
+    if (!canPlant) return;
+    onPlant(position);
     setPlantOpen(false);
   };
-
   const Btn = ({ label, text, sub, onPress, disabled, testID, gold }: { label: string; text: string; sub?: string; onPress: () => void; disabled: boolean; testID: string; gold?: boolean }) => (
     <Pressable
       accessibilityRole="button"
@@ -75,7 +70,7 @@ export function PowerControls({ playerName, powers, pending, bombs, busy, action
 
   const defenseKind: PowerKind = pending?.kind === "snake" ? "antiVenom" : "defuser";
   const hasDefense = pending && pending.kind !== "mystery" ? powers[defenseKind] > 0 : false;
-  const readyBombs = bombs.filter((b) => b.owned && b.ready);
+  const readyBombs = detonationBombs;
   const otherBombs = bombs.filter((b) => !(b.owned && b.ready));
 
   const Ico = ({ kind, label, onPress, disabled, testID, active }: { kind: PowerKind; label: string; onPress: () => void; disabled?: boolean; testID: string; active?: boolean }) => (
@@ -98,20 +93,6 @@ export function PowerControls({ playerName, powers, pending, bombs, busy, action
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]} testID="power-controls" accessibilityLabel={`${playerName}'s powers`}>
       <Text style={[styles.copy, { color: colors.mutedForeground, fontSize: 10 }]}>{playerName} · Powers</Text>
-      {pending?.kind === "mystery" && (
-        <View style={styles.block}>
-          <View style={styles.titleRow}>
-            <MaterialCommunityIcons name="gift" size={18} color={colors.primary} />
-            <Text style={[styles.title, { color: colors.foreground }]}>Mystery box on {pending.square}: pick one</Text>
-          </View>
-          <View style={styles.grid}>
-            {ORDER.map((p) => (
-              <Btn key={p} label={`Choose ${LABELS[p]}`} text={LABELS[p]} sub={BLURB[p]} disabled={busy} onPress={() => onChoose(p)} testID={`choose-power-${p}`} />
-            ))}
-          </View>
-        </View>
-      )}
-
       {pending && pending.kind !== "mystery" && (
         <View style={styles.block}>
           <View style={styles.titleRow}>
@@ -151,12 +132,12 @@ export function PowerControls({ playerName, powers, pending, bombs, busy, action
             accessibilityLabel={`Armed extra rolls: ${extraRollCredits}`} accessibilityLiveRegion="polite">+{extraRollCredits} roll</Text>
         )}
         {readyBombs.map((b) => (
-          <Pressable key={b.id} accessibilityRole="button" accessibilityLabel={`Detonate bomb on house ${b.square}`}
-            accessibilityState={{ disabled: busy || !actionsEnabled }} disabled={busy || !actionsEnabled}
+          <Pressable key={b.id} accessibilityRole="button" accessibilityLabel={`${b.ownerName}: Use bomb in room ${b.square}`}
+            accessibilityState={{ disabled: detonationDisabled }} disabled={detonationDisabled}
             onPress={() => onDetonate(b.id)} testID={`detonate-bomb-${b.id}`}
-            style={[styles.chip, { backgroundColor: colors.primary, opacity: busy || !actionsEnabled ? 0.45 : 1 }]}>
+            style={[styles.chip, { backgroundColor: colors.primary, opacity: detonationDisabled ? 0.45 : 1 }]}>
             <MaterialCommunityIcons name="bomb" size={16} color={colors.primaryForeground} />
-            <Text style={[styles.btnText, { color: colors.primaryForeground }]}>Boom {b.square}</Text>
+            <Text style={[styles.btnText, { color: colors.primaryForeground }]}>{b.ownerName}: Use bomb · {b.square}</Text>
           </Pressable>
         ))}
         {otherBombs.length > 0 && (
@@ -170,27 +151,10 @@ export function PowerControls({ playerName, powers, pending, bombs, busy, action
 
       {info ? <Text style={[styles.copy, { color: colors.mutedForeground }]}>{LABELS[info]}: {BLURB[info]}. Used only from a hazard prompt when you land on one.</Text> : null}
 
-      {plantOpen && (
-        <View style={{ gap: 6 }}>
-          <View style={styles.row}>
-            <TextInput
-              style={[styles.input, { color: colors.foreground, borderColor: error ? colors.destructive : colors.border, backgroundColor: colors.muted, opacity: canPlant ? 1 : 0.5 }]}
-              keyboardType="number-pad"
-              maxLength={3}
-              value={value}
-              placeholder="House 1-100"
-              placeholderTextColor={colors.mutedForeground}
-              editable={canPlant}
-              onChangeText={(t) => { setValue(t.replace(/\D/g, "")); setError(""); }}
-              onSubmitEditing={() => { if (canPlant) plant(); }}
-              testID="bomb-square-input"
-              accessibilityLabel="Bomb house number"
-            />
-            <Btn gold label="Plant bomb" text="Plant" disabled={!canPlant || !value} onPress={plant} testID="plant-bomb" />
-          </View>
-          {error ? <Text style={[styles.copy, { color: colors.destructive }]} accessibilityRole="alert">{error}</Text> : null}
-        </View>
-      )}
+      {plantOpen && (<View style={styles.row}>
+        <Text style={[styles.copy, {color: colors.foreground}]}>Current room: {position || "Home"}</Text>
+        <Btn gold label={`Plant bomb in room ${position}`} text={`Plant here · ${position}`} disabled={!canPlant} onPress={plant} testID="plant-bomb" />
+      </View>)}
 
       {listOpen && otherBombs.map((b) => (
         <View key={b.id} style={[styles.bombRow, { backgroundColor: colors.muted }]} testID={`bomb-row-${b.id}`}>

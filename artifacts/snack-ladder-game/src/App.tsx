@@ -31,6 +31,7 @@ import {
 import { useGameSounds } from './use-game-sounds';
 import { ShotAnimation } from './ShotAnimation';
 import { PowerControls } from './PowerControls';
+import MysteryCompass from './MysteryCompass';
 import { DicePips } from './DicePips';
 import { OnlinePanel } from './OnlinePanel';
 import BambooReturnArt from './BambooReturnArt';
@@ -307,6 +308,9 @@ function PandaToken({
 
 function Board({
   game,
+  choicesEnabled,
+  choiceBusy,
+  onChoosePower,
   walking,
   aiming,
   selectedTargets,
@@ -315,6 +319,9 @@ function Board({
   onAimTarget,
 }: {
   game: GameState;
+  choicesEnabled: boolean;
+  choiceBusy: boolean;
+  onChoosePower: (power: "bomb" | "antiVenom" | "defuser" | "extraDice") => void;
   walking: WalkingPiece | null;
   aiming: boolean;
   selectedTargets: ShootableSnakeSquare[];
@@ -440,6 +447,10 @@ function Board({
           );
         })}
         {shot && <ShotAnimation from={centerOf(shot.from)} targets={shot.targets.map((square) => ({ square, ...centerOf(square) }))} />}
+        {game.pendingChoice?.kind === "mystery" && <MysteryCompass
+          key={game.pendingChoice.playerId + "-" + game.pendingChoice.square}
+          square={game.pendingChoice.square} canChoose={choicesEnabled} busy={choiceBusy}
+          onChoose={onChoosePower} />}
         {game.players.map((player, index) => {
           const position = walking?.playerId === player.id ? walking.position : player.position;
           const stacked = game.players.some((other, otherIndex) => otherIndex !== index && other.position === position);
@@ -500,6 +511,11 @@ function App() {
   const online = useOnlineGame({ gameRef: latestGame, setGame, setDiceFace, setWalking,
     setShot, setRolling, setFiring, setSelectedTargets, sounds });
   const remoteDisabled = online.loadingSession || online.busy || (!!online.session && !online.canAct);
+  useEffect(() => {
+    if (game.pendingChoice?.kind === "mystery" && !rolling && !firing && window.matchMedia("(max-width: 820px)").matches) {
+      scrollToGameSection('[data-testid="game-board"]');
+    }
+  }, [game.pendingChoice, rolling, firing]);
   const leaveOnline = () => {
     if (window.confirm('Leave online play? If connected, this ends the room for both players. Your local saved round will stay intact.')) void online.leave();
   };
@@ -538,7 +554,7 @@ function App() {
     }
   };
   const applyAnimatedPower = async (command: (state: GameState) => TurnResolution, movingId?: string, action?: OnlineAction) => {
-    if (online.session) { if (online.canAct && action) await online.action(action); return; }
+    if (online.session) { if ((online.canAct || (action?.type === "detonate" && online.canDetonate)) && action) await online.action(action); return; }
     if (rollInFlight.current || fireInFlight.current) return;
     rollInFlight.current = true;
     setRolling(true);
@@ -764,7 +780,8 @@ function App() {
           onRetry={() => { void online.retry(); }} />
 
         <div className="game-columns">
-          <Board game={game} walking={walking} aiming={waitingToFire && !remoteDisabled} selectedTargets={selectedTargets} shot={shot} firing={firing} onAimTarget={selectTarget} />
+          <Board game={game} walking={walking} aiming={waitingToFire && !remoteDisabled} selectedTargets={selectedTargets} shot={shot} firing={firing} onAimTarget={selectTarget} choicesEnabled={!remoteDisabled} choiceBusy={rolling || firing}
+            onChoosePower={(power) => applyPower((state) => choosePower(state, power), {type: "choose", power})} />
           <section className="side-panel" aria-label="Game controls and player status" data-testid="game-controls">
             <div className="quest-card" data-testid="quest-status">
               <div className="quest-title">QUEST · STAGE {!currentPlayer.hasTorch ? 1 : currentPlayer.crownKeyRoom === null ? 2 : 3}/3</div>
@@ -822,6 +839,9 @@ function App() {
             </div>
 
             <PowerControls
+              position={currentPlayer.position}
+              detonationDisabled={rolling || firing || online.loadingSession || online.busy || !!winner || !!game.pendingChoice || !!waitingToFire || (!!online.session && !online.canDetonate)}
+              detonationBombs={game.bombs.filter((bomb) => bomb.armed && game.players.some((player) => player.id !== bomb.ownerId && player.position === bomb.square) && (!online.session || bomb.ownerId === online.room?.yourPlayerId)).map((bomb) => ({...bomb, ownerName: game.players.find((player) => player.id === bomb.ownerId)!.name}))}
               playerName={currentPlayer.name}
               powers={currentPlayer.powers} pending={game.pendingChoice}
               extraRollCredits={currentPlayer.extraRollCredits}
@@ -836,8 +856,8 @@ function App() {
               onPlant={(square) => applyPower((state) => plantBomb(state, square), { type: 'plant', square })}
               onExtraDice={() => applyPower(useExtraDice, { type: 'extraDice' })}
               onDetonate={(id) => { void applyAnimatedPower(
-                (state) => ({ state: detonateBomb(state, id), path: [], effect: 'boom' }),
-                game.players.find((player) => player.id !== currentPlayer.id)!.id,
+                (state) => ({ state: detonateBomb(state, id, state.bombs.find((bomb) => bomb.id === id)!.ownerId), path: [], effect: 'boom' }),
+                game.players.find((player) => player.id !== game.bombs.find((bomb) => bomb.id === id)!.ownerId)!.id,
                 { type: 'detonate', bombId: id },
               ); }}
             />

@@ -168,7 +168,12 @@ export function useOnlineRoom(options: Options, hooks: RoomHooks) {
   const canAct = !!session && !!room && connected && !busy && !coolingDown && room.status === "playing" &&
     room.members.length === 2 && room.members.every((member) => member.online) &&
     room.game.players[room.game.currentPlayerIndex].id === session.playerId;
-  return { session, room, busy, connected, canAct, loadingSession, error: error ?? storageError,
+  const canDetonate = !!session && !!room && connected && !busy && !coolingDown && room.status === "playing" &&
+    room.members.length === 2 && room.members.every((member) => member.online) &&
+    !room.game.pendingChoice && !room.game.pendingFireForPlayerId && room.game.bombs.some((bomb) =>
+      bomb.ownerId === session.playerId && bomb.armed && room.game.players.some((player) =>
+        player.id !== session.playerId && player.position === bomb.square));
+  return { session, room, busy, connected, canAct, canDetonate, loadingSession, error: error ?? storageError,
     create: (name: string) => admit(name), join: (code: string, name: string) => admit(name, code),
     action, leave, retry: refresh };
 }

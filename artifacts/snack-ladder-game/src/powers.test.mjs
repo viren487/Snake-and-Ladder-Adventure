@@ -117,8 +117,8 @@ for (const [name, engine] of [["web", web], ["native", native]]) {
     assert.equal(passed.pendingChoice, null);
     assert.equal(passed.players[0].powers.antiVenom, 1);
   });
-  test(`${name}: bombs require a later landing and an owner-turn manual detonation`, () => {
-    let game = at(18);
+  test(`${name}: bombs require a later landing and owner-only manual detonation`, () => {
+    let game = at(20);
     game.players[0].powers.bomb = 1;
     game.players[1].position = 20;
     game.players[1].hasTorch = true;
@@ -143,9 +143,9 @@ for (const [name, engine] of [["web", web], ["native", native]]) {
     assert.equal(blasted.currentPlayerIndex, 0);
     assert.equal(game.players[1].position, 20); // Immutable input.
   });
-  test(`${name}: any house accepts planting; crossed rooms and snake heads do not arm bombs`, () => {
+  test(`${name}: only the current room accepts planting; crossed rooms and snake heads do not arm bombs`, () => {
     for (let square = 1; square <= 100; square++) {
-      const game = at(18);
+      const game = at(square);
       game.players[0].powers.bomb = 2;
       const planted = engine.plantBomb(game, square);
       assert.equal(planted.bombs[0].square, square);
@@ -156,6 +156,30 @@ for (const [name, engine] of [["web", web], ["native", native]]) {
     for (const square of [0, 101, 1.5, NaN]) assert.throws(() => engine.plantBomb(invalid, square));
     assert.equal(engine.playTurn(hostileBomb(at(18), 20), 3).bombs[0].armed, false);
     assert.equal(engine.playTurn(hostileBomb(at(97), 98), 1).bombs[0].armed, false);
+  });
+  test(`${name}: remote planting is rejected without spending a bomb`, () => {
+    const game = at(18); game.players[0].powers.bomb = 1;
+    assert.throws(() => engine.plantBomb(game, 19), /standing/);
+    assert.equal(game.players[0].powers.bomb, 1);
+    assert.equal(game.bombs.length, 0);
+    const home = at(0); home.players[0].powers.bomb = 1;
+    assert.throws(() => engine.plantBomb(home, 1));
+  });
+  test(`${name}: only owner may use an armed bomb during a rival bonus turn`, () => {
+    let game = at(20); game.players[0].powers.bomb = 1;
+    game = engine.plantBomb(game, 20);
+    const id = game.bombs[0].id; const ownerId = game.players[0].id;
+    game = engine.playTurn(game, 1);
+    game.players[1].position = 14;
+    game = engine.playTurn(game, 6);
+    assert.equal(game.currentPlayerIndex, 1); assert.equal(game.bombs[0].armed, true);
+    assert.throws(() => engine.detonateBomb(game, id, game.players[1].id));
+    assert.throws(() => engine.detonateBomb(game, id, "unknown"));
+    const blasted = engine.detonateBomb(game, id, ownerId);
+    assert.equal(blasted.players[1].position, 0);
+    assert.equal(blasted.currentPlayerIndex, 1);
+    assert.equal(blasted.bombs.length, 0);
+    assert.equal(game.players[1].position, 20);
   });
   test(`${name}: Defuser choice precedes boom and landing rewards, preserving six`, () => {
     const boom = at(91);
@@ -245,7 +269,7 @@ test("browser and native remain identical across 100 complete, powered seeded ro
       const current = games[0].players[games[0].currentPlayerIndex];
       const free = Array.from({ length: 100 }, (_, i) => i + 1).filter((n) => !games[0].bombs.some((b) => b.square === n));
       const ready = games[0].bombs.find((b) => b.ownerId === current.id && b.armed);
-      const square = free[Math.floor(random() * free.length)];
+      const square = free.includes(current.position) ? current.position : null;
       const roll = Math.floor(random() * 6) + 1;
       const pick = web.POWER_TYPES[Math.floor(random() * 4)];
       const use = random() > 0.35;

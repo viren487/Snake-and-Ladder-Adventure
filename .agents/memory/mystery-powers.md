@@ -9,11 +9,11 @@ A roll of six grants the same player another chance if the move is valid. A roll
 
 **How to apply:** Check movement validity rather than merely whether the panda changed position; preserve the bonus through any required landing choices.
 
-Mystery boxes in rooms 14, 35, 51 and 76 supply powers that players choose and can subsequently use. A bomb may be planted in a room and detonated on its owner's turn when the rival is stopped there; landing alone must not automatically detonate it. Anti-venom can be used at a snake-bite room to avoid that snake's downward slide. A bomb-defuser kit protects its user in a bomb room.
+Mystery boxes in rooms 14, 35, 51 and 76 supply powers that players choose and can subsequently use. A bomb may be planted only in the room where its owner is currently standing, never in a remotely selected room. Only its owner can manually use it after the rival lands there, including during a rival bonus turn; landing alone must not automatically detonate it. Anti-venom can be used at a snake-bite room to avoid that snake's downward slide. A bomb-defuser kit protects its user in a bomb room.
 
-**Why:** The user described selectable, manually usable powers, including explicit owner-turn detonation rather than an automatic trap.
+**Why:** The user described selectable, manually usable powers, including owner-only manual detonation rather than an automatic trap. Later they restricted planting to the current room and requested the owner's Use Bomb option on rival arrival.
 
-**How to apply:** Provide power selection and usage controls, and allow defensive choices before resolving the corresponding hazard.
+**How to apply:** Display the four mystery powers compass-style around the mystery room on the board. Selecting only previews a power; Get beneath the selected-power display awards it. Apply bomb location and ownership restrictions on both the clients and authoritative online server; preserve defensive choices before allowing a blast.
 
 The fourth power is Extra Dice. A planted bomb's blast sends the rival Home, preserving torch/key progress and other inventory.
 

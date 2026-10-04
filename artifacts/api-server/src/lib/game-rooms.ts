@@ -116,7 +116,7 @@ export function applyRoomAction(room: StoredRoom, member: Member, action: RoomAc
   } else {
     if (room.status !== "playing" || room.members.length !== 2) throw new RoomError(409, "Wait for your friend to join before playing.");
     if (room.members.some((item) => Date.now() - item.lastSeen >= 25_000)) throw new RoomError(409, "Your friend is reconnecting. The round is saved; wait for them.");
-    if (room.game.players[room.game.currentPlayerIndex].id !== member.id) throw new RoomError(403, "It is your friend's turn.");
+    if (action.type !== "detonate" && room.game.players[room.game.currentPlayerIndex].id !== member.id) throw new RoomError(403, "It is your friend's turn.");
     if (room.ready_at.getTime() > Date.now()) throw new RoomError(409, "Wait for the current animation to finish.");
     switch (action.type) {
       case "roll": {
@@ -138,7 +138,7 @@ export function applyRoomAction(room: StoredRoom, member: Member, action: RoomAc
       case "detonate": {
         const rival = room.game.players.find((item) => item.id !== member.id)!;
         event.playerId = rival.id; event.from = rival.position; event.effect = "boom";
-        room.game = detonateBomb(room.game, action.bombId!); break;
+        room.game = detonateBomb(room.game, action.bombId!, member.id); break;
       }
       case "extraDice": room.game = useExtraDice(room.game); break;
       case "shoot":

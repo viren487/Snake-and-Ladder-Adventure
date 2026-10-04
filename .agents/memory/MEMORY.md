@@ -4,3 +4,4 @@
 - [Online multiplayer scope](online-multiplayer.md) — Separate devices and networks; preserve local saves and restore seats on their original device.
 - [Shared React runtime](shared-react-runtime.md) — Shared browser/Expo hooks must use the host React runtime and avoid cross-version branded hook types.
 - [Android APK delivery](android-apk-delivery.md) — Personal-install APKs, explicit offline builds and update advice that protects saved rounds.
+- [Expo preview verification](expo-preview-verification.md) — Use the separate Expo host and wait for fonts; wrong routing or cold captures can look blank.

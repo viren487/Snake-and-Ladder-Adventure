@@ -94,7 +94,7 @@ export function useOnlineGame(bindings: Bindings) {
         if (oldPlayer && newPlayer) b.sounds.playPickups(oldPlayer, newPlayer);
       }
       b.gameRef.current = snapshot.game; b.setGame(snapshot.game); b.setDiceFace(snapshot.game.lastRoll);
-      if (visual) b.focus("controls");
+      if (visual) b.focus(snapshot.game.pendingChoice?.kind === "mystery" ? "board" : "controls");
     } finally {
       if (generation === epoch.current) { b.setWalking(null); b.setShot(null); b.setRolling(false); b.setFiring(false); }
     }

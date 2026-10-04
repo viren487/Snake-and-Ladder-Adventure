@@ -89,18 +89,20 @@ export function plantBomb(state: GameState, square: number): GameState {
   if (!Number.isInteger(square) || square < 1 || square > 100) throw new RangeError("Choose a house from 1 to 100.");
   const next = cloneGame(state);
   const player = next.players[next.currentPlayerIndex];
+  if (square !== player.position) throw new Error("Plant a bomb only in the room where your panda is standing.");
   if (player.powers.bomb < 1) throw new Error("No bomb power is available.");
   if (next.bombs.some((bomb) => bomb.square === square)) throw new Error("A bomb is already planted in that house.");
   player.powers.bomb -= 1;
   next.bombs.push({ id: `${player.id}-${next.turnNumber}-${square}`, square, ownerId: player.id, armed: false });
-  next.message = `${player.name} planted a bomb in house ${square}. Wait for the rival to stop there, then detonate it on your turn.`;
+  next.message = `${player.name} planted a bomb in house ${square}. Wait for the rival to stop there, then use your bomb.`;
   return next;
 }
 
-export function detonateBomb(state: GameState, bombId: string): GameState {
+export function detonateBomb(state: GameState, bombId: string, ownerId = state.players[state.currentPlayerIndex].id): GameState {
   requireAction(state);
   const next = cloneGame(state);
-  const owner = next.players[next.currentPlayerIndex];
+  const owner = next.players.find((player) => player.id === ownerId);
+  if (!owner) throw new Error("Only the player who planted this bomb can use it.");
   const bomb = next.bombs.find((item) => item.id === bombId && item.ownerId === owner.id);
   const rival = next.players.find((player) => player.id !== owner.id);
   if (!bomb || !rival || !bomb.armed || rival.position !== bomb.square) {
