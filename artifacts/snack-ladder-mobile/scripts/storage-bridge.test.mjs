@@ -16,7 +16,8 @@ test('mobile HTML restores old rounds, persists current turns, and stays offline
   const html = createMobileHtml('<head><!--SNACK_LADDER_MOBILE_BOOTSTRAP--></head>', snapshot, null);
   assert.match(html, /snack-ladder-adventure-v5/);
   assert.match(html, /snake-ladder-online-seat-v1/);
-  assert.match(html, /offline\\.invalid/);
+  assert.match(html, /"apiOrigin":null/);
+  assert.match(html, /config\.apiOrigin/);
   assert.doesNotMatch(html, /API_TOKEN|API_KEY/);
   assert.match(createMobileHtml('<head><!--SNACK_LADDER_MOBILE_BOOTSTRAP--></head>', {}, 'https://api.example.com'),
     /"apiOrigin":"https:\/\/api\.example\.com"/);

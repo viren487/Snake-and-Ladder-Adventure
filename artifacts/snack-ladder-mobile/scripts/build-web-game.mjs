@@ -69,8 +69,10 @@ for (const match of html.matchAll(/\b(?:src|href)="(\/[^"]+)"/g)) {
   }
 }
 html = html.replace('<head>', '<head><!--SNACK_LADDER_MOBILE_BOOTSTRAP-->');
-if (/\b(?:src|href)="(?:\/assets\/|https:\/\/fonts\.(?:googleapis|gstatic)\.com\/)/.test(html))
-  throw new Error('External build assets remain; refusing an incomplete mobile package.');
+const missingAssets = [...html.matchAll(/\b(?:src|href)="(?:\/assets\/|https:\/\/fonts\.(?:googleapis|gstatic)\.com\/)[^"]*"/g)]
+  .map((match) => match[0]);
+if (missingAssets.length)
+  throw new Error(`External build assets remain; refusing an incomplete mobile package: ${missingAssets.join(', ')}`);
 await mkdir(path.join(mobile, 'lib/generated'), { recursive: true });
 await writeFile(path.join(mobile, 'lib/generated/web-game.js'),
   `// Generated from the browser game. Run pnpm --filter @workspace/snack-ladder-mobile bundle:web.\nmodule.exports = ${JSON.stringify(html)};\n`);
