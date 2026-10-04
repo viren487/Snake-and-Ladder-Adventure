@@ -252,15 +252,17 @@ function SnakeArt({ from, to, color, sleeping }: { from: number; to: number; col
   const rotation = Math.atan2(-dx, dy) * 180 / Math.PI;
   return (
     <g className={sleeping ? 'snake-art-stunned' : ''} data-testid={`snake-art-${from}-${to}`} transform={`translate(${a.x} ${a.y}) rotate(${rotation})`}>
-      <image
-        className="snake-photo"
-        href={SNAKE_ART[color] || SNAKE_ART.violet}
-        x={-width / 2}
-        y="0"
-        width={width}
-        height={length}
-        preserveAspectRatio="none"
-      />
+      <g className="snake-sway" style={{ animationDelay: `${-((from * 173) % 4100)}ms` }}>
+        <image
+          className="snake-photo"
+          href={SNAKE_ART[color] || SNAKE_ART.violet}
+          x={-width / 2}
+          y="0"
+          width={width}
+          height={length}
+          preserveAspectRatio="none"
+        />
+      </g>
     </g>
   );
 }
