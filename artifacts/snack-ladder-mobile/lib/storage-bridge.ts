@@ -26,7 +26,8 @@ interface NativeStore {
 export class StorageWriter {
   private pending = new Map<string, string | null>();
   private queue: Promise<void> = Promise.resolve();
-  constructor(private store: NativeStore) {}
+  private store: NativeStore;
+  constructor(store: NativeStore) { this.store = store; }
   write(change?: StorageChange): Promise<void> {
     if (change) this.pending.set(change.key, change.value);
     this.queue = this.queue.catch(() => undefined).then(async () => {
