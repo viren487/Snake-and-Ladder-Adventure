@@ -642,6 +642,13 @@ function App() {
   const winner = game.players.find(player => player.id === game.winnerId);
   useEffect(() => { sounds.setCelebrating(!!game.winnerId); }, [game.winnerId, sounds.setCelebrating]);
   const waitingToFire = game.pendingFireForPlayerId === currentPlayer.id;
+  const mobileTurnLabel = winner
+    ? 'Match finished'
+    : mrBotIsActing
+      ? mrBotTurn ? "Mr.Bot's turn" : "Mr.Bot's move"
+      : online.session && !online.canAct
+        ? `${currentPlayer.name}'s turn`
+        : 'Your turn';
   const availableTargets = SHOOTABLE_SNAKE_SQUARES.filter(
     (square) => currentPlayer.snakeStuns[square] === 0,
   );
@@ -1045,6 +1052,7 @@ function App() {
               })}
             </div>
 
+            <div className="play-control-dock" data-testid="play-control-dock">
             <PowerControls
               position={currentPlayer.position}
               detonationDisabled={rolling || firing || online.loadingSession || online.busy || !!online.pendingAdmission ||
@@ -1121,19 +1129,18 @@ function App() {
                   </button>
                 </div>
               </div>
+            ) : game.pendingChoice ? (
+              <div className="mobile-choice-hint" role="status">Choose a power to continue.</div>
             ) : (
-              <div className="roll-area">
-                <button className="dice-button" onClick={rollDice} disabled={remoteDisabled || rolling || !!winner || !!game.pendingChoice} aria-label="Roll the dice" data-testid="button-roll">
+              <div className="roll-area" data-testid="roll-area">
+                <button className="dice-button" onClick={rollDice} disabled={remoteDisabled || rolling || !!winner} aria-label={rolling ? 'Dice rolling' : 'Roll dice'} title="Tap to roll" data-testid="button-roll">
                   <span className={`dice-face ${rolling ? 'rolling' : ''}`} data-testid="dice-result"
                     role="img" aria-label={`Dice showing ${diceFace ?? 1}`}><DicePips value={diceFace ?? 1} /></span>
                 </button>
-                <div>
-                  <div className="roll-copy">{rolling ? 'Rolling…' : game.lastRoll ? `Last roll · ${game.lastRoll}` : 'Ready when you are'}</div>
-                  <div className="roll-hint">{rolling ? 'Fate is tumbling.' : 'Tap the die to move your piece.'}</div>
-                </div>
+                <div className="mobile-turn-indicator" aria-live="polite" data-testid="mobile-turn-indicator">{mobileTurnLabel}</div>
               </div>
             )}
-            {!winner && !waitingToFire && <button className="primary-action" onClick={rollDice} disabled={remoteDisabled || rolling || !!game.pendingChoice} data-testid="button-roll-turn"><Dices size={17} /> {game.pendingChoice ? 'Choose your power first' : rolling ? 'Rolling the dice…' : 'Roll the dice'}</button>}
+            </div>
 
             <div className="message-card" aria-live="polite" data-testid="game-message">
               <Sparkles className="message-icon" size={16} />
