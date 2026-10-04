@@ -35,6 +35,7 @@ import MysteryCompass from './MysteryCompass';
 import MatchCelebration from './MatchCelebration';
 import { DicePips } from './DicePips';
 import { OnlinePanel } from './OnlinePanel';
+import { MobilePreview } from './MobilePreview';
 import BambooReturnArt from './BambooReturnArt';
 import { useOnlineGame } from './use-online-game';
 import type { OnlineAction } from '@workspace/api-client-react';
@@ -775,6 +776,7 @@ function App() {
             <div className="top-chip" data-testid="game-mode"><i /> {online.session ? 'ONLINE · TWO DEVICES' : 'LOCAL · PASS & PLAY'}</div>
           </div>
         </header>
+        <MobilePreview />
         <OnlinePanel room={online.room} pendingAdmission={!!online.pendingAdmission} resumeCode={online.session?.code ?? (online.pendingAdmission ? online.pendingAdmission.code ?? "Creating room" : undefined)}
           busy={online.busy || rolling || firing || online.loadingSession} connected={online.connected}
           error={online.error} onCreate={online.create} onJoin={online.join}

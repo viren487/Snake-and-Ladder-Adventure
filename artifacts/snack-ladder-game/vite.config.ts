@@ -27,8 +27,22 @@ if (!basePath) {
   );
 }
 
+// Resolve the live preview at startup, never from a retired host or a saved URL.
+const expoHost = process.env.REPLIT_EXPO_DEV_DOMAIN;
+let mobilePreviewUrl = '';
+if (expoHost && process.env.NODE_ENV !== 'production') {
+  const url = new URL(`https://${expoHost}`);
+  if (url.hostname.endsWith('.replit.dev') && !url.username && !url.password &&
+      !url.port && url.pathname === '/' && !url.search && !url.hash) {
+    mobilePreviewUrl = url.origin + '/';
+  }
+}
+
 export default defineConfig({
   base: basePath,
+  define: {
+    'import.meta.env.VITE_MOBILE_PREVIEW_URL': JSON.stringify(mobilePreviewUrl),
+  },
   plugins: [
     react(),
     tailwindcss(),
