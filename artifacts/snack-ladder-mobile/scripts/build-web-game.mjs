@@ -69,7 +69,7 @@ for (const match of html.matchAll(/\b(?:src|href)="(\/[^"]+)"/g)) {
   }
 }
 html = html.replace('<head>', '<head><!--SNACK_LADDER_MOBILE_BOOTSTRAP-->');
-const missingAssets = [...html.matchAll(/\b(?:src|href)="(?:\/assets\/|https:\/\/fonts\.(?:googleapis|gstatic)\.com\/)[^"]*"/g)]
+const missingAssets = [...html.matchAll(/<(?:script|link|img)\b[^>]*\b(?:src|href)="(?:\/assets\/|https:\/\/fonts\.(?:googleapis|gstatic)\.com\/)[^"]*"[^>]*>/gi)]
   .map((match) => match[0]);
 if (missingAssets.length)
   throw new Error(`External build assets remain; refusing an incomplete mobile package: ${missingAssets.join(', ')}`);
