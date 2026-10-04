@@ -85,7 +85,7 @@ for (const [name, engine] of [["web", web]]) {
     const game = at(44);
     game.players[0].powers.knife = 1;
     game.players[1].position = 44;
-    game.players[1].hasTorch = true;
+    game.players[1].hasTorch = false;
     game.players[1].crownKeyRoom = 17;
     game.players[1].keys = 1;
     game.players[1].bullets = 2;
@@ -93,7 +93,7 @@ for (const [name, engine] of [["web", web]]) {
     const hit = engine.useKnife(game, "player-2");
     assert.equal(hit.effect, "knife");
     assert.equal(hit.state.players[1].position, 0);
-    assert.equal(hit.state.players[1].hasTorch, true);
+    assert.equal(hit.state.players[1].hasTorch, false);
     assert.equal(hit.state.players[1].crownKeyRoom, 17);
     assert.equal(hit.state.players[1].keys, 1);
     assert.equal(hit.state.players[1].bullets, 2);
@@ -185,7 +185,7 @@ for (const [name, engine] of [["web", web]]) {
     let game = at(20);
     game.players[0].powers.bomb = 1;
     game.players[1].position = 20;
-    game.players[1].hasTorch = true;
+    game.players[1].hasTorch = false;
     game.players[1].crownKeyRoom = 44;
     game.players[1].keys = 1;
     game.players[1].bullets = 3;

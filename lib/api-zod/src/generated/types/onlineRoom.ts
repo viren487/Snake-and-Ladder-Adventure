@@ -9,6 +9,8 @@ import type { OnlineRoomEvent } from './onlineRoomEvent';
 import type { OnlineRoomGame } from './onlineRoomGame';
 import type { OnlineRoomMember } from './onlineRoomMember';
 import type { OnlineRoomStatus } from './onlineRoomStatus';
+import type { RoomChatMessage } from './roomChatMessage';
+import type { RoomVoiceSignal } from './roomVoiceSignal';
 
 export interface OnlineRoom {
   code: string;
@@ -27,4 +29,6 @@ export interface OnlineRoom {
   event: OnlineRoomEvent | null;
   /** @minimum 0 */
   busyForMs: number;
+  chatMessages: RoomChatMessage[];
+  voiceSignals: RoomVoiceSignal[];
 }

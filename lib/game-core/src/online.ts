@@ -1,6 +1,26 @@
 import type { GameState, TurnResolution } from "./game-engine.ts";
 
 export type RoomSession = { code: string; token: string; playerId: string };
+export type RoomChatMessage = {
+  id: string;
+  playerId: string;
+  playerName: string;
+  text: string;
+  sentAt: string;
+};
+export type RoomVoiceSignal = {
+  id: string;
+  fromPlayerId: string;
+  toPlayerId: string;
+  callId: string;
+  type: "offer" | "answer" | "hangup";
+  sdp?: string;
+  sentAt: string;
+};
+export type RoomCommunicationInput =
+  | { type: "chat"; text: string }
+  | { type: "offer" | "answer"; targetPlayerId: string; callId: string; sdp: string }
+  | { type: "hangup"; targetPlayerId: string; callId: string };
 export type RoomEvent = {
   kind: "roll" | "choose" | "defense" | "plant" | "detonate" | "extraDice" | "shoot" | "web" | "knife" | "pass" | "rematch" | "join" | "leave";
   playerId: string;
@@ -23,4 +43,6 @@ export type RoomSnapshot = {
   rematchVotes: string[];
   event: RoomEvent | null;
   busyForMs: number;
+  chatMessages: RoomChatMessage[];
+  voiceSignals: RoomVoiceSignal[];
 };

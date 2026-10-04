@@ -1,8 +1,8 @@
-import { createHash, randomBytes, randomInt } from "node:crypto";
+import { createHash, randomBytes, randomInt, randomUUID } from "node:crypto";
 import { pool } from "@workspace/db";
 import { createGame, resolveTurn, resolveDefense, choosePower, plantBomb, detonateBomb,
   useExtraDice, useWebShooter, useKnife, shootSnakes, passFire, isValidPowerState, type GameState } from "@workspace/game-core";
-import type { RoomEvent, RoomSnapshot, RoomSession } from "@workspace/game-core/online";
+import type { RoomChatMessage, RoomEvent, RoomSnapshot, RoomSession, RoomVoiceSignal } from "@workspace/game-core/online";
 import type { RoomAction } from "@workspace/api-zod";
 
 export class RoomError extends Error {
@@ -12,7 +12,15 @@ type Member = { id: string; name: string; tokenHash: string; lastSeen: number };
 type StoredRoom = {
   code: string; status: RoomSnapshot["status"]; version: number; game: GameState;
   members: Member[]; receipts: { id: string; playerId: string }[];
+  chat_messages?: RoomChatMessage[]; voice_signals?: RoomVoiceSignal[];
   transition: RoomEvent | null; rematch_votes: string[]; ready_at: Date;
+};
+type RoomCommunicationPayload = {
+  type: "chat" | "offer" | "answer" | "hangup";
+  text?: string;
+  targetPlayerId?: string;
+  callId?: string;
+  sdp?: string;
 };
 const digest = (token: string) => createHash("sha256").update(token).digest("hex");
 const nameFor = (name: string | undefined, fallback: string) => (name?.trim() || fallback).slice(0, 24);
@@ -21,11 +29,15 @@ const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const newCode = () => Array.from({ length: 6 }, () => alphabet[randomInt(alphabet.length)]).join("");
 
 export function roomSnapshot(room: StoredRoom, member: Member): RoomSnapshot {
+  const now = Date.now();
   return {
     code: room.code, status: room.status, version: room.version, game: room.game,
     members: room.members.map(({ id, name, lastSeen }) => ({ id, name, online: Date.now() - lastSeen < 25_000 })),
     maxPlayers: room.game.players.length, yourPlayerId: member.id, rematchVotes: room.rematch_votes, event: room.transition,
     busyForMs: Math.max(0, room.ready_at.getTime() - Date.now()),
+    chatMessages: (room.chat_messages ?? []).slice(-60),
+    voiceSignals: (room.voice_signals ?? []).filter((signal) =>
+      signal.toPlayerId === member.id && now - Date.parse(signal.sentAt) < 45_000),
   };
 }
 function authenticate(room: StoredRoom, token: string) {
@@ -45,9 +57,11 @@ async function locked<T>(code: string, callback: (room: StoredRoom) => T): Promi
     const answer = callback(room);
     await client.query(`UPDATE game_rooms SET status=$2, version=$3, game=$4::jsonb,
       members=$5::jsonb, receipts=$6::jsonb, transition=$7::jsonb,
-      rematch_votes=$8::jsonb, ready_at=$9, updated_at=now() WHERE code=$1`,
+      rematch_votes=$8::jsonb, ready_at=$9, chat_messages=$10::jsonb,
+      voice_signals=$11::jsonb, updated_at=now() WHERE code=$1`,
     [code, room.status, room.version, JSON.stringify(room.game), JSON.stringify(room.members),
-      JSON.stringify(room.receipts), JSON.stringify(room.transition), JSON.stringify(room.rematch_votes), room.ready_at]);
+      JSON.stringify(room.receipts), JSON.stringify(room.transition), JSON.stringify(room.rematch_votes), room.ready_at,
+      JSON.stringify(room.chat_messages ?? []), JSON.stringify(room.voice_signals ?? [])]);
     await client.query("COMMIT");
     return answer;
   } catch (error) {
@@ -83,7 +97,7 @@ export async function createRoom(name?: string, maxPlayers = 2, admissionToken?:
   const game = createGame(maxPlayers);
   game.players[0].name = member.name;
   const stored: StoredRoom = { code: "", status: "waiting", version: 0, game, members: [member],
-    receipts: [], transition: null, rematch_votes: [], ready_at: new Date() };
+    receipts: [], chat_messages: [], voice_signals: [], transition: null, rematch_votes: [], ready_at: new Date() };
   for (let attempt = 0; attempt < 8; attempt++) {
     stored.code = newCode();
     const result = await client.query(`INSERT INTO game_rooms (code,status,version,game,members,receipts,
@@ -127,6 +141,45 @@ export async function joinRoom(code: string, name?: string, admissionToken?: str
 }
 export async function readRoom(code: string, token: string) {
   return locked(code, (room) => roomSnapshot(room, authenticate(room, token)));
+}
+
+export function applyRoomCommunication(room: StoredRoom, member: Member, input: RoomCommunicationPayload) {
+  if (room.status === "closed") throw new RoomError(410, "This room has ended.");
+  const now = Date.now();
+  if (input.type === "chat") {
+    const text = input.text?.trim() ?? "";
+    if (!text || text.length > 400) throw new RoomError(400, "Chat messages must contain 1–400 characters.");
+    const message: RoomChatMessage = {
+      id: randomUUID(), playerId: member.id, playerName: member.name, text, sentAt: new Date(now).toISOString(),
+    };
+    room.chat_messages = [...(room.chat_messages ?? []).slice(-59), message];
+    return { id: message.id };
+  }
+  const target = room.members.find((item) => item.id === input.targetPlayerId);
+  if (!input.targetPlayerId || !target || target.id === member.id) {
+    throw new RoomError(400, "Choose another player in this room.");
+  }
+  if (now - target.lastSeen >= 25_000) throw new RoomError(409, "That player is offline.");
+  if (!input.callId || input.callId.length < 16 || input.callId.length > 100) {
+    throw new RoomError(400, "The voice call needs a valid session.");
+  }
+  if ((input.type === "offer" || input.type === "answer") &&
+    (!input.sdp || input.sdp.length > 20_000 || !input.sdp.startsWith("v=0"))) {
+    throw new RoomError(400, "The browser sent an invalid voice connection description.");
+  }
+  const signal: RoomVoiceSignal = {
+    id: randomUUID(), fromPlayerId: member.id, toPlayerId: target.id, callId: input.callId,
+    type: input.type, ...(input.type !== "hangup" && input.sdp ? { sdp: input.sdp } : {}),
+    sentAt: new Date(now).toISOString(),
+  };
+  room.voice_signals = [
+    ...(room.voice_signals ?? []).filter((item) => now - Date.parse(item.sentAt) < 45_000).slice(-119),
+    signal,
+  ];
+  return { id: signal.id };
+}
+export async function sendRoomCommunication(code: string, token: string, input: RoomCommunicationPayload) {
+  return locked(code, (room) => applyRoomCommunication(room, authenticate(room, token), input));
 }
 
 export function applyRoomAction(room: StoredRoom, member: Member, action: RoomAction, rollDice = () => randomInt(1, 7)): void {

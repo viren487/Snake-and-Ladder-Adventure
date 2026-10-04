@@ -1,17 +1,12 @@
-import { useState } from 'react';
-import { Copy, Globe, LogOut, RefreshCw, Check, ChevronDown } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Copy, Globe, LogOut, RefreshCw, Check, ChevronDown, MessageCircle } from 'lucide-react';
+import type { RoomSession, RoomSnapshot } from '@workspace/game-core/online';
+import { OnlineChatVoice } from './OnlineChatVoice';
 import './OnlinePanel.css';
 
 export interface OnlinePanelProps {
-  room: null | {
-    code: string;
-    status: 'waiting' | 'playing' | 'finished' | 'closed';
-    maxPlayers: number;
-    game?: { winnerIds?: string[] };
-    members: { id: string; name: string; online: boolean }[];
-    yourPlayerId: string;
-    rematchVotes: string[];
-  };
+  room: RoomSnapshot | null;
+  session?: RoomSession | null;
   busy: boolean;
   connected: boolean;
   error: string | null;
@@ -24,14 +19,20 @@ export interface OnlinePanelProps {
   pendingAdmission?: boolean;
 }
 
-export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, onLeave, onRematch, onRetry, resumeCode, pendingAdmission }: OnlinePanelProps) {
+export function OnlinePanel({ room, session, busy, connected, error, onCreate, onJoin, onLeave, onRematch, onRetry, resumeCode, pendingAdmission }: OnlinePanelProps) {
   const [open, setOpen] = useState(false);
+  const [roomOpen, setRoomOpen] = useState(false);
+  const [commsOpen, setCommsOpen] = useState(false);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [maxPlayers, setMaxPlayers] = useState(2);
   const [copied, setCopied] = useState(false);
   const [localErr, setLocalErr] = useState<string | null>(null);
   const shownErr = localErr ?? error;
+  useEffect(() => {
+    setRoomOpen(false);
+    setCommsOpen(false);
+  }, [room?.code]);
 
   const join = () => {
     if (code.length !== 6) { setLocalErr('Room codes have 6 letters or digits.'); return; }
@@ -95,42 +96,82 @@ export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, on
   const me = room.members.find((m) => m.id === room.yourPlayerId);
   const voted = room.rematchVotes.includes(room.yourPlayerId);
   return (
-    <section className="op" aria-label="Online room" data-testid="online-room">
-      <div className="op-codebox">
-        <div>
-          <div className="eyebrow">Room code</div>
-          <div className="op-codeval" data-testid="room-code">{room.code}</div>
-        </div>
-        <button type="button" className="op-btn" style={{ flex: '0 0 auto' }} onClick={copy} aria-label="Copy room code" data-testid="copy-room-code">
-          {copied ? <Check size={15} /> : <Copy size={15} />} {copied ? 'Copied' : 'Copy'}
+    <section className="op-room-anchor" aria-label="Online room controls" data-testid="online-room">
+      <div className="op-room-controls">
+        <button
+          type="button"
+          className="op-room-trigger"
+          data-testid="online-room-toggle"
+          aria-expanded={roomOpen}
+          aria-controls="online-room-drawer"
+          aria-label={`${roomOpen ? 'Close' : 'Open'} controls for room ${room.code}`}
+          onClick={() => { setCommsOpen(false); setRoomOpen((value) => !value); }}
+        >
+          <span className="op-room-trigger-main">
+            <Globe size={15} aria-hidden="true" />
+            <span>ONLINE</span>
+            <span className="op-room-trigger-code">{room.code}</span>
+          </span>
+          <span className="op-room-trigger-meta">
+            {shownErr && <span className="op-room-error-mark" role="status" aria-label={`Room warning: ${shownErr}`} title={shownErr}>!</span>}
+            <span className={`op-room-dot ${connected && room.status !== 'closed' ? 'is-connected' : ''}`} aria-hidden="true" />
+            <span className="op-room-status-text">{room.status}</span>
+            <span className="op-room-player-count">{room.members.length}/{room.maxPlayers}</span>
+            <ChevronDown className={`op-room-chevron ${roomOpen ? 'is-open' : ''}`} size={16} aria-hidden="true" />
+          </span>
         </button>
+        {session && session.code === room.code && (
+          <button type="button" className="op-room-chat-trigger" data-testid="room-comms-toggle"
+            aria-expanded={commsOpen} aria-controls="room-chat-voice"
+            aria-label={`${commsOpen ? 'Close' : 'Open'} room chat and voice`}
+            onClick={() => { setRoomOpen(false); setCommsOpen((value) => !value); }}>
+            <MessageCircle size={15} aria-hidden="true" /><span>Chat &amp; voice</span>
+          </button>
+        )}
       </div>
-      <p className="op-note" data-testid="room-seat">You are {me?.name ?? 'seated'} · {room.members.length}/{room.maxPlayers} players.</p>
-      {room.members.map((m) => (
-        <div className="op-member" key={m.id} data-testid={`room-member-${m.id}`}>
-          <span className={`op-dot ${m.online && room.status !== 'closed' ? '' : 'off'}`} aria-hidden="true" />
-          <span>{m.name}{m.id === room.yourPlayerId ? ' (you)' : ''}</span>
-          <span className="op-note">{room.status === 'closed' ? 'ended' : m.online ? 'online' : 'offline'}</span>
-        </div>
-      ))}
-      {room.status === 'waiting' && <p className="op-note" role="status">Waiting for players: {room.members.length}/{room.maxPlayers}. Share the code; the game starts when all selected players join.</p>}
-      {room.status === 'playing' && room.members.some((m) => !m.online && !room.game?.winnerIds?.includes(m.id)) && <p className="op-note" role="status">An unfinished player is offline. Opening the game again on their original device restores their seat.</p>}
-      {!connected && (
-        <div className="op-row" role="status">
-          <p className="op-warn" style={{ flex: 1, alignSelf: 'center' }}>Reconnecting...</p>
-          <button type="button" className="op-btn" style={{ flex: '0 0 auto' }} data-testid="retry-online" onClick={onRetry}><RefreshCw size={14} /> Retry</button>
-        </div>
+      {session && session.code === room.code && (
+        <OnlineChatVoice key={session.code} room={room} session={session} connected={connected}
+          open={commsOpen} onClose={() => setCommsOpen(false)} />
       )}
-      {shownErr && <p className="op-err" role="alert" data-testid="online-error">{shownErr}</p>}
-      {room.status === 'finished' && (
-        <button type="button" className="op-btn gold" data-testid="request-rematch" disabled={busy || !connected || voted} onClick={onRematch}>
-          {voted ? 'Waiting for all players to agree' : room.rematchVotes.length ? 'Accept rematch' : 'Request rematch'}
-        </button>
+      {roomOpen && (
+        <section className="op op-room-drawer" id="online-room-drawer" aria-label={`Room ${room.code} details and actions`} data-testid="online-room-drawer">
+          <div className="op-codebox">
+            <div>
+              <div className="eyebrow">Room code</div>
+              <div className="op-codeval" data-testid="room-code">{room.code}</div>
+            </div>
+            <button type="button" className="op-btn" style={{ flex: '0 0 auto' }} onClick={copy} aria-label="Copy room code" data-testid="copy-room-code">
+              {copied ? <Check size={15} /> : <Copy size={15} />} {copied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+          <p className="op-note" data-testid="room-seat">You are {me?.name ?? 'seated'} · {room.members.length}/{room.maxPlayers} players.</p>
+          {room.members.map((m) => (
+            <div className="op-member" key={m.id} data-testid={`room-member-${m.id}`}>
+              <span className={`op-dot ${m.online && room.status !== 'closed' ? '' : 'off'}`} aria-hidden="true" />
+              <span>{m.name}{m.id === room.yourPlayerId ? ' (you)' : ''}</span>
+              <span className="op-note">{room.status === 'closed' ? 'ended' : m.online ? 'online' : 'offline'}</span>
+            </div>
+          ))}
+          {room.status === 'waiting' && <p className="op-note" role="status">Waiting for players: {room.members.length}/{room.maxPlayers}. Share the code; the game starts when all selected players join.</p>}
+          {room.status === 'playing' && room.members.some((m) => !m.online && !room.game?.winnerIds?.includes(m.id)) && <p className="op-note" role="status">An unfinished player is offline. Opening the game again on their original device restores their seat.</p>}
+          {!connected && (
+            <div className="op-row" role="status">
+              <p className="op-warn" style={{ flex: 1, alignSelf: 'center' }}>Reconnecting...</p>
+              <button type="button" className="op-btn" style={{ flex: '0 0 auto' }} data-testid="retry-online" onClick={onRetry}><RefreshCw size={14} /> Retry</button>
+            </div>
+          )}
+          {shownErr && <p className="op-err" role="alert" data-testid="online-error">{shownErr}</p>}
+          {room.status === 'finished' && (
+            <button type="button" className="op-btn gold" data-testid="request-rematch" disabled={busy || !connected || voted} onClick={() => { setRoomOpen(false); onRematch(); }}>
+              {voted ? 'Waiting for all players to agree' : room.rematchVotes.length ? 'Accept rematch' : 'Request rematch'}
+            </button>
+          )}
+          {room.status === 'closed' && <p className="op-note" role="status" data-testid="room-ended">This room has ended. Return to local play.</p>}
+          <button type="button" className="op-btn" data-testid="leave-online-room" disabled={busy} onClick={() => { setRoomOpen(false); onLeave(); }}>
+            <LogOut size={14} /> {room.status === 'closed' ? 'Back to local play' : 'Leave room'}
+          </button>
+        </section>
       )}
-      {room.status === 'closed' && <p className="op-note" role="status" data-testid="room-ended">This room has ended. Return to local play.</p>}
-      <button type="button" className="op-btn" data-testid="leave-online-room" disabled={busy} onClick={onLeave}>
-        <LogOut size={14} /> {room.status === 'closed' ? 'Back to local play' : 'Leave room'}
-      </button>
     </section>
   );
 }

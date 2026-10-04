@@ -251,7 +251,7 @@ export function isValidPowerState(value: unknown): boolean {
       new Set(state.bombs.map((bomb) => bomb.square)).size !== state.bombs.length) return false;
   }
   if (state.winnerIds !== undefined) {
-    if (!Array.isArray(state.winnerIds) || state.winnerIds.length > state.players.length - 1 || new Set(state.winnerIds).size !== state.winnerIds.length || !state.winnerIds.every((id) => state.players.some((p) => p.id === id && p.position === 100 && p.hasTorch && [17,44,67].includes(p.crownKeyRoom ?? -1)))) return false;
+    if (!Array.isArray(state.winnerIds) || state.winnerIds.length > state.players.length - 1 || new Set(state.winnerIds).size !== state.winnerIds.length || !state.winnerIds.every((id) => state.players.some((p) => p.id === id && p.position === 100 && [17,44,67].includes(p.crownKeyRoom ?? -1)))) return false;
     const finished = state.winnerIds.length === state.players.length - 1;
     if (finished ? state.winnerId !== state.winnerIds[0] || state.loserId !== state.players.find((p) => !state.winnerIds.includes(p.id))?.id : !!state.winnerId || !!state.loserId || state.winnerIds.includes(state.players[state.currentPlayerIndex]?.id)) return false;
   }

@@ -4,7 +4,7 @@ import * as game from './game-engine.ts';
 for(const count of [2,3,4]) {
   test(`${count} players: first N-1 win, only last loses; finishers leave rotation`,()=>{
     let state=game.createGame(count);
-    state.players.forEach(p=>{p.position=99;p.hasTorch=true;p.crownKeyRoom=17;p.keys=1;});
+    state.players.forEach(p=>{p.position=99;p.hasTorch=false;p.crownKeyRoom=17;p.keys=1;});
     for(let i=0;i<count-1;i++){
       assert.equal(state.currentPlayerIndex,i); state=game.playTurn(state,1);
       assert.deepEqual(state.winnerIds,state.players.slice(0,i+1).map(p=>p.id));
@@ -15,7 +15,7 @@ for(const count of [2,3,4]) {
   });
 }
 test('a crowned player does not retain a six bonus or banked Extra Dice',()=>{
-  let state=game.createGame(4);const p=state.players[0];p.position=94;p.hasTorch=true;p.crownKeyRoom=17;p.keys=1;p.extraRollCredits=2;
+  let state=game.createGame(4);const p=state.players[0];p.position=94;p.hasTorch=false;p.crownKeyRoom=17;p.keys=1;p.extraRollCredits=2;
   state=game.playTurn(state,6);assert.equal(state.currentPlayerIndex,1);assert.equal(state.bonusRollPending,false);
   state.players[1].position=10;state=game.playTurn(state,1);state=game.playTurn(state,1);state=game.playTurn(state,1);assert.equal(state.currentPlayerIndex,1);
 });

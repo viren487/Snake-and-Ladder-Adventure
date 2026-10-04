@@ -26,3 +26,12 @@ Extra Dice is a consumable, explicitly activated on the holder's turn to bank on
 **Why:** The user named the power without specifying activation timing. This interpretation makes the power useful, player-controlled and distinct from the automatic valid-six rule.
 
 **How to apply:** Show saved charges separately from activated extra-roll credits. An overshooting six earns no automatic bonus; any explicitly activated Extra Dice credit still grants its promised roll.
+
+Mystery-room choices should reuse each power's inventory icon and color inside a
+compact circular badge that fits its compass button.
+
+**Why:** The user asked for mystery-box icons to match the inventory and fit
+inside adjusted round badges.
+
+**How to apply:** Reuse the inventory icon components and color classes rather
+than introducing a separate mystery-only icon or palette.

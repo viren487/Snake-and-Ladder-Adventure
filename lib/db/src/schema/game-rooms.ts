@@ -8,6 +8,8 @@ export const gameRoomsTable = pgTable("game_rooms", {
   members: jsonb("members").notNull(),
   receipts: jsonb("receipts").notNull(),
   transition: jsonb("transition"),
+  chatMessages: jsonb("chat_messages").notNull().default([]),
+  voiceSignals: jsonb("voice_signals").notNull().default([]),
   rematchVotes: jsonb("rematch_votes").notNull(),
   readyAt: timestamp("ready_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -133,7 +133,7 @@
 @keyframes snake-sway { 0%,100% { transform:rotate(-.55deg); } 50% { transform:rotate(.55deg); } }
 .snake-art-stunned { opacity:.28; filter:grayscale(.9); }
 .snake-stun-badge { position:absolute; z-index:6; transform:translate(-50%,-118%); padding:2px 5px; border:1px solid #d4c7eb; border-radius:8px; color:#f2eaff; background:#34284ee8; box-shadow:0 2px 5px #17102099; font:700 clamp(7px,.72vw,10px)/1.2 'DM Mono',monospace; white-space:nowrap; pointer-events:none; }
-.aim-target { position:absolute; z-index:10; transform:translate(-50%,-50%); width:clamp(35px,4.2vw,54px); aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0; padding:2px; border:2px solid #fff0a0; border-radius:50%; color:#fff4cf; background:#8b3c22eF; box-shadow:0 0 0 3px #111a,0 0 16px #ffb43a99; cursor:crosshair; transition:transform .14s,background .14s,filter .14s; }
+.aim-target { position:absolute; z-index:10; transform:translate(-50%,-50%); width:clamp(28px,3.8vw,44px); aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0; padding:1px; border:2px solid #fff0a0; border-radius:50%; color:#fff4cf; background:#8b3c22ef; box-shadow:0 0 0 3px #111a,0 0 16px #ffb43a99; cursor:crosshair; transition:transform .14s,background .14s,filter .14s; }
 .aim-target:hover:not(:disabled),.aim-target:focus-visible { transform:translate(-50%,-50%) scale(1.12); background:#bd5429; outline:2px solid #fff; outline-offset:2px; }
 .aim-target span { font:700 clamp(7px,.7vw,9px)/1 'DM Mono',monospace; }
 .aim-target:disabled { border-color:#d1c6df; color:#e5d9f2; background:#55476abf; box-shadow:0 0 0 3px #111a; cursor:not-allowed; }
@@ -174,30 +174,31 @@
 .crown-tile.crown-locked { background:linear-gradient(145deg,#6c6259,#38343a); border-color:#c9ae7d; }
 .crown-locked .goal-crown-icon { opacity:.4; }
 .crown-tile .goal-lock-icon { position:absolute; width:29%;height:29%;right:8%;top:9%;color:#ffdf80; }
-.board-cell.key-room-lit { background:radial-gradient(circle at 50% 55%,#6d5827,#211e23 75%);box-shadow:inset 0 0 0 2px #f0c65a,inset 0 0 15px #f6d97066; }
+.board-cell.key-room-dark { background:#020307; border-color:#090a0e; box-shadow:inset 0 0 0 1px #111319,inset 0 0 18px #000; }
+.board-cell.key-room-dark > * { opacity:0; }
+.board-cell.key-room-lit { background:radial-gradient(ellipse at 50% 58%,#fff0a5 0%,#f5c14b 20%,#aa641f 48%,#33211e 100%);box-shadow:inset 0 0 0 2px #ffe682,inset 0 0 18px #fff2a0; }
+.board-cell.key-room-lit::before { content:'';position:absolute;inset:-45%;z-index:1;pointer-events:none;border-radius:50%;background:radial-gradient(ellipse at center,#fff8c9aa 0%,#ffd95d88 32%,#f89a2b44 58%,transparent 76%);animation:torch-room-flicker 1.35s ease-in-out infinite alternate; }
+.board-cell.key-room-lit .cell-number,.board-cell.key-room-lit .lock-caption,.board-cell.key-room-lit .locked-glyph { z-index:2; }
+.board-cell.key-room-lit .key-dark-glyph { opacity:0; }
 .key-dark-glyph { opacity:.4;filter:none; }
-.key-revealed-glyph { color:#ffdf76;filter:drop-shadow(0 0 5px #ffdc70); }
-.game-progress-card { grid-column:1/-1; padding:13px 15px; border:1px solid #766340; border-radius:16px; background:linear-gradient(145deg,#333041,#252b3b); }
-.game-progress-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-.game-progress-title { color:#f1d492; font:600 10px 'DM Mono',monospace; letter-spacing:1px; }
-.game-progress-player { margin-top:3px; color:#b8c0ce; font:500 9px 'DM Mono',monospace; }
-.game-progress-count { flex:0 0 auto; padding:4px 7px; border:1px solid #766340; border-radius:9px; color:#ffe2a0; font:600 10px 'DM Mono',monospace; }
-.game-progress-steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0; margin:11px 0 10px; padding:0; list-style:none; }
-.game-progress-step { position:relative; z-index:0; display:flex; min-width:0; flex-direction:column; align-items:center; gap:3px; text-align:center; }
-.game-progress-step:not(:last-child)::after { content:''; position:absolute; z-index:-1; top:16px; left:calc(50% + 18px); right:calc(-50% + 18px); height:2px; background:#454d5c; }
-.game-progress-step.is-complete:not(:last-child)::after { background:#4bb982; }
-.game-progress-icon { position:relative; z-index:1; display:grid; width:34px; height:34px; place-items:center; border:1px solid #535c6d; border-radius:50%; background:#202838; color:#7f899a; }
-.game-progress-step.is-complete .game-progress-icon { border-color:#64d49a; background:#244b3b; color:#a9f1c4; }
-.game-progress-step.is-current .game-progress-icon { border-color:#f0c65a; background:#5d4927; color:#ffe49b; box-shadow:0 0 12px #e5b84955; }
-.game-progress-step.is-ended .game-progress-icon { border-color:#687081; color:#9aa3b2; }
-.game-progress-label { color:#bac2ce; font:600 11px 'Fredoka',sans-serif; }
-.game-progress-state { color:#7f899a; font:600 8px 'DM Mono',monospace; letter-spacing:.5px; }
-.game-progress-step.is-complete .game-progress-label,.game-progress-step.is-complete .game-progress-state { color:#9ce7b8; }
-.game-progress-step.is-current .game-progress-label,.game-progress-step.is-current .game-progress-state { color:#ffe19a; }
-.game-progress-next { padding:8px 10px; border:1px solid #5a5360; border-radius:10px; background:#1d2432b8; }
-.game-progress-next > span { color:#f1d492; font:600 9px 'DM Mono',monospace; letter-spacing:.8px; }
-.game-progress-next p { margin:4px 0 0; color:#e1dcd2; font-size:11px; line-height:1.4; }
-.player-quest { display:flex;align-items:center;gap:4px;padding:5px 7px 0;color:#d5c6a0;font-size:10px; }
+.key-revealed-glyph { color:#fff09a;filter:drop-shadow(0 0 6px #fff2a5) drop-shadow(0 0 11px #ffc643); }
+@keyframes torch-room-flicker { from { opacity:.62; } to { opacity:1; } }
+.pickup-notice { position:absolute;z-index:24;left:50%;top:50%;width:min(88%,390px);display:flex;align-items:center;gap:12px;padding:14px 16px;border:2px solid #ffe184;border-radius:21px;background:linear-gradient(145deg,#fff6d8f5,#f2c45bea);box-shadow:0 12px 35px #0a0813bb,0 0 28px #ffe27c88;color:#342112;pointer-events:none;backdrop-filter:blur(8px);animation:pickup-notice-pop 3.2s ease both; }
+.pickup-notice-icon { flex:0 0 46px;width:46px;height:46px;display:grid;place-items:center;border:1px solid #bc842e;border-radius:15px;background:#fff3c7;box-shadow:inset 0 1px #fff; }
+.pickup-notice-key .pickup-notice-icon { color:#c78319; }
+.pickup-notice-copy { min-width:0;display:grid;gap:4px; }
+.pickup-notice-copy strong { color:#573313;font:700 clamp(12px,2vw,17px)/1 'Fredoka',sans-serif;letter-spacing:.5px; }
+.pickup-notice-copy > span { color:#503d2e;font:500 clamp(9px,1.15vw,12px)/1.35 'DM Mono',monospace; }
+.pickup-notice-sparkles { flex:0 0 auto;color:#a75d20; }
+@keyframes pickup-notice-pop { 0% { opacity:0;transform:translate(-50%,-45%) scale(.76); } 10%,84% { opacity:1;transform:translate(-50%,-50%) scale(1); } 100% { opacity:0;transform:translate(-50%,-57%) scale(.94); } }
+.quest-progress-line { grid-column:1/-1;display:flex;align-items:center;justify-content:center;min-width:0;padding:1px 2px 3px; }
+.quest-progress-items { display:flex;align-items:center;justify-content:center;gap:clamp(12px,3vw,24px);width:100%;margin:0;padding:0;list-style:none; }
+.quest-progress-item { display:inline-flex;align-items:center;gap:5px;color:#8993a4;font:600 12px/1 'DM Mono',monospace;white-space:nowrap;transition:color .2s ease,text-shadow .2s ease; }
+.quest-progress-item:not(:last-child)::after { content:'›';margin-left:clamp(5px,1.2vw,11px);color:#596479;font:600 16px/1 'DM Mono',monospace; }
+.quest-progress-item.is-earned { color:#a9f1c4;text-shadow:0 0 10px #6ce6a955; }
+.quest-progress-item.is-earned .torch-icon,.quest-progress-item.is-earned svg { filter:drop-shadow(0 0 5px #6ce6a977); }
+.quest-progress-crown.is-earned { color:#ffe49b;text-shadow:0 0 10px #e5b84977; }
+.torch-icon { display:inline-grid;flex:0 0 auto;place-items:center;line-height:1;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;vertical-align:middle; }
 .board-piece { position:absolute; z-index:7; width:7.2%; height:8.2%; display:grid; place-items:center; transform:translate(-50%,-55%); transition:left .21s cubic-bezier(.2,.8,.25,1),top .21s cubic-bezier(.2,.8,.25,1); }
 .board-piece.stacked { z-index:8; }
 .board-piece-ladder { transition:left var(--ladder-move-duration) cubic-bezier(.35,.05,.3,1),top var(--ladder-move-duration) cubic-bezier(.35,.05,.3,1); }
@@ -257,12 +258,6 @@
 .fire-choice-copy { color:#c5c7d0; font-size:11px; line-height:1.4; }
 .mobile-gun-status { display:none; }
 .fire-choice-actions { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
-.aim-options { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
-.aim-option { display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 4px; border:1px solid #687086; border-radius:10px; background:#2d3547; color:#e8e7dd; font:600 15px 'Fredoka',sans-serif; cursor:pointer; }
-.aim-option small { font:10px 'DM Mono',monospace; }
-.aim-option[aria-pressed="true"] { border-color:#ffe18a; background:#66502d; color:#fff1ba; box-shadow:0 0 0 1px #ffe18a; }
-.aim-option:disabled { opacity:.4; cursor:not-allowed; }
-.aim-option:focus-visible { outline:2px solid #fff2bb;outline-offset:2px; }
 .primary-action:disabled { opacity:.55; cursor:not-allowed; transform:none; }
 @media (prefers-reduced-motion:reduce) { .shot-muzzle,.shot-tracer,.shot-impact { animation:none; } .shot-impact { opacity:1; } }
 .secondary-action { display:flex; align-items:center; justify-content:center; width:100%; min-height:43px; padding:9px 12px; border:1px solid #596175; border-radius:12px; color:#e5e7eb; background:#30384a; font:600 13px 'Fredoka',sans-serif; cursor:pointer; transition:background .15s,transform .15s; }
@@ -360,13 +355,7 @@
   .turn-card .player-name-compact { display:none; }
   .turn-card .player-position { font-size:9px; }
   .turn-card .keys-chip,.turn-card .ammo-chip { gap:2px; font-size:8px; }
-  .turn-card .player-quest { display:none; }
-  .side-panel > .game-progress-card { order:3; padding:10px 12px; }
-  .game-progress-steps { margin:9px 0; }
-  .game-progress-icon { width:32px; height:32px; }
-  .game-progress-step:not(:last-child)::after { top:15px; }
-  .game-progress-next { padding:7px 8px; }
-  .game-progress-next p { font-size:10px; }
+  .side-panel > .quest-progress-line { order:3; }
   .side-panel > .sound-error[data-testid="storage-warning"] { order:4; }
   .side-panel > .message-card { order:5; }
   .side-panel > .sound-error[role="status"] { order:6; }
@@ -401,9 +390,6 @@
   .fire-choice-card .gun-glyph { width:20px; height:16px; }
   .fire-ammo-count { gap:2px; padding:3px 5px; font-size:8px; }
   .fire-choice-copy { font-size:10px; }
-  .fire-choice-card .aim-options { gap:4px; }
-  .fire-choice-card .aim-option { min-width:0; padding:7px 2px; font-size:12px; }
-  .fire-choice-card .aim-option small { font-size:8px; }
   .fire-choice-actions { gap:5px; }
   .fire-choice-actions .primary-action,.fire-choice-actions .secondary-action { min-width:0; padding:8px 4px; font-size:11px; }
   .play-control-dock > .win-banner,.play-control-dock > .mobile-choice-hint,.play-control-dock > .sound-error { width:100%; }
@@ -429,7 +415,10 @@
   z-index: 12;
 }
 .panda-token-bamboo { animation: bamboo-panda-wiggle .48s ease-in-out infinite; }
-.panda-carried-torch { position:absolute; right:-5px; bottom:8px; color:#fff3a2; filter:drop-shadow(0 0 4px #ffc443); }
+.panda-carried-torch { position:absolute; right:-5px; bottom:8px; width:19px; height:auto; color:#fff3a2; filter:drop-shadow(0 0 4px #ffc443) drop-shadow(0 0 7px #ff8b2b99); }
+@media (prefers-reduced-motion:reduce) {
+  .board-cell.key-room-lit::before,.pickup-notice { animation:none; }
+}
 @keyframes bamboo-panda-wiggle {
   0%,100% { transform:rotate(-5deg); }
   50% { transform:rotate(5deg); }

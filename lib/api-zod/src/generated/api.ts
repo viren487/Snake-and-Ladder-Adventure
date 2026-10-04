@@ -39,6 +39,10 @@ export const createGameRoomResponseRoomEventSourcePositionMax = 100;
 
 export const createGameRoomResponseRoomBusyForMsMin = 0;
 
+export const createGameRoomResponseRoomChatMessagesItemTextMax = 400;
+
+export const createGameRoomResponseRoomVoiceSignalsItemSdpMax = 20000;
+
 
 
 export const CreateGameRoomResponse = zod.object({
@@ -71,7 +75,23 @@ export const CreateGameRoomResponse = zod.object({
   "effect": zod.union([zod.literal('snake'),zod.literal('ladder'),zod.literal('boom'),zod.literal('torch'),zod.literal('return'),zod.literal('web'),zod.literal('knife'),zod.literal(null)]).nullable(),
   "targets": zod.array(zod.number().int())
 }).nullable(),
-  "busyForMs": zod.number().int().min(createGameRoomResponseRoomBusyForMsMin)
+  "busyForMs": zod.number().int().min(createGameRoomResponseRoomBusyForMsMin),
+  "chatMessages": zod.array(zod.object({
+  "id": zod.string(),
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "text": zod.string().max(createGameRoomResponseRoomChatMessagesItemTextMax),
+  "sentAt": zod.coerce.date()
+})),
+  "voiceSignals": zod.array(zod.object({
+  "id": zod.string(),
+  "fromPlayerId": zod.string(),
+  "toPlayerId": zod.string(),
+  "callId": zod.string(),
+  "type": zod.enum(['offer', 'answer', 'hangup']),
+  "sdp": zod.string().max(createGameRoomResponseRoomVoiceSignalsItemSdpMax).optional(),
+  "sentAt": zod.coerce.date()
+}))
 })
 })
 
@@ -100,6 +120,10 @@ export const joinGameRoomResponseRoomEventSourcePositionMin = 0;
 export const joinGameRoomResponseRoomEventSourcePositionMax = 100;
 
 export const joinGameRoomResponseRoomBusyForMsMin = 0;
+
+export const joinGameRoomResponseRoomChatMessagesItemTextMax = 400;
+
+export const joinGameRoomResponseRoomVoiceSignalsItemSdpMax = 20000;
 
 
 
@@ -133,7 +157,23 @@ export const JoinGameRoomResponse = zod.object({
   "effect": zod.union([zod.literal('snake'),zod.literal('ladder'),zod.literal('boom'),zod.literal('torch'),zod.literal('return'),zod.literal('web'),zod.literal('knife'),zod.literal(null)]).nullable(),
   "targets": zod.array(zod.number().int())
 }).nullable(),
-  "busyForMs": zod.number().int().min(joinGameRoomResponseRoomBusyForMsMin)
+  "busyForMs": zod.number().int().min(joinGameRoomResponseRoomBusyForMsMin),
+  "chatMessages": zod.array(zod.object({
+  "id": zod.string(),
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "text": zod.string().max(joinGameRoomResponseRoomChatMessagesItemTextMax),
+  "sentAt": zod.coerce.date()
+})),
+  "voiceSignals": zod.array(zod.object({
+  "id": zod.string(),
+  "fromPlayerId": zod.string(),
+  "toPlayerId": zod.string(),
+  "callId": zod.string(),
+  "type": zod.enum(['offer', 'answer', 'hangup']),
+  "sdp": zod.string().max(joinGameRoomResponseRoomVoiceSignalsItemSdpMax).optional(),
+  "sentAt": zod.coerce.date()
+}))
 })
 })
 
@@ -149,6 +189,10 @@ export const getGameRoomResponseEventSourcePositionMin = 0;
 export const getGameRoomResponseEventSourcePositionMax = 100;
 
 export const getGameRoomResponseBusyForMsMin = 0;
+
+export const getGameRoomResponseChatMessagesItemTextMax = 400;
+
+export const getGameRoomResponseVoiceSignalsItemSdpMax = 20000;
 
 
 
@@ -176,7 +220,23 @@ export const GetGameRoomResponse = zod.object({
   "effect": zod.union([zod.literal('snake'),zod.literal('ladder'),zod.literal('boom'),zod.literal('torch'),zod.literal('return'),zod.literal('web'),zod.literal('knife'),zod.literal(null)]).nullable(),
   "targets": zod.array(zod.number().int())
 }).nullable(),
-  "busyForMs": zod.number().int().min(getGameRoomResponseBusyForMsMin)
+  "busyForMs": zod.number().int().min(getGameRoomResponseBusyForMsMin),
+  "chatMessages": zod.array(zod.object({
+  "id": zod.string(),
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "text": zod.string().max(getGameRoomResponseChatMessagesItemTextMax),
+  "sentAt": zod.coerce.date()
+})),
+  "voiceSignals": zod.array(zod.object({
+  "id": zod.string(),
+  "fromPlayerId": zod.string(),
+  "toPlayerId": zod.string(),
+  "callId": zod.string(),
+  "type": zod.enum(['offer', 'answer', 'hangup']),
+  "sdp": zod.string().max(getGameRoomResponseVoiceSignalsItemSdpMax).optional(),
+  "sentAt": zod.coerce.date()
+}))
 })
 
 
@@ -219,6 +279,10 @@ export const actInGameRoomResponseEventSourcePositionMax = 100;
 
 export const actInGameRoomResponseBusyForMsMin = 0;
 
+export const actInGameRoomResponseChatMessagesItemTextMax = 400;
+
+export const actInGameRoomResponseVoiceSignalsItemSdpMax = 20000;
+
 
 
 export const ActInGameRoomResponse = zod.object({
@@ -245,7 +309,58 @@ export const ActInGameRoomResponse = zod.object({
   "effect": zod.union([zod.literal('snake'),zod.literal('ladder'),zod.literal('boom'),zod.literal('torch'),zod.literal('return'),zod.literal('web'),zod.literal('knife'),zod.literal(null)]).nullable(),
   "targets": zod.array(zod.number().int())
 }).nullable(),
-  "busyForMs": zod.number().int().min(actInGameRoomResponseBusyForMsMin)
+  "busyForMs": zod.number().int().min(actInGameRoomResponseBusyForMsMin),
+  "chatMessages": zod.array(zod.object({
+  "id": zod.string(),
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "text": zod.string().max(actInGameRoomResponseChatMessagesItemTextMax),
+  "sentAt": zod.coerce.date()
+})),
+  "voiceSignals": zod.array(zod.object({
+  "id": zod.string(),
+  "fromPlayerId": zod.string(),
+  "toPlayerId": zod.string(),
+  "callId": zod.string(),
+  "type": zod.enum(['offer', 'answer', 'hangup']),
+  "sdp": zod.string().max(actInGameRoomResponseVoiceSignalsItemSdpMax).optional(),
+  "sentAt": zod.coerce.date()
+}))
+})
+
+
+export const sendRoomCommunicationPathCodeRegExp = new RegExp('^[A-Z2-9]{6}$');
+
+
+export const SendRoomCommunicationParams = zod.object({
+  "code": zod.coerce.string().regex(sendRoomCommunicationPathCodeRegExp)
+})
+
+export const sendRoomCommunicationBodyTextMax = 400;
+
+export const sendRoomCommunicationBodyTargetPlayerIdMax = 100;
+
+export const sendRoomCommunicationBodyCallIdMin = 16;
+export const sendRoomCommunicationBodyCallIdMax = 100;
+
+export const sendRoomCommunicationBodySdpMax = 20000;
+
+
+
+export const SendRoomCommunicationBody = zod.object({
+  "type": zod.enum(['chat', 'offer', 'answer', 'hangup']),
+  "text": zod.string().min(1).max(sendRoomCommunicationBodyTextMax).optional(),
+  "targetPlayerId": zod.string().min(1).max(sendRoomCommunicationBodyTargetPlayerIdMax).optional(),
+  "callId": zod.string().min(sendRoomCommunicationBodyCallIdMin).max(sendRoomCommunicationBodyCallIdMax).optional(),
+  "sdp": zod.string().min(1).max(sendRoomCommunicationBodySdpMax).optional()
+})
+
+export const sendRoomCommunicationResponseIdMax = 100;
+
+
+
+export const SendRoomCommunicationResponse = zod.object({
+  "id": zod.string().min(1).max(sendRoomCommunicationResponseIdMax)
 })
 
 

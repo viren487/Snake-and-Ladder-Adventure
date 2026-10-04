@@ -66,6 +66,7 @@ export function useOnlineRoom(options: Options, hooks: RoomHooks) {
     const snapshot = raw as RoomSnapshot;
     if (snapshot.code !== sessionRef.current.code || snapshot.yourPlayerId !== sessionRef.current.playerId ||
       !Array.isArray(snapshot.game?.players) || snapshot.game.players.length < 2 || snapshot.game.players.length > 4 ||
+      !Array.isArray(snapshot.chatMessages) || !Array.isArray(snapshot.voiceSignals) ||
       !snapshot.game.players.some((player) => player.id === sessionRef.current!.playerId) ||
       !Number.isInteger(snapshot.game.currentPlayerIndex) || snapshot.game.currentPlayerIndex < 0 || snapshot.game.currentPlayerIndex >= snapshot.game.players.length) throw new Error("The room returned an invalid round.");
     snapshot.maxPlayers ??= snapshot.game.players.length;
@@ -73,9 +74,12 @@ export function useOnlineRoom(options: Options, hooks: RoomHooks) {
     const previous = roomRef.current;
     if (previous && snapshot.version < previous.version) return;
     roomRef.current = snapshot;
+    const sameIds = (left: readonly { id: string }[], right: readonly { id: string }[]) =>
+      left.length === right.length && left.every((item, index) => item.id === right[index].id);
     setRoom((old) => old && old.version === snapshot.version &&
       old.members.length === snapshot.members.length &&
-      old.members.every((member, index) => member.online === snapshot.members[index].online)
+      old.members.every((member, index) => member.online === snapshot.members[index].online) &&
+      sameIds(old.chatMessages, snapshot.chatMessages) && sameIds(old.voiceSignals, snapshot.voiceSignals)
       ? old : snapshot);
     setConnected(true);
     if (connectionIssue.current) { connectionIssue.current = false; setError(null); }

@@ -25,6 +25,8 @@ import type {
   OnlineRoom,
   RoomAction,
   RoomAdmission,
+  RoomCommunicationInput,
+  RoomCommunicationReceipt,
   RoomCreateInput,
   RoomMemberInput
 } from './api.schemas';
@@ -441,6 +443,89 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getActInGameRoomMutationOptions(options));
+    }
+
+export const getSendRoomCommunicationUrl = (code: string,) => {
+
+
+
+
+  return `/api/rooms/${code}/communications`
+}
+
+export const sendRoomCommunication = async (code: string,
+    roomCommunicationInput: RoomCommunicationInput, options?: Parameters<typeof customFetch>[1]): Promise<RoomCommunicationReceipt> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<RoomCommunicationReceipt>(getSendRoomCommunicationUrl(code),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(roomCommunicationInput)
+  }
+);}
+
+
+
+
+
+export const getSendRoomCommunicationMutationKey = () => ['sendRoomCommunication'] as const;
+
+export const getSendRoomCommunicationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendRoomCommunication>>, TError,SendRoomCommunicationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendRoomCommunication>>, TError,SendRoomCommunicationMutationVariables, TContext> => {
+
+const mutationKey = getSendRoomCommunicationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendRoomCommunication>>, SendRoomCommunicationMutationVariables> = (props) => {
+          const {code,data} = props ?? {};
+
+          return  sendRoomCommunication(code,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendRoomCommunicationMutationResult = NonNullable<Awaited<ReturnType<typeof sendRoomCommunication>>>
+    export type SendRoomCommunicationMutationBody = BodyType<RoomCommunicationInput>
+    export type SendRoomCommunicationMutationError = ErrorType<unknown>
+    export type SendRoomCommunicationMutationVariables = {code: string;data: BodyType<RoomCommunicationInput>}
+
+    export const useSendRoomCommunication = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendRoomCommunication>>, TError,SendRoomCommunicationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendRoomCommunication>>,
+        TError,
+        SendRoomCommunicationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSendRoomCommunicationMutationOptions(options));
     }
 
 export const getHealthCheckUrl = () => {

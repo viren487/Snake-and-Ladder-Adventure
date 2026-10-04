@@ -2,5 +2,7 @@
 - [Torch and crown quest](crown-quest.md) — First arrival at 100 grants a torch and returns the player Home; keys exist only in black rooms 17, 44 and 67.
 - [Extra rolls and mystery powers](mystery-powers.md) — A valid six earns another chance; mystery powers are chosen by players and used through explicit actions.
 - [Online multiplayer scope](online-multiplayer.md) — 2–4 people on separate devices; N−1 finishers win, last loses; preserve local saves and original seats.
+- [Browser room voice](voice-chat.md) — Keep voice audio direct between browsers; use the room server only for authenticated signaling and text.
 - [Snake-shot protection](snake-shot-protection.md) — A shot protects its shooter for three future dice rolls, not three global multiplayer turns.
 - [Multiplayer capacity audits](multiplayer-capacity-audits.md) — Typechecks can miss fixed-two-seat logic; verify web admission and multi-panda rendering.
+- [Stable multiplayer controls](online-room-ui.md) — Keep room actions in an overlay drawer, avoid turn-driven page scrolling, and aim directly at board snake heads.

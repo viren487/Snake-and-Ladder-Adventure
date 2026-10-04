@@ -7,12 +7,16 @@ import type { useGameSounds } from "./use-game-sounds";
 
 type Walking = { playerId: string; position: number; effect: "step" | "ladder" | "snake" | "boom" | "torch" | "return" | "bamboo" | "web" | "knife"; sourcePosition?: number };
 type Shot = { from: number; targets: ShootableSnakeSquare[] };
+export type PickupCelebration =
+  | { kind: "torch"; playerName: string }
+  | { kind: "key"; playerName: string; room: number };
 type Setter<T> = Dispatch<SetStateAction<T>>;
 type Bindings = {
   gameRef: RefObject<GameState>; setGame: Setter<GameState>; setDiceFace: Setter<number | null>;
   setWalking: Setter<Walking | null>; setShot: Setter<Shot | null>; setRolling: Setter<boolean>;
   setFiring: Setter<boolean>; setSelectedTargets: Setter<ShootableSnakeSquare[]>;
   sounds: ReturnType<typeof useGameSounds>;
+  announcePickup: (pickup: PickupCelebration) => void;
 };
 const storage: RoomStorage = {
   async load() {
@@ -27,10 +31,13 @@ const storage: RoomStorage = {
     else localStorage.removeItem("snake-ladder-online-seat-v1");
   },
 };
-function focus(section: "board" | "controls") {
+function focusBoardForShot() {
   if (!window.matchMedia("(max-width: 820px)").matches) return;
-  const element = document.querySelector(`[data-testid="game-${section}"]`);
-  if (element) window.scrollTo({ top: Math.max(0, window.scrollY + element.getBoundingClientRect().top - 16), behavior: "instant" });
+  const element = document.querySelector('[data-testid="game-board"]');
+  if (!element) return;
+  const bounds = element.getBoundingClientRect();
+  if (bounds.top >= 0 && bounds.bottom <= window.innerHeight) return;
+  window.scrollTo({ top: Math.max(0, window.scrollY + bounds.top - 16), behavior: "instant" });
 }
 export function useOnlineGame(bindings: Bindings) {
   const bound = useRef(bindings); bound.current = bindings;
@@ -55,7 +62,10 @@ export function useOnlineGame(bindings: Bindings) {
     b.setSelectedTargets([]);
     try {
       if (visual && event) {
-        b.setRolling(true); focus("board");
+        b.setRolling(true);
+        // Keep routine online turns at the player's current scroll position.
+        // Only bring the board into view for a shot that would otherwise be offscreen.
+        if (event.kind === "shoot") focusBoardForShot();
         if (event.kind === "roll") {
           b.sounds.play("dice");
           for (let frame = 0; frame < (reduced ? 1 : 7); frame++) {
@@ -86,7 +96,10 @@ export function useOnlineGame(bindings: Bindings) {
           if (!await wait(reduced ? 150 : 1100)) return;
           b.setWalking({ playerId: moved.id, position: 100, effect: "bamboo" });
           if (!await wait(reduced ? 45 : 200)) return;
-          if (event.effect === "torch") b.sounds.play("happy");
+          if (event.effect === "torch") {
+            b.sounds.play("happy");
+            b.announcePickup({ kind: "torch", playerName: moved.name });
+          }
           b.setWalking({ playerId: moved.id, position: 0, effect: "bamboo" });
           if (!await wait(reduced ? 45 : 2680)) return;
           b.setWalking({ playerId: moved.id, position: 0, effect: "step" });
@@ -101,10 +114,14 @@ export function useOnlineGame(bindings: Bindings) {
       if (animate && event) {
         const oldPlayer = before.players.find((player) => player.id === event.playerId);
         const newPlayer = snapshot.game.players.find((player) => player.id === event.playerId);
-        if (oldPlayer && newPlayer) b.sounds.playPickups(oldPlayer, newPlayer);
+        if (oldPlayer && newPlayer) {
+          b.sounds.playPickups(oldPlayer, newPlayer);
+          if (oldPlayer.crownKeyRoom === null && newPlayer.crownKeyRoom !== null) {
+            b.announcePickup({ kind: "key", playerName: newPlayer.name, room: newPlayer.crownKeyRoom });
+          }
+        }
       }
       b.gameRef.current = snapshot.game; b.setGame(snapshot.game); b.setDiceFace(snapshot.game.lastRoll);
-      if (visual) focus(snapshot.game.pendingChoice?.kind === "mystery" ? "board" : "controls");
     } finally {
       if (generation === epoch.current) { b.setWalking(null); b.setShot(null); b.setRolling(false); b.setFiring(false); }
     }

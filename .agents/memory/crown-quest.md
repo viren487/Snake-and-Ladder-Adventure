@@ -31,3 +31,23 @@ is acceptable. This is not background music.
 
 **How to apply:** Keep browser and native presentation aligned, including online
 turns. Preserve torch/key rules and saves; respect mute and reduced-motion settings.
+
+Key rooms 17, 44 and 67 should stay completely black until a torch-holder reaches
+the room; the torch reveals its light and key. Successful torch and key pickups
+play a happy sound and show a popup on the board.
+
+**Why:** The user requested pitch-black key rooms that light from the arriving
+torch, plus matching happy audio and on-board feedback for both quest pickups.
+
+**How to apply:** Keep room lighting tied to a torch-holder being in that room.
+Only an exact landing collects the key; preserve the existing torch-first quest.
+
+Collecting a black-room key consumes the player's carried torch. The key proves
+the torch stage is complete, so the quest line should keep Torch earned after
+the torch disappears from the player. Render the carried torch as 🔦.
+
+**Why:** The user explicitly asked for the flashlight emoji and for the torch to
+be removed from the player immediately after they collect a key.
+
+**How to apply:** On exact key pickup, clear the carried-torch state without
+clearing the key; infer the earned torch stage from the retained key.

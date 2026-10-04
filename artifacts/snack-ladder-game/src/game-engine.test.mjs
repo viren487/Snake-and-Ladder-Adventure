@@ -11,6 +11,7 @@ import {
   repairLegacyGame,
   resolveDefense,
   resolveTurn,
+  isValidPowerState,
   shootSnake,
   shootSnakes,
 } from "./game-engine.ts";
@@ -18,7 +19,7 @@ import {
 function at(position, keys = 0) {
   const game = createGame();
   game.players[0] = { ...game.players[0], position, keys: keys ? 1 : 0,
-    hasTorch: keys > 0, crownKeyRoom: keys ? 17 : null };
+    hasTorch: false, crownKeyRoom: keys ? 17 : null };
   return game;
 }
 
@@ -31,6 +32,7 @@ test("keys exist only in black rooms, after torch collection and on exact landin
     const collected = playTurn(lit, 1);
     assert.equal(collected.players[0].keys, 1);
     assert.equal(collected.players[0].crownKeyRoom, room);
+    assert.equal(collected.players[0].hasTorch, false);
     assert.equal(collected.winnerId, null);
     assert.equal(playTurn(lit, 2).players[0].keys, 0);
   }
@@ -314,11 +316,12 @@ test("one black-room key qualifies for a later crown, survives boom and is not d
   game = resolveTurn(game, 1).state;
   assert.equal(game.players[0].keys, 1);
   assert.equal(game.players[0].crownKeyRoom, 17);
+  assert.equal(game.players[0].hasTorch, false);
   game.currentPlayerIndex = 0;
   game.players[0].position = 96;
   game = resolveTurn(game, 1).state;
   assert.equal(game.players[0].position, 0);
-  assert.equal(game.players[0].hasTorch, true);
+  assert.equal(game.players[0].hasTorch, false);
   assert.equal(game.players[0].crownKeyRoom, 17);
   assert.deepEqual(repairLegacyGame(game), game);
   game.currentPlayerIndex = 0;
@@ -326,6 +329,16 @@ test("one black-room key qualifies for a later crown, survives boom and is not d
   game = resolveTurn(game, 1).state;
   assert.equal(game.winnerId, "player-1");
   assert.equal(game.currentPlayerIndex, 0);
+  assert.equal(isValidPowerState(game), true);
+});
+
+test("existing saved key holders keep their key and have the spent torch removed", () => {
+  const saved = at(44, 1);
+  saved.players[0].hasTorch = true; // State saved before torch consumption was added.
+  const repaired = repairLegacyGame(saved);
+  assert.equal(repaired.players[0].crownKeyRoom, 17);
+  assert.equal(repaired.players[0].keys, 1);
+  assert.equal(repaired.players[0].hasTorch, false);
 });
 
 test("an old ordinary winner gets the torch stage, not a free crown", () => {

@@ -1,18 +1,20 @@
 import { Router, type Request, type Response } from "express";
-import { CreateGameRoomBody, JoinGameRoomBody, ActInGameRoomBody } from "@workspace/api-zod";
-import { createRoom, joinRoom, readRoom, actInRoom, prepareAdmission, RoomError } from "../lib/game-rooms";
+import { CreateGameRoomBody, JoinGameRoomBody, ActInGameRoomBody, SendRoomCommunicationBody } from "@workspace/api-zod";
+import { createRoom, joinRoom, readRoom, actInRoom, sendRoomCommunication, prepareAdmission, RoomError } from "../lib/game-rooms";
 import { logger } from "../lib/logger";
 
 const router = Router();
 const rateWindows = new Map<string, { until: number; requests: number }>();
 router.use((req, res, next) => {
-  const publicWrite = req.method === "POST" && !req.path.endsWith("/actions");
-  const key = `${req.ip}:${publicWrite ? "admit" : "play"}`;
+  const communicationWrite = req.method === "POST" && req.path.endsWith("/communications");
+  const publicWrite = req.method === "POST" && !req.path.endsWith("/actions") && !communicationWrite;
+  const bucket = communicationWrite ? "communications" : publicWrite ? "admit" : "play";
+  const key = `${req.ip}:${bucket}`;
   const now = Date.now();
   if (rateWindows.size > 10000) for (const [ip, entry] of rateWindows) if (entry.until < now) rateWindows.delete(ip);
   let entry = rateWindows.get(key);
   if (!entry || entry.until < now) { entry = { until: now + 60_000, requests: 0 }; rateWindows.set(key, entry); }
-  if (++entry.requests > (publicWrite ? 30 : 600)) {
+  if (++entry.requests > (communicationWrite ? 60 : publicWrite ? 30 : 600)) {
     res.status(429).json({ error: "Too many requests. Please wait a minute." }); return;
   }
   res.setHeader("Cache-Control", "no-store");
@@ -56,5 +58,10 @@ router.post("/:code/actions", route(async (req, res) => {
   const body = ActInGameRoomBody.safeParse(req.body);
   if (!body.success) throw new RoomError(400, "Invalid action. Refresh the room and try again.");
   res.json(await actInRoom(codeOf(req), tokenOf(req), body.data));
+}));
+router.post("/:code/communications", route(async (req, res) => {
+  const body = SendRoomCommunicationBody.safeParse(req.body);
+  if (!body.success) throw new RoomError(400, "Invalid chat message or voice signal.");
+  res.json(await sendRoomCommunication(codeOf(req), tokenOf(req), body.data));
 }));
 export default router;

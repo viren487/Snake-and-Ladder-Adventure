@@ -107,6 +107,35 @@ export type OnlineRoomEvent = {
   targets: number[];
 } | null;
 
+export interface RoomChatMessage {
+  id: string;
+  playerId: string;
+  playerName: string;
+  /** @maxLength 400 */
+  text: string;
+  sentAt: string;
+}
+
+export type RoomVoiceSignalType = typeof RoomVoiceSignalType[keyof typeof RoomVoiceSignalType];
+
+
+export const RoomVoiceSignalType = {
+  offer: 'offer',
+  answer: 'answer',
+  hangup: 'hangup',
+} as const;
+
+export interface RoomVoiceSignal {
+  id: string;
+  fromPlayerId: string;
+  toPlayerId: string;
+  callId: string;
+  type: RoomVoiceSignalType;
+  /** @maxLength 20000 */
+  sdp?: string;
+  sentAt: string;
+}
+
 /**
  * Complete shared Snake and Ladder GameState, generated only by the authoritative game engine.
  */
@@ -129,6 +158,8 @@ export interface OnlineRoom {
   event: OnlineRoomEvent | null;
   /** @minimum 0 */
   busyForMs: number;
+  chatMessages: RoomChatMessage[];
+  voiceSignals: RoomVoiceSignal[];
 }
 
 export interface RoomAdmission {
@@ -201,6 +232,48 @@ export interface RoomAction {
      * @maxItems 2
      */
   targets?: RoomActionTargetsItem[];
+}
+
+export type RoomCommunicationInputType = typeof RoomCommunicationInputType[keyof typeof RoomCommunicationInputType];
+
+
+export const RoomCommunicationInputType = {
+  chat: 'chat',
+  offer: 'offer',
+  answer: 'answer',
+  hangup: 'hangup',
+} as const;
+
+export interface RoomCommunicationInput {
+  type: RoomCommunicationInputType;
+  /**
+     * @minLength 1
+     * @maxLength 400
+     */
+  text?: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  targetPlayerId?: string;
+  /**
+     * @minLength 16
+     * @maxLength 100
+     */
+  callId?: string;
+  /**
+     * @minLength 1
+     * @maxLength 20000
+     */
+  sdp?: string;
+}
+
+export interface RoomCommunicationReceipt {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  id: string;
 }
 
 export interface HealthStatus {

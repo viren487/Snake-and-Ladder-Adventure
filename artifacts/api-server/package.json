@@ -8,7 +8,8 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:powers": "esbuild scripts/game-room-powers.test.ts --bundle --platform=node --format=cjs --external:pg-native --outfile=/tmp/snack-ladder-room-powers.test.cjs && node /tmp/snack-ladder-room-powers.test.cjs"
+    "test:powers": "esbuild scripts/game-room-powers.test.ts --bundle --platform=node --format=cjs --external:pg-native --outfile=/tmp/snack-ladder-room-powers.test.cjs && node /tmp/snack-ladder-room-powers.test.cjs",
+    "test:communications": "esbuild scripts/game-room-communications.test.ts --bundle --platform=node --format=cjs --external:pg-native --outfile=/tmp/snack-ladder-room-communications.test.cjs && node /tmp/snack-ladder-room-communications.test.cjs"
   },
   "dependencies": {
     "@workspace/game-core": "workspace:*",

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { Bomb, ChevronDown, CircleDot, Crosshair, Crown, Dices, Flashlight, KeyRound, LockKeyhole, RotateCcw, ShieldPlus, Sparkles, Trophy, Volume2, VolumeX, Wrench } from 'lucide-react';
+import { Bomb, ChevronDown, CircleDot, Crosshair, Crown, Dices, KeyRound, LockKeyhole, RotateCcw, ShieldPlus, Sparkles, Trophy, Volume2, VolumeX, Wrench } from 'lucide-react';
 import {
   BULLET_PICKUP_SQUARES,
   createGame,
@@ -39,7 +39,7 @@ import MatchCelebration from './MatchCelebration';
 import { DicePips } from './DicePips';
 import { OnlinePanel } from './OnlinePanel';
 import BambooReturnArt from './BambooReturnArt';
-import { useOnlineGame } from './use-online-game';
+import { useOnlineGame, type PickupCelebration } from './use-online-game';
 import type { OnlineAction } from '@workspace/api-client-react';
 import { getMrBotAction, type MrBotAction } from './mr-bot';
 
@@ -67,6 +67,7 @@ type WalkingPiece = {
   sourcePosition?: number;
 };
 type Shot = { from: number; targets: ShootableSnakeSquare[] };
+type PickupNotice = PickupCelebration & { id: number };
 
 const SNAKE_ART: Record<string, string> = {
   violet: new URL('./realistic-snake-violet.png', import.meta.url).href,
@@ -181,6 +182,10 @@ function scrollToGameSection(selector: string) {
     // A short shot must not start before a browser's smooth scroll has settled.
     behavior: 'instant',
   });
+}
+
+function TorchIcon({ className, size = 24 }: { className?: string; size?: number }) {
+  return <span className={`torch-icon ${className ?? ''}`} style={{ fontSize: size, width: size * 1.2, height: size * 1.2 }} aria-hidden="true">🔦</span>;
 }
 
 function BulletIcon({ square }: { square: number }) {
@@ -378,6 +383,7 @@ function PandaToken({
 
 function Board({
   game,
+  pickupNotice,
   choicesEnabled,
   choiceBusy,
   onChoosePower,
@@ -389,6 +395,7 @@ function Board({
   onAimTarget,
 }: {
   game: GameState;
+  pickupNotice: PickupNotice | null;
   choicesEnabled: boolean;
   choiceBusy: boolean;
    onChoosePower: (power: MysteryPowerType) => void;
@@ -411,20 +418,30 @@ function Board({
     const gun = (GUN_SQUARES as readonly number[]).includes(number);
     const boom = number === BOOM_SQUARE;
     const tone = gate ? 'locked' : bullet ? 'bullet-square' : number % 3 === 0 ? 'blue' : (row + col) % 2 === 0 ? 'green' : 'cream';
+    const roomLit = gate && (
+      game.players.some((player) => player.hasTorch && player.position === number) ||
+      (walking?.position === number && game.players.some((player) => player.id === walking.playerId && player.hasTorch))
+    );
+    const keyVisible = roomLit && activePlayer.hasTorch && activePlayer.crownKeyRoom === null;
+    const roomDescription = !roomLit
+      ? 'completely dark black room; carry a torch and land exactly here to reveal the key'
+      : keyVisible
+        ? 'torch-lit black room; the key is revealed; land exactly here to collect it'
+        : 'black room lit by a torch';
     return (
-      <div className={`board-cell ${tone} ${gate || bullet ? 'special' : ''} ${gate && activePlayer.hasTorch ? 'key-room-lit' : ''}`} key={number} data-testid={`board-square-${number}`} aria-label={`Square ${number}${gate ? `, black key room; ${activePlayer.hasTorch ? 'land here to collect a crown key' : 'torch required to collect its key'}` : ''}${bullet ? ', bullet pickup on landing' : ''}${mysteryBox ? ', mystery box' : ''}${gun ? ', gun' : ''}${boom ? ', boom trap' : ''}`}>
+      <div className={`board-cell ${tone} ${gate || bullet ? 'special' : ''} ${gate ? roomLit ? 'key-room-lit' : 'key-room-dark' : ''}`} key={number} data-testid={`board-square-${number}`} aria-label={`Square ${number}${gate ? `, ${roomDescription}` : ''}${bullet ? ', bullet pickup on landing' : ''}${mysteryBox ? ', mystery box' : ''}${gun ? ', gun' : ''}${boom ? ', boom trap' : ''}`}>
         <span className="cell-number" data-testid={`square-number-${number}`}>{number}</span>
         {bullet && <BulletIcon square={number} />}
         {mysteryBox && <MysteryBoxIcon square={number} />}
         {gun && <GunIcon />}
         {boom && <BoomIcon />}
         {gate && <>
-          <span className="lock-caption">{activePlayer.hasTorch ? 'KEY ROOM' : 'DARK ROOM'}</span>
-          <KeyRound className={`locked-glyph ${activePlayer.hasTorch ? 'key-revealed-glyph' : 'key-dark-glyph'}`} strokeWidth={2.2} data-testid={`key-room-${number}`} />
+          <span className="lock-caption">{!roomLit ? 'DARK ROOM' : keyVisible ? 'KEY REVEALED' : 'TORCH LIGHT'}</span>
+          <KeyRound className={`locked-glyph ${keyVisible ? 'key-revealed-glyph' : 'key-dark-glyph'}`} strokeWidth={2.2} data-testid={`key-room-${number}`} />
         </>}
       </div>
     );
-  }), [activePlayer.hasTorch]);
+  }), [activePlayer, game.players, walking]);
   const pieceStyle = (position: number, playerIndex: number, bamboo: boolean) => {
     const point = bamboo ? { x: -36, y: position === 100 ? 50 : 948 }
       : position > 0 ? centerOf(position) : { x: 70, y: 948 };
@@ -458,9 +475,31 @@ function Board({
         </svg>
         <BambooReturnArt
           active={walking?.effect === 'bamboo'}
-          torchVisible={!activePlayer.hasTorch && !(walking?.effect === 'bamboo' && walking.position === 100)}
+          torchVisible={!activePlayer.hasTorch && activePlayer.crownKeyRoom === null && !(walking?.effect === 'bamboo' && walking.position === 100)}
           collecting={walking?.effect === 'bamboo' && walking.position === 100}
         />
+        {pickupNotice && (
+          <div
+            className={`pickup-notice pickup-notice-${pickupNotice.kind}`}
+            key={pickupNotice.id}
+            role="status"
+            aria-live="polite"
+            data-testid={`pickup-notice-${pickupNotice.kind}`}
+          >
+            <span className="pickup-notice-icon">
+              {pickupNotice.kind === 'torch' ? <TorchIcon size={30} /> : <KeyRound size={29} />}
+            </span>
+            <span className="pickup-notice-copy">
+              <strong>{pickupNotice.kind === 'torch' ? 'TORCH COLLECTED!' : 'KEY COLLECTED!'}</strong>
+              <span>
+                {pickupNotice.kind === 'torch'
+                  ? `${pickupNotice.playerName} can now reveal a dark room.`
+                  : `Room ${pickupNotice.room} key secured. Return to 100 for the crown.`}
+              </span>
+            </span>
+            <Sparkles className="pickup-notice-sparkles" size={19} aria-hidden="true" />
+          </div>
+        )}
         {game.bombs.map((bomb) => {
           const point = centerOf(bomb.square);
           const owner = game.players.find((player) => player.id === bomb.ownerId)!;
@@ -471,7 +510,7 @@ function Board({
           </span>;
         })}
         <div className={`crown-tile ${activePlayer.crownKeyRoom === null ? 'crown-locked' : ''}`} data-testid="goal-crown"
-          aria-label={!activePlayer.hasTorch ? '100: collect torch and return Home; crown locked' : activePlayer.crownKeyRoom === null ? '100: crown locked; collect a black-room key first' : '100: crown unlocked; return here to win'}>
+          aria-label={activePlayer.crownKeyRoom !== null ? '100: crown unlocked; return here to win' : !activePlayer.hasTorch ? '100: collect torch and return Home; crown locked' : '100: crown locked; collect a black-room key first'}>
           <Crown className="goal-crown-icon" />
           {activePlayer.crownKeyRoom === null && <LockKeyhole className="goal-lock-icon" data-testid="crown-lock" />}
           <span>100</span>
@@ -537,7 +576,7 @@ function Board({
                 hopping={hopping}
                 specialMove={movement === 'ladder' || movement === 'snake' || movement === 'boom' || movement === 'bamboo' ? movement : null}
               />
-              {movement === 'bamboo' && <span className="panda-carried-torch" aria-hidden="true"><Flashlight size={15} /></span>}
+              {(player.hasTorch || movement === 'bamboo') && <TorchIcon className="panda-carried-torch" size={19} />}
               {(movement === 'ladder' || movement === 'snake') && (
                 <span className={`move-caption move-caption-${movement}`} aria-hidden="true">
                   {movement === 'ladder' ? 'Up we go!' : 'Wheee!'}
@@ -569,6 +608,12 @@ function App() {
   const [rolling, setRolling] = useState(false);
   const [diceFace, setDiceFace] = useState<number | null>(game.lastRoll);
   const [walking, setWalking] = useState<WalkingPiece | null>(null);
+  const [pickupNotice, setPickupNotice] = useState<PickupNotice | null>(null);
+  const pickupNoticeSequence = useRef(0);
+  const announcePickup = (pickup: PickupCelebration) => {
+    pickupNoticeSequence.current += 1;
+    setPickupNotice({ ...pickup, id: pickupNoticeSequence.current });
+  };
   const [selectedTargets, setSelectedTargets] = useState<ShootableSnakeSquare[]>([]);
   const [shot, setShot] = useState<Shot | null>(null);
   const [firing, setFiring] = useState(false);
@@ -577,7 +622,7 @@ function App() {
   const fireInFlight = useRef(false);
   const screenMounted = useRef(true);
   const online = useOnlineGame({ gameRef: latestGame, setGame, setDiceFace, setWalking,
-    setShot, setRolling, setFiring, setSelectedTargets, sounds });
+    setShot, setRolling, setFiring, setSelectedTargets, sounds, announcePickup });
   const mrBotId = game.players[1]?.id;
   const mrBotAction = playMode === 'bot' && !online.session && !online.loadingSession && !online.pendingAdmission && mrBotId
     ? getMrBotAction(game, mrBotId)
@@ -613,6 +658,7 @@ function App() {
     setPowerError(null);
     setDiceFace(loaded.game.lastRoll);
     setWalking(null);
+    setPickupNotice(null);
     setSelectedTargets([]);
     setShot(null);
     try {
@@ -629,6 +675,12 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!pickupNotice) return;
+    const timeout = window.setTimeout(() => setPickupNotice(null), 3200);
+    return () => window.clearTimeout(timeout);
+  }, [pickupNotice]);
+
+  useEffect(() => {
     if (saveBlocked || online.session || online.loadingSession) return;
     try {
       localStorage.setItem(storageKeyForMode(playMode), JSON.stringify(game));
@@ -642,21 +694,8 @@ function App() {
   const winner = game.players.find(player => player.id === game.winnerId);
   const playerClaimedCrown = currentPlayer.id === game.winnerId || (game.winnerIds ?? []).includes(currentPlayer.id);
   const matchComplete = !!game.winnerId;
-  const progressStage = currentPlayer.crownKeyRoom !== null ? 3 : currentPlayer.hasTorch ? 2 : 1;
-  const completedProgressSteps = playerClaimedCrown ? 3 : currentPlayer.crownKeyRoom !== null ? 2 : currentPlayer.hasTorch ? 1 : 0;
-  const torchProgressState = currentPlayer.hasTorch ? 'complete' : matchComplete ? 'ended' : 'current';
-  const keyProgressState = currentPlayer.crownKeyRoom !== null ? 'complete' : !currentPlayer.hasTorch ? 'locked' : matchComplete ? 'ended' : 'current';
-  const crownProgressState = playerClaimedCrown ? 'complete' : matchComplete ? 'ended' : currentPlayer.crownKeyRoom !== null ? 'current' : 'locked';
-  const progressTaskTitle = playerClaimedCrown ? 'QUEST COMPLETE' : matchComplete ? 'MATCH COMPLETE' : 'NEXT TASK';
-  const progressTask = playerClaimedCrown
-    ? 'Crown claimed. Your quest is complete.'
-    : matchComplete
-      ? `${winner?.name ?? 'An opponent'} claimed the crown. The match is over.`
-      : !currentPlayer.hasTorch
-        ? 'Reach 100 to collect the torch; you will return Home.'
-        : currentPlayer.crownKeyRoom === null
-          ? 'Land exactly in black room 17, 44, or 67 to collect one key.'
-          : `Key from room ${currentPlayer.crownKeyRoom} secured. Reach 100 again with an exact roll to claim the crown.`;
+  const torchEarned = currentPlayer.hasTorch || currentPlayer.crownKeyRoom !== null || playerClaimedCrown;
+  const keyEarned = currentPlayer.crownKeyRoom !== null || playerClaimedCrown;
   useEffect(() => { sounds.setCelebrating(!!game.winnerId); }, [game.winnerId, sounds.setCelebrating]);
   const waitingToFire = game.pendingFireForPlayerId === currentPlayer.id;
   const mobileTurnLabel = winner
@@ -669,6 +708,17 @@ function App() {
   const availableTargets = SHOOTABLE_SNAKE_SQUARES.filter(
     (square) => currentPlayer.snakeStuns[square] === 0,
   );
+  const fireAimPrompt = remoteDisabled
+    ? `${currentPlayer.name} is choosing a target.`
+    : selectedTargets.length === 2
+      ? 'Both snakes selected; firing will use two bullets.'
+      : selectedTargets.length === 1
+        ? `Snake ${selectedTargets[0]} selected; firing will use one bullet.`
+        : availableTargets.length === 0
+          ? 'There are no active snakes to target.'
+          : currentPlayer.bullets === 1 || availableTargets.length === 1
+            ? `Tap snake ${availableTargets[0]} on the board to aim.`
+            : 'Tap one or both snake heads on the board. Targeting both uses two bullets.';
   const applyPower = (command: (state: GameState) => GameState, action?: OnlineAction) => {
     if (online.session) { if (online.canAct && action) void online.action(action); return; }
     if (rollInFlight.current || fireInFlight.current) return;
@@ -707,7 +757,10 @@ function App() {
           setWalking({ playerId: id, position: 100, effect: 'bamboo' });
           await new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 45 : 200));
           if (!screenMounted.current) return;
-          if (effect === 'torch') sounds.play('happy');
+          if (effect === 'torch') {
+            sounds.play('happy');
+            announcePickup({ kind: 'torch', playerName: moved.name });
+          }
           setWalking({ playerId: id, position: 0, effect: 'bamboo' });
           await new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 45 : 2680));
           if (!screenMounted.current) return;
@@ -723,7 +776,13 @@ function App() {
         }
         if (!screenMounted.current) return;
       }
-      sounds.playPickups(before.players.find((player) => player.id === id)!, moved);
+      const beforePlayer = before.players.find((player) => player.id === id);
+      if (beforePlayer) {
+        sounds.playPickups(beforePlayer, moved);
+        if (beforePlayer.crownKeyRoom === null && moved.crownKeyRoom !== null) {
+          announcePickup({ kind: 'key', playerName: moved.name, room: moved.crownKeyRoom });
+        }
+      }
       latestGame.current = resolution.state;
       setGame(resolution.state);
       setPowerError(null);
@@ -836,7 +895,10 @@ function App() {
         setWalking({ playerId: player.id, position: 100, effect: 'bamboo' });
         await new Promise<void>(resolve => window.setTimeout(resolve, reducedMotion ? 45 : 200));
         if (!screenMounted.current) return;
-        if (effect === 'torch') sounds.play('happy');
+        if (effect === 'torch') {
+          sounds.play('happy');
+          announcePickup({ kind: 'torch', playerName: resolvedPlayer.name });
+        }
         setWalking({ playerId: player.id, position: 0, effect: 'bamboo' });
         await new Promise<void>(resolve => window.setTimeout(resolve, reducedMotion ? 45 : 2680));
         if (!screenMounted.current) return;
@@ -852,7 +914,12 @@ function App() {
         if (!screenMounted.current) return;
       }
 
-      if (resolvedPlayer) sounds.playPickups(player, resolvedPlayer);
+      if (resolvedPlayer) {
+        sounds.playPickups(player, resolvedPlayer);
+        if (player.crownKeyRoom === null && resolvedPlayer.crownKeyRoom !== null) {
+          announcePickup({ kind: 'key', playerName: resolvedPlayer.name, room: resolvedPlayer.crownKeyRoom });
+        }
+      }
       setGame(resolution.state);
       latestGame.current = resolution.state;
     } finally {
@@ -998,47 +1065,30 @@ function App() {
             )}
           </div>
         </header>
-        <OnlinePanel room={online.room} pendingAdmission={!!online.pendingAdmission} resumeCode={online.session?.code ?? (online.pendingAdmission ? online.pendingAdmission.code ?? "Creating room" : undefined)}
+        <OnlinePanel room={online.room} session={online.session} pendingAdmission={!!online.pendingAdmission} resumeCode={online.session?.code ?? (online.pendingAdmission ? online.pendingAdmission.code ?? "Creating room" : undefined)}
           busy={online.busy || rolling || firing || online.loadingSession} connected={online.connected}
           error={online.error} onCreate={online.create} onJoin={online.join}
           onLeave={leaveOnline} onRematch={() => { void online.action({ type: 'rematch' }); }}
           onRetry={() => { void online.retry(); }} />
 
         <div className="game-columns">
-          <Board game={game} walking={walking} aiming={waitingToFire && !remoteDisabled} selectedTargets={selectedTargets} shot={shot} firing={firing} onAimTarget={selectTarget} choicesEnabled={!remoteDisabled} choiceBusy={rolling || firing}
+          <Board game={game} pickupNotice={pickupNotice} walking={walking} aiming={waitingToFire && !remoteDisabled} selectedTargets={selectedTargets} shot={shot} firing={firing} onAimTarget={selectTarget} choicesEnabled={!remoteDisabled} choiceBusy={rolling || firing}
             onChoosePower={(power) => applyPower((state) => choosePower(state, power), {type: "choose", power})} />
             {!!game.winnerId && <MatchCelebration players={game.players} winnerIds={game.winnerIds ?? [game.winnerId]} loserId={game.loserId ?? game.players.find((p) => p.id !== game.winnerId)!.id} />}
             {!!game.winnerId && <button type="button" className="primary-action" data-testid="celebration-music" disabled={sounds.muted} onClick={() => sounds.setCelebrating(true)}>Play celebration music</button>}
           <section className="side-panel" aria-label="Game controls and player status" data-testid="game-controls">
-            <section className="game-progress-card" data-testid="game-progress" aria-label={`${currentPlayer.name}'s game progress`}>
-              <div className="game-progress-heading">
-                <div>
-                  <div className="game-progress-title">GAME PROGRESS</div>
-                  <div className="game-progress-player">{currentPlayer.name} · STAGE {progressStage}/3</div>
-                </div>
-                <span className="game-progress-count" data-testid="game-progress-count">{completedProgressSteps}/3</span>
-              </div>
-              <ol className="game-progress-steps">
-                <li className={`game-progress-step is-${torchProgressState}`} data-testid="progress-torch" data-state={torchProgressState} aria-current={torchProgressState === 'current' ? 'step' : undefined}>
-                  <span className="game-progress-icon"><Flashlight size={16} /></span>
-                  <span className="game-progress-label">Torch</span>
-                  <span className="game-progress-state">{torchProgressState === 'complete' ? 'DONE' : torchProgressState === 'current' ? 'NEXT' : 'ENDED'}</span>
+            <section className="quest-progress-line" data-testid="game-progress" aria-label={`${currentPlayer.name}'s Torch, Key and Crown progress`}>
+              <ol className="quest-progress-items">
+                <li className={`quest-progress-item ${torchEarned ? 'is-earned' : ''}`} data-testid="progress-torch" data-state={torchEarned ? 'earned' : 'pending'}>
+                  <TorchIcon size={17} /><span>Torch</span>
                 </li>
-                <li className={`game-progress-step is-${keyProgressState}`} data-testid="progress-key" data-state={keyProgressState} aria-current={keyProgressState === 'current' ? 'step' : undefined}>
-                  <span className="game-progress-icon"><KeyRound size={16} /></span>
-                  <span className="game-progress-label">Key</span>
-                  <span className="game-progress-state">{keyProgressState === 'complete' ? 'DONE' : keyProgressState === 'current' ? 'NEXT' : keyProgressState === 'ended' ? 'ENDED' : 'LOCKED'}</span>
+                <li className={`quest-progress-item ${keyEarned ? 'is-earned' : ''}`} data-testid="progress-key" data-state={keyEarned ? 'earned' : 'pending'}>
+                  <KeyRound size={16} aria-hidden="true" /><span>Key</span>
                 </li>
-                <li className={`game-progress-step is-${crownProgressState}`} data-testid="progress-crown" data-state={crownProgressState} aria-current={crownProgressState === 'current' ? 'step' : undefined}>
-                  <span className="game-progress-icon"><Crown size={16} /></span>
-                  <span className="game-progress-label">Crown</span>
-                  <span className="game-progress-state">{crownProgressState === 'complete' ? 'DONE' : crownProgressState === 'current' ? 'NEXT' : crownProgressState === 'ended' ? 'ENDED' : 'LOCKED'}</span>
+                <li className={`quest-progress-item quest-progress-crown ${playerClaimedCrown ? 'is-earned' : ''}`} data-testid="progress-crown" data-state={playerClaimedCrown ? 'earned' : 'pending'}>
+                  <Crown size={16} aria-hidden="true" /><span>Crown</span>
                 </li>
               </ol>
-              <div className="game-progress-next" data-testid="game-progress-next" aria-live="polite">
-                <span>{progressTaskTitle}</span>
-                <p>{progressTask}</p>
-              </div>
             </section>
             <div className="turn-card">
               <div className="eyebrow" data-testid="turn-number">TURN {String(game.turnNumber).padStart(2, '0')}</div>
@@ -1071,10 +1121,6 @@ function App() {
                     <span className="ammo-chip" data-testid={`bullets-${player.id}`} aria-label={`${player.bullets} of ${MAX_BULLETS} bullets`}>
                       <CircleDot size={12} /> {player.bullets}/{MAX_BULLETS}
                     </span>
-                  </div>
-                  <div className="player-quest" data-testid={`torch-${player.id}`}>
-                    <Flashlight size={12} /> {player.hasTorch ? 'Torch collected' : 'Find torch at 100'}
-                    {player.crownKeyRoom !== null && <span> · Key from {player.crownKeyRoom}</span>}
                   </div>
                   </div>
                 ))}
@@ -1141,23 +1187,8 @@ function App() {
                   <span>Gun room · {currentPlayer.position}</span>
                   <span className="fire-ammo-count" data-testid="fire-ammo-count"><CircleDot size={12} /> {currentPlayer.bullets}/{MAX_BULLETS}</span>
                 </div>
-                <div className="fire-choice-copy">
-                  Choose your aim; each target costs one bullet.
-                </div>
-                <div className="aim-options" role="group" aria-label="Choose snakes to aim at">
-                  {SHOOTABLE_SNAKE_SQUARES.map((square) => (
-                    <button key={square} className="aim-option" onClick={() => setSelectedTargets([square])}
-                      disabled={remoteDisabled || firing || !availableTargets.includes(square)}
-                      aria-pressed={selectedTargets.length === 1 && selectedTargets[0] === square}
-                      data-testid={`button-aim-${square}`}>
-                      <Crosshair size={15} /> {square}<small>1 bullet</small>
-                    </button>
-                  ))}
-                  <button className="aim-option" onClick={() => setSelectedTargets([...SHOOTABLE_SNAKE_SQUARES])}
-                    disabled={remoteDisabled || firing || currentPlayer.bullets < 2 || availableTargets.length < 2}
-                    aria-pressed={selectedTargets.length === 2} data-testid="button-aim-both">
-                    <Crosshair size={15} /> Both<small>2 bullets</small>
-                  </button>
+                <div className="fire-choice-copy" data-testid="fire-target-instruction" aria-live="polite">
+                  {fireAimPrompt}
                 </div>
                 {currentPlayer.bullets === 1 && <div className="fire-choice-copy">Only one bullet: aim at 98 or 99, not both.</div>}
                 <div className="fire-choice-actions">
@@ -1200,7 +1231,7 @@ function App() {
                 <div className="rule-line"><Dices size={13} /> A valid six earns another chance. Overshooting 100 does not.</div>
                 <div className="rule-line"><Sparkles size={13} /> Rooms 14, 35, 51 and 76 let you choose a Bomb, Anti-Venom, Defuser Kit or Extra Dice.</div>
                 <div className="rule-line"><Bomb size={13} /> Plant a bomb in any house, then detonate on your turn when the rival stops there. The blast sends them Home, not their inventory.</div>
-                <div className="rule-line"><Flashlight size={13} color="#f0c65a" /> First arrival at 100 gives a torch and returns you Home, not a crown.</div>
+                <div className="rule-line"><TorchIcon size={13} /> First arrival at 100 gives a torch and returns you Home, not a crown.</div>
                 <div className="rule-line"><KeyRound size={13} color="#f0c65a" /> With your torch, land in black room 17, 44 or 67 for one key.</div>
                 <div className="rule-line"><LockKeyhole size={13} /> Reach 100 without a black-room key and return Home to try again. Torch and key progress survive blasts.</div>
                 <div className="rule-line"><CircleDot size={13} color="#dce6e9" /> Stop on {BULLET_PICKUP_SQUARES.join(', ')} to collect ammo, not while crossing; carry up to {MAX_BULLETS}.</div>

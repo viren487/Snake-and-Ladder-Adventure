@@ -112,10 +112,11 @@ export function repairLegacyGame(state: GameState): GameState {
   const legacyQuest = state.players.some((player) => player.hasTorch === undefined);
   const players = state.players.map((player) => {
     const legacy = player.hasTorch === undefined;
-    const hasTorch = legacy ? player.position === 100 : player.hasTorch;
-    const crownKeyRoom = !legacy && hasTorch &&
+    const crownKeyRoom = !legacy &&
       (KEY_SQUARES as readonly number[]).includes(player.crownKeyRoom ?? -1)
       ? player.crownKeyRoom : null;
+    // The torch is consumed when its holder claims the black-room key.
+    const hasTorch = legacy ? player.position === 100 : player.hasTorch && crownKeyRoom === null;
     return {
       ...player,
       powers: { ...emptyPowers(), ...player.powers },
@@ -124,7 +125,7 @@ export function repairLegacyGame(state: GameState): GameState {
       crownKeyRoom,
       keys: crownKeyRoom === null ? 0 : 1,
       ...(legacy ? { legacyKeys: player.keys } : {}),
-      position: player.position === 100 && (!hasTorch || crownKeyRoom === null) &&
+      position: player.position === 100 && crownKeyRoom === null &&
         !(state.pendingChoice?.kind === "bomb" && state.pendingChoice.playerId === player.id && state.pendingChoice.square === 100)
         ? 0 : player.position,
       unlockedGates: [...(player.unlockedGates ?? [])],
@@ -147,7 +148,7 @@ export function repairLegacyGame(state: GameState): GameState {
     winnerIds: state.winnerIds ?? (state.winnerId ? [state.winnerId] : []),
     loserId: state.loserId ?? (state.winnerId ? players.find((p) => p.id !== state.winnerId)?.id ?? null : null),
     winnerId: players.some((player) => player.id === state.winnerId &&
-      player.position === 100 && player.hasTorch && player.crownKeyRoom !== null)
+      player.position === 100 && player.crownKeyRoom !== null)
       ? state.winnerId : null,
     currentPlayerIndex: nextPlayerIndex,
     message: state.pendingFireForPlayerId && !validPendingShot
@@ -251,7 +252,8 @@ function completeLanding(next: GameState, skipBomb = false): TurnResolution {
       } else if (movingPlayer.crownKeyRoom === null) {
         movingPlayer.crownKeyRoom = movingPlayer.position;
         movingPlayer.keys = 1;
-        message += ` Your torch revealed a key in black room ${movingPlayer.position}! Return to 100 for the crown.`;
+        movingPlayer.hasTorch = false;
+        message += ` Your torch revealed a key in black room ${movingPlayer.position} and its job is done! Return to 100 for the crown.`;
       }
     }
     // Ammo is earned only where the panda finally stops, not along its route.
@@ -263,16 +265,7 @@ function completeLanding(next: GameState, skipBomb = false): TurnResolution {
     }
 
     if (movingPlayer.position === 100) {
-      if (!movingPlayer.hasTorch) {
-        movingPlayer.hasTorch = true;
-        movingPlayer.position = 0;
-        effect = "torch";
-        message = `${movingPlayer.name} collected the torch at 100 and returned Home! The crown is still locked. Land in black room 17, 44 or 67 for one key.`;
-      } else if (movingPlayer.crownKeyRoom === null) {
-        movingPlayer.position = 0;
-        effect = "return";
-        message = `${movingPlayer.name} reached 100 without a black-room key. The crown remains locked; return Home and try for a key in 17, 44 or 67.`;
-      } else {
+      if (movingPlayer.crownKeyRoom !== null) {
         if (!next.winnerIds.includes(movingPlayer.id)) next.winnerIds.push(movingPlayer.id);
         next.bombs = next.bombs.filter((bomb) => bomb.ownerId !== movingPlayer.id);
         message = `${movingPlayer.name} unlocked the crown! Finish ${next.winnerIds.length} · Winner.`;
@@ -281,6 +274,15 @@ function completeLanding(next: GameState, skipBomb = false): TurnResolution {
           next.loserId = next.players.find((p) => !next.winnerIds.includes(p.id))!.id;
           message += ` Match finished. ${next.winnerIds.map((id) => next.players.find((p) => p.id === id)!.name).join(", ")} win; ${next.players.find((p) => p.id === next.loserId)!.name} is last and loses.`;
         } else message += " The remaining players keep racing!";
+      } else if (!movingPlayer.hasTorch) {
+        movingPlayer.hasTorch = true;
+        movingPlayer.position = 0;
+        effect = "torch";
+        message = `${movingPlayer.name} collected the torch at 100 and returned Home! The crown is still locked. Land in black room 17, 44 or 67 for one key.`;
+      } else {
+        movingPlayer.position = 0;
+        effect = "return";
+        message = `${movingPlayer.name} reached 100 without a black-room key. The crown remains locked; return Home and try for a key in 17, 44 or 67.`;
       }
     }
   next.bombs.forEach((bomb) => { if (bomb.ownerId !== movingPlayer.id) bomb.armed = bomb.square === movingPlayer.position; });

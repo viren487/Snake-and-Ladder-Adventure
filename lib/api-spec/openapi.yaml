@@ -84,6 +84,24 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/OnlineRoom" }
+  /rooms/{code}/communications:
+    post:
+      operationId: sendRoomCommunication
+      tags: [multiplayer]
+      parameters:
+        - { name: code, in: path, required: true, schema: { type: string, pattern: "^[A-Z2-9]{6}$" } }
+      security: [{ RoomSeat: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RoomCommunicationInput" }
+      responses:
+        "200":
+          description: Chat message or private peer-to-peer voice signal accepted.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoomCommunicationReceipt" }
   /healthz:
     get:
       operationId: healthCheck
@@ -149,6 +167,40 @@ components:
           minItems: 1
           maxItems: 2
           items: { type: integer, enum: [98, 99] }
+    RoomCommunicationInput:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, enum: [chat, offer, answer, hangup] }
+        text: { type: string, minLength: 1, maxLength: 400 }
+        targetPlayerId: { type: string, minLength: 1, maxLength: 100 }
+        callId: { type: string, minLength: 16, maxLength: 100 }
+        sdp: { type: string, minLength: 1, maxLength: 20000 }
+    RoomCommunicationReceipt:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 100 }
+    RoomChatMessage:
+      type: object
+      required: [id, playerId, playerName, text, sentAt]
+      properties:
+        id: { type: string }
+        playerId: { type: string }
+        playerName: { type: string }
+        text: { type: string, maxLength: 400 }
+        sentAt: { type: string, format: date-time }
+    RoomVoiceSignal:
+      type: object
+      required: [id, fromPlayerId, toPlayerId, callId, type, sentAt]
+      properties:
+        id: { type: string }
+        fromPlayerId: { type: string }
+        toPlayerId: { type: string }
+        callId: { type: string }
+        type: { type: string, enum: [offer, answer, hangup] }
+        sdp: { type: string, maxLength: 20000 }
+        sentAt: { type: string, format: date-time }
     OnlineRoomMember:
       type: object
       required: [id, name, online]
@@ -171,7 +223,7 @@ components:
         targets: { type: array, items: { type: integer } }
     OnlineRoom:
       type: object
-      required: [code, status, version, game, members, maxPlayers, yourPlayerId, rematchVotes, event, busyForMs]
+      required: [code, status, version, game, members, maxPlayers, yourPlayerId, rematchVotes, event, busyForMs, chatMessages, voiceSignals]
       properties:
         code: { type: string }
         status: { type: string, enum: [waiting, playing, finished, closed] }
@@ -188,6 +240,12 @@ components:
         rematchVotes: { type: array, items: { type: string } }
         event: { $ref: "#/components/schemas/OnlineRoomEvent" }
         busyForMs: { type: integer, minimum: 0 }
+        chatMessages:
+          type: array
+          items: { $ref: "#/components/schemas/RoomChatMessage" }
+        voiceSignals:
+          type: array
+          items: { $ref: "#/components/schemas/RoomVoiceSignal" }
     HealthStatus:
       type: object
       properties:
