@@ -41,12 +41,15 @@ import { OnlinePanel } from './OnlinePanel';
 import BambooReturnArt from './BambooReturnArt';
 import { useOnlineGame } from './use-online-game';
 import type { OnlineAction } from '@workspace/api-client-react';
+import { getMrBotAction, type MrBotAction } from './mr-bot';
 
 const STORAGE_KEY = 'snack-ladder-adventure-v5';
 const QUEST_STORAGE_KEY = 'snack-ladder-adventure-v4';
 const PREVIOUS_STORAGE_KEY = 'snack-ladder-adventure-v3';
 const LEGACY_STORAGE_KEY = 'snack-ladder-adventure-v2';
 const OLDEST_STORAGE_KEY = 'snack-ladder-adventure-v1';
+const BOT_STORAGE_KEY = 'snack-ladder-adventure-bot-v1';
+const LOCAL_MODE_STORAGE_KEY = 'snack-ladder-local-mode-v1';
 const MOVEMENT_STEP_DELAY_MS = 240;
 const SPECIAL_MOVE_DURATION_MS = { ladder: 2200, snake: 2000, boom: 700, web: 1450, knife: 1250 } as const;
 const SPECIAL_MOVE_STYLE = {
@@ -56,6 +59,7 @@ const SPECIAL_MOVE_STYLE = {
   '--web-move-duration': `${SPECIAL_MOVE_DURATION_MS.web}ms`,
   '--knife-move-duration': `${SPECIAL_MOVE_DURATION_MS.knife}ms`,
 } as CSSProperties;
+type LocalPlayMode = 'pass' | 'bot';
 type WalkingPiece = {
   playerId: string;
   position: number;
@@ -72,19 +76,45 @@ const SNAKE_ART: Record<string, string> = {
   orange: new URL('./realistic-snake-orange.png', import.meta.url).href,
 };
 
-function readGame(): { game: GameState; error: string | null; blocked: boolean } {
+function readLocalPlayMode(): LocalPlayMode {
   try {
-    for (const storageKey of [STORAGE_KEY, QUEST_STORAGE_KEY, PREVIOUS_STORAGE_KEY, LEGACY_STORAGE_KEY, OLDEST_STORAGE_KEY]) {
+    return localStorage.getItem(LOCAL_MODE_STORAGE_KEY) === 'bot' ? 'bot' : 'pass';
+  } catch {
+    return 'pass';
+  }
+}
+
+function createLocalGame(mode: LocalPlayMode): GameState {
+  const game = createGame();
+  if (mode === 'bot') {
+    game.players[1].name = 'Mr.Bot';
+    game.message = 'Player 1 is ready to face Mr.Bot. First reach 100 for a torch; the crown stays locked until you collect a black-room key and return to 100.';
+  }
+  return game;
+}
+
+function storageKeyForMode(mode: LocalPlayMode) {
+  return mode === 'bot' ? BOT_STORAGE_KEY : STORAGE_KEY;
+}
+
+function readGame(mode: LocalPlayMode = 'pass'): { game: GameState; error: string | null; blocked: boolean } {
+  try {
+    const storageKeys = mode === 'bot'
+      ? [BOT_STORAGE_KEY]
+      : [STORAGE_KEY, QUEST_STORAGE_KEY, PREVIOUS_STORAGE_KEY, LEGACY_STORAGE_KEY, OLDEST_STORAGE_KEY];
+    for (const storageKey of storageKeys) {
       const saved = localStorage.getItem(storageKey);
       if (!saved) continue;
       const value: unknown = JSON.parse(saved);
       if (!isSavedGame(value)) throw new Error('Invalid saved round');
-      return { game: repairLegacyGame(value), error: null, blocked: false };
+      const game = repairLegacyGame(value);
+      if (mode === 'bot') game.players[1].name = 'Mr.Bot';
+      return { game, error: null, blocked: false };
     }
   } catch {
-    return { game: createGame(), error: 'The saved round could not be opened. It has not been replaced. Start a new game to save again.', blocked: true };
+    return { game: createLocalGame(mode), error: 'The saved round could not be opened. It has not been replaced. Start a new game to save again.', blocked: true };
   }
-  return { game: createGame(), error: null, blocked: false };
+  return { game: createLocalGame(mode), error: null, blocked: false };
 }
 
 function isSavedGame(value: unknown): value is GameState {
