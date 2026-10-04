@@ -67,7 +67,7 @@ export function PowerControls({ position, detonationBombs, detonationDisabled, p
   const otherBombs = bombs.filter((b) => !(b.owned && b.ready));
 
   return (
-    <section className="pc" data-testid="power-controls" aria-label={`${playerName}'s powers`}>
+    <section className={`pc ${pending && pending.kind !== 'mystery' ? 'pc-awaiting-defense' : ''}`} data-testid="power-controls" aria-label={`${playerName}'s powers`}>
       <div className="pc-copy" style={{ fontSize: 10 }}>{playerName} · Powers</div>
       {pending && pending.kind !== 'mystery' && (
         <div role="group" aria-label={pending.kind === 'snake' ? 'Snake bite defense' : 'Bomb defense'}>
@@ -101,21 +101,21 @@ export function PowerControls({ position, detonationBombs, detonationDisabled, p
           const label = `${LABELS[p]}: ${powers[p]}`;
           const badge = <span className={`pc-badge ${powers[p] ? '' : 'zero'}`} data-testid={`power-count-${p}`} aria-label={`${LABELS[p]} count`}>{powers[p]}</span>;
           if (p === 'bomb') return (
-            <button key={p} type="button" className="pc-ico" data-testid="power-toggle-bomb" title={`${label}. Plant a bomb`}
+            <button key={p} type="button" className="pc-ico pc-ico-bomb" data-testid="power-toggle-bomb" title={`${label}. Plant a bomb`}
               aria-label={`${label}. Plant a bomb`} aria-expanded={plantOpen}
               disabled={busy || (!plantOpen && !canPlant)} onClick={() => { setTargetPower(null); setPlantOpen((o) => !o); }}>
               <Icon size={20} />{badge}
             </button>
           );
           if (p === 'extraDice') return (
-            <button key={p} type="button" className={`pc-ico ${extraRollCredits > 0 ? 'on' : ''}`} data-testid="use-extra-dice"
+            <button key={p} type="button" className={`pc-ico pc-ico-extraDice ${extraRollCredits > 0 ? 'on' : ''}`} data-testid="use-extra-dice"
               title={`${label}. Use Extra Dice: bank one extra roll`} aria-label={`Use Extra Dice, ${powers[p]} left`}
               disabled={!inventoryOk || powers[p] < 1} onClick={onExtraDice}>
               <Icon size={20} />{badge}
             </button>
           );
           if (p === 'webShooter' || p === 'knife') return (
-            <button key={p} type="button" className="pc-ico" data-testid={`power-toggle-${p}`}
+            <button key={p} type="button" className={`pc-ico pc-ico-${p}`} data-testid={`power-toggle-${p}`}
               title={`${label}: ${BLURB[p]}`} aria-label={`${label}: ${powers[p]} available`}
               aria-expanded={targetPower === p} disabled={!inventoryOk || powers[p] < 1}
               onClick={() => { setInfo(null); setTargetPower((active) => active === p ? null : p); }}>
@@ -123,7 +123,7 @@ export function PowerControls({ position, detonationBombs, detonationDisabled, p
             </button>
           );
           return (
-            <button key={p} type="button" className="pc-ico" title={`${label}. ${BLURB[p]}; used from a hazard prompt`}
+            <button key={p} type="button" className={`pc-ico pc-ico-${p}`} title={`${label}. ${BLURB[p]}; used from a hazard prompt`}
               aria-label={`${label}. Used from a hazard prompt`} aria-pressed={info === p}
               onClick={() => { setTargetPower(null); setInfo((c) => (c === p ? null : p)); }}>
               <Icon size={20} />{badge}
@@ -140,7 +140,7 @@ export function PowerControls({ position, detonationBombs, detonationDisabled, p
           </button>
         ))}
         {otherBombs.length > 0 && (
-          <button type="button" className="pc-ico" aria-expanded={listOpen} aria-label={`Planted bombs: ${otherBombs.length}`}
+            <button type="button" className="pc-ico pc-ico-list" aria-expanded={listOpen} aria-label={`Planted bombs: ${otherBombs.length}`}
             title="Planted bombs" onClick={() => setListOpen((o) => !o)}>
             <List size={18} />
           </button>

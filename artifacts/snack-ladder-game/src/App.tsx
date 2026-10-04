@@ -1028,7 +1028,10 @@ function App() {
                   <div className="player-entry" key={player.id}>
                   <div className={`player-line ${!winner && index === game.currentPlayerIndex ? 'active' : ''}`} data-testid={`player-status-${player.id}`}>
                     <span className="player-dot" style={{ background: {blue:'#36b8e6',coral:'#ef7653',green:'#36ba7b',purple:'#ad78ea'}[player.color] }} />
-                    <span className="player-label">{player.name}{game.winnerIds?.includes(player.id) ? ` · Winner ${game.winnerIds.indexOf(player.id)+1}` : game.loserId===player.id ? " · Last" : ""}</span>
+                    <span className="player-label">
+                      <span className="player-name-full">{player.name}{game.winnerIds?.includes(player.id) ? ` · Winner ${game.winnerIds.indexOf(player.id)+1}` : game.loserId===player.id ? " · Last" : ""}</span>
+                      <span className="player-name-compact" aria-hidden="true">{playMode === 'bot' ? index === 0 ? 'YOU' : 'BOT' : `P${index + 1}`}</span>
+                    </span>
                     <span className="player-position" data-testid={`position-${player.id}`}>{player.position ? `#${player.position}` : 'HOME'}</span>
                     <span className="keys-chip" data-testid={`keys-${player.id}`} aria-label={`${player.keys} crown key`}><KeyRound size={12} /> {player.keys}/1</span>
                     <span className="ammo-chip" data-testid={`bullets-${player.id}`} aria-label={`${player.bullets} of ${MAX_BULLETS} bullets`}>

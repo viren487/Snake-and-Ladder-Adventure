@@ -217,6 +217,7 @@
 .keys-chip { display:flex; align-items:center; gap:4px; color:#f4c55a; font:500 10px 'DM Mono',monospace; }
 .ammo-chip { display:flex; align-items:center; gap:3px; color:#c9e3ed; font:500 9px 'DM Mono',monospace; white-space:nowrap; }
 .stun-summary { margin-top:8px; padding:7px 9px; border:1px solid #5d4d70; border-radius:9px; color:#e3d3f4; background:#352b45; font-size:10px; line-height:1.35; }
+.play-control-dock { display:flex; flex-direction:column; gap:10px; min-width:0; }
 .roll-area { display:grid; grid-template-columns:78px 1fr; gap:12px; align-items:center; padding:15px; border-radius:17px; background:#21293a; border:1px solid #434c5e; }
 .dice-button { width:78px; aspect-ratio:1; border:1px solid #f3d478; border-radius:16px; display:grid; place-items:center; background:linear-gradient(145deg,#fff1c9,#e6b750); box-shadow:0 5px 0 #a9782a,0 7px 15px #070a15a0,inset 0 2px #fff; color:#633f1a; cursor:pointer; transition:transform .16s, filter .16s; }
 .dice-button:hover:not(:disabled) { transform:translateY(-2px); filter:brightness(1.06); }
@@ -225,8 +226,8 @@
 .dice-face { font:700 44px/1 'Fredoka',sans-serif; }
 .dice-pips { display:block; width:62px; height:62px; }
 .dice-face.rolling { animation:dice-jiggle .18s infinite alternate; }
-.roll-copy { font:600 17px/1.2 'Fredoka',sans-serif; color:#fff0cb; }
-.roll-hint { font-size:11px; color:#aab4c3; margin-top:5px; line-height:1.4; }
+.mobile-turn-indicator { display:none; }
+.mobile-choice-hint { color:#f4dda5; font:600 12px 'Fredoka',sans-serif; text-align:center; }
 .primary-action { display:flex; align-items:center; justify-content:center; gap:9px; width:100%; padding:13px 15px; border:1px solid #ffe08a; border-radius:12px; color:#3e2a18; background:linear-gradient(180deg,#ffdc79,#e9a938); box-shadow:0 4px 0 #9a5a20,0 7px 15px #0b0e16aa,inset 0 1px #fff4c9; font:700 15px 'Fredoka',sans-serif; cursor:pointer; transition:transform .15s, filter .15s; }
 .primary-action:hover { transform:translateY(-2px); filter:brightness(1.05); }
 .primary-action:active { transform:translateY(2px); box-shadow:0 2px 0 #9a5a20; }
@@ -325,17 +326,55 @@
   .cell-number { font-size:clamp(8px,2.4vw,12px); }
   .crown-tile { border-radius:12%; }
   .home-badge { font-size:8px; padding:2px 5px 2px 2px; }
-  .side-panel { display:flex; gap:10px; align-items:stretch; width:100%; }
-  .turn-card { padding:15px; }
-  .turn-name { font-size:23px; }
-  .roll-area { grid-template-columns:64px 1fr; padding:11px; }
-  .dice-button { width:64px; border-radius:13px; }
-  .dice-face { font-size:37px; }
+  .side-panel { display:flex; flex-direction:column; gap:9px; align-items:stretch; width:100%; }
+  .side-panel > .play-control-dock { order:1; }
+  .side-panel > .turn-card { order:2; grid-row:auto; padding:0 2px; border:0; border-radius:0; background:transparent; box-shadow:none; overflow:visible; }
+  .turn-card::after { display:none; }
+  .turn-card > .eyebrow,.turn-card > .turn-name,.turn-card > .turn-sub,.turn-card > .stun-summary { display:none; }
+  .turn-card .player-stack { grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin:0; }
+  .turn-card .player-line { min-width:0; gap:4px; padding:6px 7px; border-radius:10px; }
+  .turn-card .player-dot { width:10px; height:10px; }
+  .turn-card .player-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; }
+  .turn-card .player-name-compact { display:none; }
+  .turn-card .player-position { font-size:9px; }
+  .turn-card .keys-chip,.turn-card .ammo-chip { gap:2px; font-size:8px; }
+  .turn-card .player-quest { display:none; }
+  .side-panel > .quest-card { order:3; padding:10px 12px; }
+  .quest-card p { margin-top:6px; }
+  .side-panel > .sound-error[data-testid="storage-warning"] { order:4; }
+  .side-panel > .message-card { order:5; }
+  .side-panel > .sound-error[role="status"] { order:6; }
+  .side-panel > .rules-card { order:7; }
+  .side-panel > button[data-testid="button-new-game"] { order:8; }
+  .side-panel > .panel-footer { order:9; }
+  .play-control-dock { position:relative; gap:8px; min-height:94px; }
+  .play-control-dock > .pc { padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; }
+  .play-control-dock .pc > .pc-copy:first-child { display:none; }
+  .play-control-dock .pc-bar { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); grid-template-rows:repeat(2,42px); justify-items:center; align-items:center; gap:4px 2px; width:100%; }
+  .play-control-dock .pc-ico { width:clamp(36px,11vw,42px); height:clamp(36px,11vw,42px); border-radius:13px; }
+  .play-control-dock .pc-ico-bomb { grid-column:1; grid-row:1; }
+  .play-control-dock .pc-ico-antiVenom { grid-column:2; grid-row:1; }
+  .play-control-dock .pc-ico-defuser { grid-column:5; grid-row:1; }
+  .play-control-dock .pc-ico-webShooter { grid-column:6; grid-row:1; }
+  .play-control-dock .pc-ico-extraDice { grid-column:1; grid-row:2; }
+  .play-control-dock .pc-ico-knife { grid-column:5; grid-row:2; }
+  .play-control-dock .pc-ico-list { grid-column:6; grid-row:2; }
+  .play-control-dock .pc-credit,.play-control-dock .pc-chip { grid-column:1/-1; justify-self:center; }
+  .play-control-dock .roll-area { position:absolute; z-index:2; top:0; left:50%; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:5px; width:max-content; padding:0; border:0; border-radius:0; background:transparent; transform:translateX(-50%); }
+  .play-control-dock .dice-button { width:clamp(54px,16vw,64px); min-width:54px; padding:3px; border-radius:15px; touch-action:manipulation; }
+  .play-control-dock .dice-face { display:grid; width:100%; height:100%; place-items:center; }
+  .play-control-dock .dice-pips { width:100%; height:100%; }
+  .mobile-turn-indicator { display:block; min-height:12px; max-width:112px; color:#f6e5b8; font:600 9px/1.2 'DM Mono',monospace; letter-spacing:.7px; text-align:center; text-transform:uppercase; }
+  .mobile-choice-hint { padding:5px 8px; }
+  .play-control-dock > .fire-choice-card,.play-control-dock > .win-banner,.play-control-dock > .mobile-choice-hint,.play-control-dock > .sound-error { width:100%; }
   .rules-card { display:none; }
-  .panel-footer { order:3; }
 }
 @media (max-width: 390px) {
   .top-chip { display:none; }
+}
+@media (max-width: 360px) {
+  .turn-card .player-name-full { display:none; }
+  .turn-card .player-name-compact { display:inline; }
 }
 @media (prefers-reduced-motion: reduce) {
   *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; }

@@ -23,7 +23,7 @@ Prefer compact symbols and counts for powers, with detailed actions and rules re
 
 **Why:** The user asked that the power stash take less space so the game feels easier, and that rules stay hidden until clicked.
 
-**How to apply:** Keep the board and dice prominent. Preserve clear, accessible power names and required landing decisions, but avoid adding always-visible forms or help paragraphs.
+**How to apply:** Keep the board and dice prominent. On phone-width browsers, center the tappable die directly below the board, align colorful power icons beside it, and use a compact turn label instead of a large panel or separate roll button. Preserve clear, accessible power names and required landing decisions without always-visible forms or help paragraphs.
 
 ## Playability constraint
 
