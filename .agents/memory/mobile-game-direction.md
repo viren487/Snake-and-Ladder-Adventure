@@ -1,13 +1,13 @@
 ---
-name: Mobile game direction
-description: Product scope for the Snake & Ladder game across browser and native mobile versions.
+name: Website-only game direction
+description: The user wants game work to focus on the browser website and the separate mobile artifact removed.
 ---
 
-Finish the browser game first and use it as the reference version before moving the game into the native mobile app. Keep both artifacts available.
+The user has changed scope to the website only. Do not build or maintain the native/mobile version unless the user explicitly reverses this direction.
 
-**Why:** The user currently wants to play and finish the game in Chrome, then convert it for mobile.
+**Why:** The user explicitly said future work should be for the website, not mobile, and asked to delete the mobile version because the website still needs work.
 
-**How to apply:** Complete requested gameplay and browser controls in the web artifact first; align the Expo game after the web version is finalized.
+**How to apply:** Make requested game changes in the browser artifact only. The registered mobile artifact is Library-managed: stop its Expo workflow, but do not claim it is deleted until it disappears from the artifact list after the user deletes it in the Replit Library.
 
 ## Sound scope
 
@@ -33,21 +33,21 @@ Collectible and gate rules must not permanently trap a panda because a roll skip
 
 **How to apply:** When changing movement rules, account for skipped squares, ladder shortcuts, snake backtracking and older saved rounds. Preserve a route to progress rather than resetting saved games.
 
-## Browser-first keys and ammunition
+## Browser keys and ammunition
 
 Key and crown progression follows the crown quest described in crown-quest.md; do not revive movement-blocking gates. Bullets are collected only when the panda stops on a bullet room, including a snake's final destination—not when crossing a tile or taking a ladder past it. Keep the five-bullet cap. Fire is available only when the panda stops in a gun room. Aim choices are 98, 99, or both; each targeted snake costs one bullet, so both requires two. A hit makes that snake harmless only for the shooter’s next three dice rolls; the countdown advances on that player’s rolls, not the opponent’s.
 
-**Why:** The user reiterated the exact-room requirement with room 6: stopping on 6 rewards a bullet; crossing 6 and continuing does not. Firing must remain at gun rooms, with single-target and both-target aiming restricted by available bullets. The shooter-scoped stun is the interpretation of “next 3 dice” used for the current implementation.
+**Why:** The user reiterated the exact-room requirement with room 6: stopping on 6 rewards a bullet; crossing 6 and continuing does not. Firing must remain at gun rooms, with single-target and both-target aiming restricted by available bullets.
 
-**How to apply:** Keep the browser version as the reference and apply gameplay changes to both versions. Do not weaken cross-platform parity by ignoring inventory, firing, per-player countdowns, quest progress or turn messages.
+**How to apply:** Apply gameplay changes to the browser game only. Preserve inventory, firing, per-player countdowns, quest progress and turn messages.
 
 ## Saved-round compatibility
 
-Older native rounds must retain players, positions, ammunition and turn progress. Preserve obsolete keys as history, not as crown keys. Do not grant retroactive ammunition from a saved position. If a save cannot be understood safely, preserve it and show an explicit warning rather than silently replacing it.
+Older browser rounds must retain players, positions, ammunition and turn progress. Preserve obsolete keys as history, not as crown keys. Do not grant retroactive ammunition from a saved position. If a save cannot be understood safely, preserve it and show an explicit warning rather than silently replacing it.
 
-**Why:** Aligning the two games should not erase an existing round or invent pickups that never occurred.
+**Why:** Browser updates should not erase an existing round or invent pickups that never occurred.
 
-**How to apply:** Default absent ammo, stun and quest fields when migrating; validate present fields before loading. Keep earlier save versions intact during upgrades.
+**How to apply:** Default absent ammo, stun and quest fields when migrating; validate present fields before loading. Keep earlier browser save versions intact during upgrades.
 
 ## Required animation visibility
 
@@ -63,4 +63,4 @@ Snake slides and ladder climbs should be visibly slower and playful, with gentle
 
 **Why:** The user said the snake-bite and ladder-climb effects were too fast and requested a slower, cute animation.
 
-**How to apply:** Keep visual motion and turn-completion timing synchronized in both versions, while respecting reduced-motion settings.
+**How to apply:** Keep visual motion and turn-completion timing synchronized in the browser game, while respecting reduced-motion settings.

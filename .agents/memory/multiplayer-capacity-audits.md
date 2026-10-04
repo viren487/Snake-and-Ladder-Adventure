@@ -1,11 +1,11 @@
 ---
 name: Multiplayer capacity audits
-description: Type checks alone do not catch old two-player runtime assumptions across both frontends.
+description: Type checks alone do not catch old two-player runtime assumptions in the web client.
 ---
 
-When changing supported player counts, audit snapshot acceptance, turn eligibility, bomb eligibility and token stacking in both browser and Expo; server capacity changes alone are insufficient.
+When changing supported player counts, audit snapshot acceptance, turn eligibility, bomb eligibility and token stacking in the browser; server capacity changes alone are insufficient.
 
-**Why:** During expansion to four players, static checks and server tests passed while the shared client still rejected anything other than two players, and native token stacking assumed there was exactly one rival. Array index arithmetic can remain type-correct while returning undefined at runtime.
+**Why:** During expansion to four players, static checks and server tests passed while the browser client still rejected anything other than two players. Array index arithmetic can remain type-correct while returning undefined at runtime.
 
 **How to apply:** Include at least one actual three-or-four-person admission/render flow in verification. Use predicates over all opponents rather than two-seat index arithmetic. Keep local save validation separate from online room validation.
 

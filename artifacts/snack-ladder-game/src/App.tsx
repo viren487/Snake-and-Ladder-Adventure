@@ -35,7 +35,6 @@ import MysteryCompass from './MysteryCompass';
 import MatchCelebration from './MatchCelebration';
 import { DicePips } from './DicePips';
 import { OnlinePanel } from './OnlinePanel';
-import { MobilePreview } from './MobilePreview';
 import BambooReturnArt from './BambooReturnArt';
 import { useOnlineGame } from './use-online-game';
 import type { OnlineAction } from '@workspace/api-client-react';
