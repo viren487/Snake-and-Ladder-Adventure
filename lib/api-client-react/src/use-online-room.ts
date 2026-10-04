@@ -21,15 +21,15 @@ export function isRoomSession(value: unknown): value is RoomSession {
   if (!value || typeof value !== "object") return false;
   const item = value as RoomSession;
   return /^[A-Z2-9]{6}$/.test(item.code) && /^[a-f0-9]{64}$/.test(item.token) &&
-    (item.playerId === "player-1" || item.playerId === "player-2");
+    /^player-[1-4]$/.test(item.playerId);
 }
 function messageOf(error: unknown) {
   if (error instanceof ApiError && error.data && typeof error.data === "object" && "error" in error.data) return String(error.data.error);
   return error instanceof Error ? error.message : "Could not connect to the online room.";
 }
-async function timed<T>(work: (signal: AbortSignal) => Promise<T>) {
+async function timed<T>(work: (signal: AbortSignal) => Promise<T>, timeoutMs = 8000) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try { return await work(controller.signal); } finally { clearTimeout(timeout); }
 }
 const actionId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
@@ -54,7 +54,11 @@ export function useOnlineRoom(options: Options, hooks: RoomHooks) {
     if (!mounted.current || !sessionRef.current) return;
     const snapshot = raw as RoomSnapshot;
     if (snapshot.code !== sessionRef.current.code || snapshot.yourPlayerId !== sessionRef.current.playerId ||
-      !Array.isArray(snapshot.game?.players) || snapshot.game.players.length !== 2) throw new Error("The room returned an invalid round.");
+      !Array.isArray(snapshot.game?.players) || snapshot.game.players.length < 2 || snapshot.game.players.length > 4 ||
+      !snapshot.game.players.some((player) => player.id === sessionRef.current!.playerId) ||
+      !Number.isInteger(snapshot.game.currentPlayerIndex) || snapshot.game.currentPlayerIndex < 0 || snapshot.game.currentPlayerIndex >= snapshot.game.players.length) throw new Error("The room returned an invalid round.");
+    snapshot.maxPlayers ??= snapshot.game.players.length;
+    if (snapshot.maxPlayers !== snapshot.game.players.length) throw new Error("The room capacity does not match its players.");
     const previous = roomRef.current;
     if (previous && snapshot.version < previous.version) return;
     roomRef.current = snapshot;
@@ -106,13 +110,13 @@ export function useOnlineRoom(options: Options, hooks: RoomHooks) {
     return () => { cancelled = true; };
   }, [options.enabled, refresh]);
 
-  const admit = useCallback(async (name: string, code?: string) => {
+  const admit = useCallback(async (name: string, code?: string, maxPlayers = 2) => {
     if (flight.current || sessionRef.current) return;
     flight.current = true; setBusy(true); setError(null); setStorageError(null);
     try {
       const result = await timed((signal) => code
         ? joinGameRoom(code.trim().toUpperCase(), { name }, { signal })
-        : createGameRoom({ name }, { signal }));
+        : createGameRoom({ name, maxPlayers }, { signal }), 30000);
       if (!mounted.current) return;
       epoch.current++; roomRef.current = null;
       sessionRef.current = result.session; setSession(result.session);
@@ -166,14 +170,14 @@ export function useOnlineRoom(options: Options, hooks: RoomHooks) {
     catch { setError("Left the room, but its saved seat could not be removed from this device."); }
   }, [action, connected]);
   const canAct = !!session && !!room && connected && !busy && !coolingDown && room.status === "playing" &&
-    room.members.length === 2 && room.members.every((member) => member.online) &&
+    room.members.length === room.maxPlayers && room.members.every((member) => member.online || room.game.winnerIds?.includes(member.id)) &&
     room.game.players[room.game.currentPlayerIndex].id === session.playerId;
   const canDetonate = !!session && !!room && connected && !busy && !coolingDown && room.status === "playing" &&
-    room.members.length === 2 && room.members.every((member) => member.online) &&
-    !room.game.pendingChoice && !room.game.pendingFireForPlayerId && room.game.bombs.some((bomb) =>
+    room.members.length === room.maxPlayers && room.members.every((member) => member.online || room.game.winnerIds?.includes(member.id)) &&
+    !room.game.winnerIds?.includes(session.playerId) && !room.game.pendingChoice && !room.game.pendingFireForPlayerId && room.game.bombs.some((bomb) =>
       bomb.ownerId === session.playerId && bomb.armed && room.game.players.some((player) =>
-        player.id !== session.playerId && player.position === bomb.square));
+        player.id !== session.playerId && player.position === bomb.square && !room.game.winnerIds?.includes(player.id)));
   return { session, room, busy, connected, canAct, canDetonate, loadingSession, error: error ?? storageError,
-    create: (name: string) => admit(name), join: (code: string, name: string) => admit(name, code),
+    create: (name: string, maxPlayers = 2) => admit(name, undefined, maxPlayers), join: (code: string, name: string) => admit(name, code),
     action, leave, retry: refresh };
 }

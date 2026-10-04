@@ -18,6 +18,11 @@ export interface OnlineRoom {
   game: OnlineRoomGame;
   members: OnlineRoomMember[];
   yourPlayerId: string;
+  /**
+     * @minimum 2
+     * @maximum 4
+     */
+  maxPlayers: number;
   rematchVotes: string[];
   event: OnlineRoomEvent | null;
   /** @minimum 0 */

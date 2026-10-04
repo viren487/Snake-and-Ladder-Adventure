@@ -6,7 +6,7 @@ export type { PowerType } from "./powers.ts";
 export type Player = {
   id: string;
   name: string;
-  color: "blue" | "coral";
+  color: "blue" | "coral" | "green" | "purple";
   position: number;
   keys: number;
   hasTorch: boolean;
@@ -20,7 +20,9 @@ export type Player = {
 };
 
 export type GameState = {
-  players: [Player, Player];
+  players: Player[];
+  winnerIds: string[];
+  loserId: string | null;
   currentPlayerIndex: number;
   lastRoll: number | null;
   turnNumber: number;
@@ -62,12 +64,11 @@ export const SNAKE_STUN_ROLLS = 3;
 
 const emptySnakeStuns = (): Record<ShootableSnakeSquare, number> => ({ 98: 0, 99: 0 });
 
-export function createGame(): GameState {
+export function createGame(playerCount = 2): GameState {
+  if (!Number.isInteger(playerCount) || playerCount < 2 || playerCount > 4) throw new RangeError("Choose 2, 3 or 4 players.");
   return {
-    players: [
-      { id: "player-1", name: "Player 1", color: "blue", position: 0, keys: 0, hasTorch: false, crownKeyRoom: null, unlockedGates: [], bullets: 0, snakeStuns: emptySnakeStuns(), powers: emptyPowers(), extraRollCredits: 0 },
-      { id: "player-2", name: "Player 2", color: "coral", position: 0, keys: 0, hasTorch: false, crownKeyRoom: null, unlockedGates: [], bullets: 0, snakeStuns: emptySnakeStuns(), powers: emptyPowers(), extraRollCredits: 0 },
-    ],
+    players: Array.from({length: playerCount}, (_, i) => ({ id: "player-" + (i + 1), name: "Player " + (i + 1), color: (["blue", "coral", "green", "purple"] as const)[i], position: 0, keys: 0, hasTorch: false, crownKeyRoom: null, unlockedGates: [], bullets: 0, snakeStuns: emptySnakeStuns(), powers: emptyPowers(), extraRollCredits: 0 })),
+    winnerIds: [], loserId: null,
     currentPlayerIndex: 0,
     lastRoll: null,
     turnNumber: 1,
@@ -128,7 +129,7 @@ export function repairLegacyGame(state: GameState): GameState {
       bullets: Math.min(MAX_BULLETS, Math.max(0, player.bullets ?? 0)),
       snakeStuns: { ...emptySnakeStuns(), ...(player.snakeStuns ?? {}) },
     };
-  }) as [Player, Player];
+  }) as Player[];
   const pendingShooter = players.find((player) => player.id === state.pendingFireForPlayerId);
   const validPendingShot = pendingShooter &&
     (GUN_SQUARES as readonly number[]).includes(pendingShooter.position);
@@ -141,6 +142,8 @@ export function repairLegacyGame(state: GameState): GameState {
     pendingChoice: state.pendingChoice ?? null,
     bonusRollPending: state.bonusRollPending ?? false,
     players,
+    winnerIds: state.winnerIds ?? (state.winnerId ? [state.winnerId] : []),
+    loserId: state.loserId ?? (state.winnerId ? players.find((p) => p.id !== state.winnerId)?.id ?? null : null),
     winnerId: players.some((player) => player.id === state.winnerId &&
       player.position === 100 && player.hasTorch && player.crownKeyRoom !== null)
       ? state.winnerId : null,
@@ -268,8 +271,14 @@ function completeLanding(next: GameState, skipBomb = false): TurnResolution {
         effect = "return";
         message = `${movingPlayer.name} reached 100 without a black-room key. The crown remains locked; return Home and try for a key in 17, 44 or 67.`;
       } else {
-        next.winnerId = movingPlayer.id;
-        message = `${movingPlayer.name} returned to 100 with the torch and a key from room ${movingPlayer.crownKeyRoom}, unlocked the crown and won!`;
+        if (!next.winnerIds.includes(movingPlayer.id)) next.winnerIds.push(movingPlayer.id);
+        next.bombs = next.bombs.filter((bomb) => bomb.ownerId !== movingPlayer.id);
+        message = `${movingPlayer.name} unlocked the crown! Finish ${next.winnerIds.length} · Winner.`;
+        if (next.winnerIds.length === next.players.length - 1) {
+          next.winnerId = next.winnerIds[0];
+          next.loserId = next.players.find((p) => !next.winnerIds.includes(p.id))!.id;
+          message += ` Match finished. ${next.winnerIds.map((id) => next.players.find((p) => p.id === id)!.name).join(", ")} win; ${next.players.find((p) => p.id === next.loserId)!.name} is last and loses.`;
+        } else message += " The remaining players keep racing!";
       }
     }
   next.bombs.forEach((bomb) => { if (bomb.ownerId !== movingPlayer.id) bomb.armed = bomb.square === movingPlayer.position; });

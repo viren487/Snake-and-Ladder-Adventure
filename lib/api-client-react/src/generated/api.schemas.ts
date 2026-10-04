@@ -5,6 +5,16 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface RoomCreateInput {
+  /** @maxLength 24 */
+  name?: string;
+  /**
+     * @minimum 2
+     * @maximum 4
+     */
+  maxPlayers?: number;
+}
+
 export interface RoomMemberInput {
   /** @maxLength 24 */
   name?: string;
@@ -91,6 +101,11 @@ export interface OnlineRoom {
   game: OnlineRoomGame;
   members: OnlineRoomMember[];
   yourPlayerId: string;
+  /**
+     * @minimum 2
+     * @maximum 4
+     */
+  maxPlayers: number;
   rematchVotes: string[];
   event: OnlineRoomEvent | null;
   /** @minimum 0 */

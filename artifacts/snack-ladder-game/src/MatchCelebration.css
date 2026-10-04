@@ -1,0 +1,21 @@
+.celebration-root{margin:16px auto 0;max-width:720px;padding:14px 10px 16px;border-radius:18px;background:#fff3cf;border:3px solid #f3bd42;color:#3d2a17;text-align:center;box-sizing:border-box}
+.celebration-title{margin:0 0 8px;font-size:1.4rem;font-weight:800}
+.celebration-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.celebration-row{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
+.celebration-card{flex:1 1 40%;max-width:150px;min-width:0;padding:8px 4px;border-radius:14px;background:#fffaf0;border:2px solid #e3c47a}
+.celebration-loser{background:#e7eef3;border-color:#8aa5b8}
+.celebration-panda{width:84px;height:100px;margin:0 auto;transform-origin:50% 90%}
+.celebration-svg{width:100%;height:100%;overflow:visible}
+.celebration-name{display:block;font-size:1rem;overflow-wrap:anywhere}
+.celebration-label{display:block;font-size:.75rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.celebration-winner .celebration-panda{animation:celebration-dance .7s ease-in-out infinite alternate;animation-delay:calc(var(--i)*-.17s)}
+.celebration-loser .celebration-panda{animation:celebration-sob 1.1s ease-in-out infinite}
+.celebration-arm{transform-box:fill-box;transform-origin:50% 100%;animation:celebration-wave .35s ease-in-out infinite alternate}
+.celebration-arm-b{animation-direction:alternate-reverse}
+.celebration-tear{animation:celebration-drip 1.2s ease-in infinite}
+.celebration-tear-b{animation-delay:-.6s}
+@keyframes celebration-dance{0%{transform:translateY(0) rotate(-9deg)}100%{transform:translateY(-12px) rotate(9deg)}}
+@keyframes celebration-sob{0%,100%{transform:translateY(0) rotate(0)}30%{transform:translateY(3px) rotate(-3deg) scaleY(.97)}60%{transform:translateY(0) rotate(3deg)}}
+@keyframes celebration-wave{to{transform:rotate(-35deg) translateY(-3px)}}
+@keyframes celebration-drip{0%{transform:translateY(-2px);opacity:0}20%{opacity:1}100%{transform:translateY(20px);opacity:0}}
+@media (prefers-reduced-motion:reduce){.celebration-panda,.celebration-arm,.celebration-tear{animation:none!important}.celebration-tear{opacity:1}}

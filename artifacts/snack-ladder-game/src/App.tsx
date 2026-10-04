@@ -32,6 +32,7 @@ import { useGameSounds } from './use-game-sounds';
 import { ShotAnimation } from './ShotAnimation';
 import { PowerControls } from './PowerControls';
 import MysteryCompass from './MysteryCompass';
+import MatchCelebration from './MatchCelebration';
 import { DicePips } from './DicePips';
 import { OnlinePanel } from './OnlinePanel';
 import BambooReturnArt from './BambooReturnArt';
@@ -263,12 +264,12 @@ function PandaToken({
   hopping,
   specialMove,
 }: {
-  color: 'blue' | 'coral';
+  color: "blue" | "coral" | "green" | "purple";
   hopping: boolean;
   specialMove: 'ladder' | 'snake' | 'boom' | 'bamboo' | null;
 }) {
-  const scarf = color === 'blue' ? '#25a9df' : '#f06e50';
-  const scarfShade = color === 'blue' ? '#0879ad' : '#c44839';
+  const scarf = {blue:'#25a9df',coral:'#f06e50',green:'#36ba7b',purple:'#ad78ea'}[color];
+  const scarfShade = {blue:'#0879ad',coral:'#c44839',green:'#168353',purple:'#714cba'}[color];
   return (
     <svg className={`panda-token ${hopping ? 'panda-token-hopping' : ''} ${specialMove ? `panda-token-${specialMove}` : ''}`} viewBox="0 0 52 62" aria-hidden="true">
       <ellipse cx="26" cy="57" rx="14" ry="3" fill="#10151b" opacity=".4" />
@@ -359,8 +360,8 @@ function Board({
     const point = bamboo ? { x: -36, y: position === 100 ? 50 : 948 }
       : position > 0 ? centerOf(position) : { x: 70, y: 948 };
     const stacked = !bamboo && game.players.some((other, index) => index !== playerIndex && other.position === position);
-    const offsetX = stacked ? playerIndex === 0 ? -8 : 8 : 0;
-    const offsetY = stacked ? playerIndex === 0 ? -5 : 5 : 0;
+    const offsetX = stacked ? playerIndex % 2 === 0 ? -8 : 8 : 0;
+    const offsetY = stacked ? game.players.length > 2 ? playerIndex < 2 ? -7 : 7 : playerIndex === 0 ? -5 : 5 : 0;
     return {
       left: offsetX
         ? `calc(${point.x / 10}% ${offsetX < 0 ? '-' : '+'} ${Math.abs(offsetX)}px)`
@@ -517,7 +518,7 @@ function App() {
     }
   }, [game.pendingChoice, rolling, firing]);
   const leaveOnline = () => {
-    if (window.confirm('Leave online play? If connected, this ends the room for both players. Your local saved round will stay intact.')) void online.leave();
+    if (window.confirm('Leave online play? If connected, this ends the room for all players. Your local saved round will stay intact.')) void online.leave();
   };
 
   useEffect(() => {
@@ -537,6 +538,7 @@ function App() {
 
   const currentPlayer = game.players[game.currentPlayerIndex];
   const winner = game.players.find(player => player.id === game.winnerId);
+  useEffect(() => { sounds.setCelebrating(!!game.winnerId); }, [game.winnerId, sounds.setCelebrating]);
   const waitingToFire = game.pendingFireForPlayerId === currentPlayer.id;
   const availableTargets = SHOOTABLE_SNAKE_SQUARES.filter(
     (square) => currentPlayer.snakeStuns[square] === 0,
@@ -782,6 +784,8 @@ function App() {
         <div className="game-columns">
           <Board game={game} walking={walking} aiming={waitingToFire && !remoteDisabled} selectedTargets={selectedTargets} shot={shot} firing={firing} onAimTarget={selectTarget} choicesEnabled={!remoteDisabled} choiceBusy={rolling || firing}
             onChoosePower={(power) => applyPower((state) => choosePower(state, power), {type: "choose", power})} />
+            {!!game.winnerId && <MatchCelebration players={game.players} winnerIds={game.winnerIds ?? [game.winnerId]} loserId={game.loserId ?? game.players.find((p) => p.id !== game.winnerId)!.id} />}
+            {!!game.winnerId && <button type="button" className="primary-action" data-testid="celebration-music" disabled={sounds.muted} onClick={() => sounds.setCelebrating(true)}>Play celebration music</button>}
           <section className="side-panel" aria-label="Game controls and player status" data-testid="game-controls">
             <div className="quest-card" data-testid="quest-status">
               <div className="quest-title">QUEST · STAGE {!currentPlayer.hasTorch ? 1 : currentPlayer.crownKeyRoom === null ? 2 : 3}/3</div>
@@ -800,7 +804,7 @@ function App() {
               <div className="eyebrow" data-testid="turn-number">TURN {String(game.turnNumber).padStart(2, '0')}</div>
               {winner ? (
                 <>
-                  <div className="turn-name" data-testid="winner-name">{winner.name} wins!</div>
+                  <div className="turn-name" data-testid="winner-name">Match finished!</div>
                   <div className="turn-sub">The crown is yours. What a splendid climb.</div>
                 </>
               ) : (
@@ -813,8 +817,8 @@ function App() {
                 {game.players.map((player, index) => (
                   <div className="player-entry" key={player.id}>
                   <div className={`player-line ${!winner && index === game.currentPlayerIndex ? 'active' : ''}`} data-testid={`player-status-${player.id}`}>
-                    <span className="player-dot" style={{ background: player.color === 'blue' ? '#36b8e6' : '#ef7653' }} />
-                    <span className="player-label">{player.name}</span>
+                    <span className="player-dot" style={{ background: {blue:'#36b8e6',coral:'#ef7653',green:'#36ba7b',purple:'#ad78ea'}[player.color] }} />
+                    <span className="player-label">{player.name}{game.winnerIds?.includes(player.id) ? ` · Winner ${game.winnerIds.indexOf(player.id)+1}` : game.loserId===player.id ? " · Last" : ""}</span>
                     <span className="player-position" data-testid={`position-${player.id}`}>{player.position ? `#${player.position}` : 'HOME'}</span>
                     <span className="keys-chip" data-testid={`keys-${player.id}`} aria-label={`${player.keys} crown key`}><KeyRound size={12} /> {player.keys}/1</span>
                     <span className="ammo-chip" data-testid={`bullets-${player.id}`} aria-label={`${player.bullets} of ${MAX_BULLETS} bullets`}>
@@ -841,7 +845,7 @@ function App() {
             <PowerControls
               position={currentPlayer.position}
               detonationDisabled={rolling || firing || online.loadingSession || online.busy || !!winner || !!game.pendingChoice || !!waitingToFire || (!!online.session && !online.canDetonate)}
-              detonationBombs={game.bombs.filter((bomb) => bomb.armed && game.players.some((player) => player.id !== bomb.ownerId && player.position === bomb.square) && (!online.session || bomb.ownerId === online.room?.yourPlayerId)).map((bomb) => ({...bomb, ownerName: game.players.find((player) => player.id === bomb.ownerId)!.name}))}
+              detonationBombs={game.bombs.filter((bomb) => bomb.armed && game.players.some((player) => player.id !== bomb.ownerId && player.position === bomb.square && !game.winnerIds?.includes(player.id)) && (!online.session || bomb.ownerId === online.room?.yourPlayerId)).map((bomb) => ({...bomb, ownerName: game.players.find((player) => player.id === bomb.ownerId)!.name}))}
               playerName={currentPlayer.name}
               powers={currentPlayer.powers} pending={game.pendingChoice}
               extraRollCredits={currentPlayer.extraRollCredits}
@@ -857,7 +861,7 @@ function App() {
               onExtraDice={() => applyPower(useExtraDice, { type: 'extraDice' })}
               onDetonate={(id) => { void applyAnimatedPower(
                 (state) => ({ state: detonateBomb(state, id, state.bombs.find((bomb) => bomb.id === id)!.ownerId), path: [], effect: 'boom' }),
-                game.players.find((player) => player.id !== game.bombs.find((bomb) => bomb.id === id)!.ownerId)!.id,
+                game.players.find((player) => player.id !== game.bombs.find((bomb) => bomb.id === id)!.ownerId && player.position === game.bombs.find((bomb) => bomb.id === id)!.square)!.id,
                 { type: 'detonate', bombId: id },
               ); }}
             />
@@ -914,7 +918,7 @@ function App() {
                 </div>
               </div>
             )}
-            {!winner && !waitingToFire && <button className="primary-action" onClick={rollDice} disabled={rolling || !!game.pendingChoice} data-testid="button-roll-turn"><Dices size={17} /> {game.pendingChoice ? 'Choose your power first' : rolling ? 'Rolling the dice…' : 'Roll the dice'}</button>}
+            {!winner && !waitingToFire && <button className="primary-action" onClick={rollDice} disabled={remoteDisabled || rolling || !!game.pendingChoice} data-testid="button-roll-turn"><Dices size={17} /> {game.pendingChoice ? 'Choose your power first' : rolling ? 'Rolling the dice…' : 'Roll the dice'}</button>}
 
             <div className="message-card" aria-live="polite" data-testid="game-message">
               <Sparkles className="message-icon" size={16} />

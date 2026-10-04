@@ -13,10 +13,11 @@ const SOUND_FILES: Record<GameSound, string> = {
   happy: new URL("./sounds/happy.wav", import.meta.url).href,
 };
 
-/** Short one-shot effects only: no background music or looping playback. */
+/** One-shot gameplay effects; celebration music loops only after match finish. */
 export function useGameSounds() {
   const players = useRef<Partial<Record<GameSound, HTMLAudioElement>>>({});
   const mutedRef = useRef(false);
+  const celebrating = useRef(false);
   const [muted, setMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,6 +46,7 @@ export function useGameSounds() {
     };
     const pauseOnHide = () => {
       if (document.visibilityState !== "visible") pauseEffects();
+      else if (celebrating.current && !mutedRef.current) void created.happy.play().catch((reason) => setError(String(reason)));
     };
     document.addEventListener("visibilitychange", pauseOnHide);
     return () => {
@@ -73,6 +75,13 @@ export function useGameSounds() {
     }
   }, []);
 
+  const setCelebrating = useCallback((active: boolean) => {
+    celebrating.current = active; const audio = players.current.happy; if (!audio) return;
+    audio.loop = active;
+    if (active && !mutedRef.current) void audio.play().catch((reason) => setError(String(reason)));
+    else audio.pause();
+  }, []);
+
   const playPickups = useCallback((before: PickupState, after: PickupState) => {
     if (after.bullets > before.bullets) play("bullet");
     if (before.crownKeyRoom === null && after.crownKeyRoom !== null) play("key");
@@ -83,8 +92,8 @@ export function useGameSounds() {
     setMuted(mutedRef.current);
     if (mutedRef.current) {
       Object.values(players.current).forEach((audio) => audio?.pause());
-    }
+    } else if (celebrating.current) { void players.current.happy?.play().catch((reason) => setError(String(reason))); }
   }, []);
 
-  return { play, playPickups, muted, toggleMuted, error };
+  return { setCelebrating, play, playPickups, muted, toggleMuted, error };
 }

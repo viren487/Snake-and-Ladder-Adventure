@@ -64,6 +64,23 @@ try {
   assert.deepEqual(seats.map((result) => result.status).sort(), [200, 409]);
   assert.equal((await request(racePath, { token: raceRoom.data.session.token })).data.members.length, 2);
   console.log("Multiplayer API checks passed: authentication, room capacity/races, turn/version guards, server dice, duplicate-safe actions, reconnect state, private seat tokens, and room closure.");
+  for (const count of [3,4]) {
+    const made = await request("/rooms", {method:"POST",body:{name:"Capacity host",maxPlayers:count}});
+    assert.equal(made.status,201);hosts.push(made.data.session);
+    assert.equal(made.data.room.maxPlayers,count);assert.equal(made.data.room.game.players.length,count);
+    const route = "/rooms/"+made.data.session.code;
+    for(let i=1;i<count;i++){
+      const joined=await request(route+"/join",{method:"POST",body:{name:"Capacity guest "+i}});
+      assert.equal(joined.status,200);assert.equal(joined.data.room.members.length,i+1);
+      assert.equal(joined.data.room.status,i+1===count?"playing":"waiting");
+      assert.equal(joined.data.session.playerId,"player-"+(i+1));
+    }
+    assert.equal((await request(route+"/join",{method:"POST",body:{name:"Overflow"}})).status,409);
+    const synced=await request(route,{token:made.data.session.token});
+    assert.equal(synced.data.maxPlayers,count);assert.equal(new Set(synced.data.members.map(m=>m.id)).size,count);
+  }
+  assert.equal((await request("/rooms",{method:"POST",body:{maxPlayers:5}})).status,400);
+  console.log("PASS: 3/4-player capacity, lobby readiness, distinct private seats and overflow rejection.");
 } finally {
   for (const host of hosts) {
     await request(`/rooms/${host.code}/actions`, { method: "POST", token: host.token, body: action("leave", 0) }).catch(() => undefined);

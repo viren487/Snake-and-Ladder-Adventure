@@ -24,6 +24,7 @@ import type {
   OnlineRoom,
   RoomAction,
   RoomAdmission,
+  RoomCreateInput,
   RoomMemberInput
 } from './api.schemas';
 
@@ -62,7 +63,7 @@ export const getCreateGameRoomUrl = () => {
   return `/api/rooms`
 }
 
-export const createGameRoom = async (roomMemberInput: RoomMemberInput, options?: Parameters<typeof customFetch>[1]): Promise<RoomAdmission> => {
+export const createGameRoom = async (roomCreateInput: RoomCreateInput, options?: Parameters<typeof customFetch>[1]): Promise<RoomAdmission> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -83,7 +84,7 @@ return customFetch<RoomAdmission>(getCreateGameRoomUrl(),
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(roomMemberInput)
+    body: JSON.stringify(roomCreateInput)
   }
 );}
 
@@ -121,9 +122,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type CreateGameRoomMutationResult = NonNullable<Awaited<ReturnType<typeof createGameRoom>>>
-    export type CreateGameRoomMutationBody = BodyType<RoomMemberInput>
+    export type CreateGameRoomMutationBody = BodyType<RoomCreateInput>
     export type CreateGameRoomMutationError = ErrorType<unknown>
-    export type CreateGameRoomMutationVariables = {data: BodyType<RoomMemberInput>}
+    export type CreateGameRoomMutationVariables = {data: BodyType<RoomCreateInput>}
 
     export const useCreateGameRoom = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGameRoom>>, TError,CreateGameRoomMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}

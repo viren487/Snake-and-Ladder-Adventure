@@ -5,7 +5,7 @@ import { AppState } from "react-native";
 export type GameSound = "dice" | "step" | "ladder" | "snake" | "bullet" | "key" | "happy";
 type PickupState = { bullets: number; crownKeyRoom: number | null };
 
-/** Short one-shot effects only: no music, loops, recording or background playback. */
+/** Gameplay effects plus foreground-only match celebration music. */
 export function useGameSounds() {
   const dice = useAudioPlayer(require("../assets/sounds/dice.wav"));
   const step = useAudioPlayer(require("../assets/sounds/step.wav"));
@@ -23,6 +23,7 @@ export function useGameSounds() {
   const happyStatus = useAudioPlayerStatus(happy);
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(false);
+  const celebrating = useRef(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,7 +50,7 @@ export function useGameSounds() {
         bullet.pause();
         key.pause();
         happy.pause();
-      }
+      } else if (celebrating.current && !mutedRef.current) { happy.play(); }
     });
     return () => subscription.remove();
   }, [dice, step, ladder, snake, bullet, key, happy]);
@@ -65,6 +66,16 @@ export function useGameSounds() {
       setPlaybackError(String(error));
     }
   }, [dice, step, ladder, snake, bullet, key, happy]);
+
+  const setCelebrating = useCallback((active: boolean) => {
+    celebrating.current = active; happy.loop = active;
+    try {
+      if (active && !mutedRef.current && AppState.currentState !== "background") {
+        void happy.seekTo(0).then(() => { if (celebrating.current && !mutedRef.current && AppState.currentState !== "background") happy.play(); }).catch((error) => setPlaybackError(String(error)));
+      } else happy.pause();
+    }
+    catch (error) { setPlaybackError(String(error)); }
+  }, [happy]);
 
   const playPickups = useCallback((before: PickupState, after: PickupState) => {
     if (after.bullets > before.bullets) play("bullet");
@@ -82,10 +93,11 @@ export function useGameSounds() {
       bullet.pause();
       key.pause();
       happy.pause();
-    }
+    } else if (celebrating.current) { happy.play(); }
   }, [dice, step, ladder, snake, bullet, key, happy]);
 
   return {
+    setCelebrating,
     play,
     playPickups,
     muted,

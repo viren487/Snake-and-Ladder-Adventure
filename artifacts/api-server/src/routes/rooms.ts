@@ -39,8 +39,8 @@ function route(work: (req: Request, res: Response) => Promise<void>) {
 }
 router.post("/", route(async (req, res) => {
   const body = CreateGameRoomBody.safeParse(req.body);
-  if (!body.success) throw new RoomError(400, "Player name must be at most 24 characters.");
-  res.status(201).json(await createRoom(body.data.name));
+  if (!body.success) throw new RoomError(400, "Use a name up to 24 characters and choose 2, 3 or 4 players.");
+  res.status(201).json(await createRoom(body.data.name, body.data.maxPlayers));
 }));
 router.post("/:code/join", route(async (req, res) => {
   const body = JoinGameRoomBody.safeParse(req.body);

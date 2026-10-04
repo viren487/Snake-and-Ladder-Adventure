@@ -15,6 +15,8 @@ const emptyStuns = () => ({ 98: 0, 99: 0 });
 export function cloneGame(state: GameState): GameState {
   return {
     ...state,
+    winnerIds: [...(state.winnerIds ?? (state.winnerId ? [state.winnerId] : []))],
+    loserId: state.loserId ?? null,
     bonusRollPending: state.bonusRollPending ?? false,
     pendingChoice: state.pendingChoice ? { ...state.pendingChoice } : null,
     bombs: (state.bombs ?? []).map((bomb) => ({ ...bomb })),
@@ -33,13 +35,14 @@ export function finishTurn(state: GameState): GameState {
   if (state.winnerId || state.pendingChoice || state.pendingFireForPlayerId) return state;
   const next = cloneGame(state);
   const player = next.players[next.currentPlayerIndex];
-  if (next.bonusRollPending) {
+  if (!next.winnerIds.includes(player.id) && next.bonusRollPending) {
     next.message += ` ${player.name} rolled a valid six and gets another chance!`;
-  } else if (player.extraRollCredits > 0) {
+  } else if (!next.winnerIds.includes(player.id) && player.extraRollCredits > 0) {
     player.extraRollCredits -= 1;
     next.message += ` ${player.name}'s Extra Dice grants another roll!`;
   } else {
-    next.currentPlayerIndex = (next.currentPlayerIndex + 1) % next.players.length;
+    do { next.currentPlayerIndex = (next.currentPlayerIndex + 1) % next.players.length; }
+    while (next.winnerIds.includes(next.players[next.currentPlayerIndex].id));
     next.message += ` ${next.players[next.currentPlayerIndex].name} is up next.`;
   }
   next.bonusRollPending = false;
@@ -102,17 +105,18 @@ export function detonateBomb(state: GameState, bombId: string, ownerId = state.p
   requireAction(state);
   const next = cloneGame(state);
   const owner = next.players.find((player) => player.id === ownerId);
-  if (!owner) throw new Error("Only the player who planted this bomb can use it.");
+  if (!owner || next.winnerIds.includes(ownerId)) throw new Error("Only an active player who planted this bomb can use it.");
   const bomb = next.bombs.find((item) => item.id === bombId && item.ownerId === owner.id);
-  const rival = next.players.find((player) => player.id !== owner.id);
+  const rivals = bomb ? next.players.filter((player) => player.id !== owner.id && player.position === bomb.square && !next.winnerIds.includes(player.id)) : [];
+  const rival = rivals[0];
   if (!bomb || !rival || !bomb.armed || rival.position !== bomb.square) {
     throw new Error("The rival must stop in your bomb's house after planting before you can detonate it.");
   }
-  rival.position = 0;
+  rivals.forEach((player) => { player.position = 0; });
   next.bombs = next.bombs.filter((item) => item.id !== bomb.id);
   // A reset also disarms any other bomb whose victim is no longer on its house.
   next.bombs.forEach((item) => { if (item.ownerId === owner.id) item.armed = false; });
-  next.message = `${owner.name} detonated the bomb in house ${bomb.square}! ${rival.name} returned Home, keeping their torch, key and inventory.`;
+  next.message = `${owner.name} detonated the bomb in house ${bomb.square}! ${rivals.map((p) => p.name).join(", ")} returned Home, keeping their torch, key and inventory.`;
   return next;
 }
 
@@ -179,6 +183,11 @@ export function isValidPowerState(value: unknown): boolean {
         typeof bomb.armed === "boolean") ||
       new Set(state.bombs.map((bomb) => bomb.id)).size !== state.bombs.length ||
       new Set(state.bombs.map((bomb) => bomb.square)).size !== state.bombs.length) return false;
+  }
+  if (state.winnerIds !== undefined) {
+    if (!Array.isArray(state.winnerIds) || state.winnerIds.length > state.players.length - 1 || new Set(state.winnerIds).size !== state.winnerIds.length || !state.winnerIds.every((id) => state.players.some((p) => p.id === id && p.position === 100 && p.hasTorch && [17,44,67].includes(p.crownKeyRoom ?? -1)))) return false;
+    const finished = state.winnerIds.length === state.players.length - 1;
+    if (finished ? state.winnerId !== state.winnerIds[0] || state.loserId !== state.players.find((p) => !state.winnerIds.includes(p.id))?.id : !!state.winnerId || !!state.loserId || state.winnerIds.includes(state.players[state.currentPlayerIndex]?.id)) return false;
   }
   const choice = state.pendingChoice;
   if (choice === undefined || choice === null) return true;

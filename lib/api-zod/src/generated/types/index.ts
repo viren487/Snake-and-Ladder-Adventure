@@ -19,5 +19,6 @@ export * from './roomActionPower';
 export * from './roomActionTargetsItem';
 export * from './roomActionType';
 export * from './roomAdmission';
+export * from './roomCreateInput';
 export * from './roomMemberInput';
 export * from './roomSession';

@@ -35,3 +35,15 @@ test("a landing defense must resolve before an owner can blast", () => {
   assert.throws(() => applyRoomAction(room,room.members[0],{type:"detonate",bombId:id,expectedVersion:1,actionId:"too-early"}), /landing choice/);
   assert.equal(room.game.bombs.length,1); assert.equal(room.game.players[1].position,20);
 });
+
+for (const count of [3,4]) test(`server ${count}-player rankings, finished spectators and unanimous rematch`, () => {
+  const room=fixture();room.game=createGame(count);room.members=room.game.players.map(p=>({id:p.id,name:p.name,tokenHash:"test-only",lastSeen:Date.now()}));
+  room.game.players.forEach(p=>{p.position=99;p.hasTorch=true;p.crownKeyRoom=17;p.keys=1;});
+  for(let i=0;i<count-1;i++){
+    room.ready_at=new Date(0);applyRoomAction(room,room.members[i],{type:"roll",expectedVersion:room.version,actionId:"finish-"+i},()=>1);
+    if(i<count-2){assert.equal(room.status,"playing");assert.equal(room.game.currentPlayerIndex,i+1);room.members[i].lastSeen=0;assert.throws(()=>applyRoomAction(room,room.members[i],{type:"plant",square:100,expectedVersion:room.version,actionId:"retired-"+i}),/finished/);}
+  }
+  assert.equal(room.status,"finished");assert.equal(room.game.winnerIds.length,count-1);assert.equal(room.game.loserId,room.members[count-1].id);
+  for(let i=0;i<count;i++){applyRoomAction(room,room.members[i],{type:"rematch",expectedVersion:room.version,actionId:"vote-"+i});if(i<count-1)assert.equal(room.status,"finished");}
+  assert.equal(room.status,"playing");assert.equal(room.game.players.length,count);assert.deepEqual(room.game.winnerIds,[]);assert.equal(room.game.loserId,null);
+});

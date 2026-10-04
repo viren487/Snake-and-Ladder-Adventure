@@ -6,6 +6,8 @@ export interface OnlinePanelProps {
   room: null | {
     code: string;
     status: 'waiting' | 'playing' | 'finished' | 'closed';
+    maxPlayers: number;
+    game?: { winnerIds?: string[] };
     members: { id: string; name: string; online: boolean }[];
     yourPlayerId: string;
     rematchVotes: string[];
@@ -13,7 +15,7 @@ export interface OnlinePanelProps {
   busy: boolean;
   connected: boolean;
   error: string | null;
-  onCreate: (name: string) => void;
+  onCreate: (name: string, maxPlayers: number) => void;
   onJoin: (code: string, name: string) => void;
   onLeave: () => void;
   onRematch: () => void;
@@ -25,6 +27,7 @@ export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, on
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
+  const [maxPlayers, setMaxPlayers] = useState(2);
   const [copied, setCopied] = useState(false);
   const [localErr, setLocalErr] = useState<string | null>(null);
   const shownErr = localErr ?? error;
@@ -66,8 +69,9 @@ export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, on
           <>
             <input className="op-input" data-testid="room-player-name" aria-label="Your name (optional)" placeholder="Your name (optional)" maxLength={24}
               value={name} disabled={busy} onChange={(e) => setName(e.target.value)} />
+            <div className="op-row" role="group" aria-label="Players in this match">{[2,3,4].map((n) => <button key={n} type="button" className={`op-btn ${maxPlayers===n?"gold":""}`} aria-pressed={maxPlayers===n} data-testid={`room-size-${n}`} disabled={busy} onClick={() => setMaxPlayers(n)}>{n} players</button>)}</div>
             <div className="op-row">
-              <button type="button" className="op-btn gold" data-testid="create-room" disabled={busy} onClick={() => { setLocalErr(null); onCreate(name.trim().slice(0, 24)); }}>
+              <button type="button" className="op-btn gold" data-testid="create-room" disabled={busy} onClick={() => { setLocalErr(null); onCreate(name.trim().slice(0, 24), maxPlayers); }}>
                 {busy ? 'Working...' : 'Create Room'}
               </button>
             </div>
@@ -100,7 +104,7 @@ export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, on
           {copied ? <Check size={15} /> : <Copy size={15} />} {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <p className="op-note" data-testid="room-seat">You are {me?.name ?? 'seated'}.</p>
+      <p className="op-note" data-testid="room-seat">You are {me?.name ?? 'seated'} · {room.members.length}/{room.maxPlayers} players.</p>
       {room.members.map((m) => (
         <div className="op-member" key={m.id} data-testid={`room-member-${m.id}`}>
           <span className={`op-dot ${m.online && room.status !== 'closed' ? '' : 'off'}`} aria-hidden="true" />
@@ -108,8 +112,8 @@ export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, on
           <span className="op-note">{room.status === 'closed' ? 'ended' : m.online ? 'online' : 'offline'}</span>
         </div>
       ))}
-      {room.status === 'waiting' && <p className="op-note" role="status">Waiting for a friend. Share the code; the game starts when they join.</p>}
-      {room.status === 'playing' && room.members.some((m) => !m.online) && <p className="op-note" role="status">Your friend is offline. Opening the game again on their original device restores their seat.</p>}
+      {room.status === 'waiting' && <p className="op-note" role="status">Waiting for players: {room.members.length}/{room.maxPlayers}. Share the code; the game starts when all selected players join.</p>}
+      {room.status === 'playing' && room.members.some((m) => !m.online && !room.game?.winnerIds?.includes(m.id)) && <p className="op-note" role="status">An unfinished player is offline. Opening the game again on their original device restores their seat.</p>}
       {!connected && (
         <div className="op-row" role="status">
           <p className="op-warn" style={{ flex: 1, alignSelf: 'center' }}>Reconnecting...</p>
@@ -119,7 +123,7 @@ export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, on
       {shownErr && <p className="op-err" role="alert" data-testid="online-error">{shownErr}</p>}
       {room.status === 'finished' && (
         <button type="button" className="op-btn gold" data-testid="request-rematch" disabled={busy || !connected || voted} onClick={onRematch}>
-          {voted ? 'Waiting for friend to agree' : room.rematchVotes.length ? 'Friend wants a rematch: accept' : 'Request rematch'}
+          {voted ? 'Waiting for all players to agree' : room.rematchVotes.length ? 'Accept rematch' : 'Request rematch'}
         </button>
       )}
       {room.status === 'closed' && <p className="op-note" role="status" data-testid="room-ended">This room has ended. Return to local play.</p>}

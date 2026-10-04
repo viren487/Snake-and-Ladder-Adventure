@@ -10,11 +10,19 @@ import * as zod from 'zod';
 
 export const createGameRoomBodyNameMax = 24;
 
+export const createGameRoomBodyMaxPlayersDefault = 2;
+export const createGameRoomBodyMaxPlayersMin = 2;
+export const createGameRoomBodyMaxPlayersMax = 4;
+
 
 
 export const CreateGameRoomBody = zod.object({
-  "name": zod.string().max(createGameRoomBodyNameMax).optional()
+  "name": zod.string().max(createGameRoomBodyNameMax).optional(),
+  "maxPlayers": zod.number().int().min(createGameRoomBodyMaxPlayersMin).max(createGameRoomBodyMaxPlayersMax).default(createGameRoomBodyMaxPlayersDefault)
 })
+
+export const createGameRoomResponseRoomMaxPlayersMin = 2;
+export const createGameRoomResponseRoomMaxPlayersMax = 4;
 
 export const createGameRoomResponseRoomBusyForMsMin = 0;
 
@@ -37,6 +45,7 @@ export const CreateGameRoomResponse = zod.object({
   "online": zod.boolean()
 })),
   "yourPlayerId": zod.string(),
+  "maxPlayers": zod.number().int().min(createGameRoomResponseRoomMaxPlayersMin).max(createGameRoomResponseRoomMaxPlayersMax),
   "rematchVotes": zod.array(zod.string()),
   "event": zod.object({
   "kind": zod.enum(['roll', 'choose', 'defense', 'plant', 'detonate', 'extraDice', 'shoot', 'pass', 'rematch', 'join', 'leave']),
@@ -67,6 +76,9 @@ export const JoinGameRoomBody = zod.object({
   "name": zod.string().max(joinGameRoomBodyNameMax).optional()
 })
 
+export const joinGameRoomResponseRoomMaxPlayersMin = 2;
+export const joinGameRoomResponseRoomMaxPlayersMax = 4;
+
 export const joinGameRoomResponseRoomBusyForMsMin = 0;
 
 
@@ -88,6 +100,7 @@ export const JoinGameRoomResponse = zod.object({
   "online": zod.boolean()
 })),
   "yourPlayerId": zod.string(),
+  "maxPlayers": zod.number().int().min(joinGameRoomResponseRoomMaxPlayersMin).max(joinGameRoomResponseRoomMaxPlayersMax),
   "rematchVotes": zod.array(zod.string()),
   "event": zod.object({
   "kind": zod.enum(['roll', 'choose', 'defense', 'plant', 'detonate', 'extraDice', 'shoot', 'pass', 'rematch', 'join', 'leave']),
@@ -107,6 +120,9 @@ export const GetGameRoomParams = zod.object({
   "code": zod.coerce.string()
 })
 
+export const getGameRoomResponseMaxPlayersMin = 2;
+export const getGameRoomResponseMaxPlayersMax = 4;
+
 export const getGameRoomResponseBusyForMsMin = 0;
 
 
@@ -122,6 +138,7 @@ export const GetGameRoomResponse = zod.object({
   "online": zod.boolean()
 })),
   "yourPlayerId": zod.string(),
+  "maxPlayers": zod.number().int().min(getGameRoomResponseMaxPlayersMin).max(getGameRoomResponseMaxPlayersMax),
   "rematchVotes": zod.array(zod.string()),
   "event": zod.object({
   "kind": zod.enum(['roll', 'choose', 'defense', 'plant', 'detonate', 'extraDice', 'shoot', 'pass', 'rematch', 'join', 'leave']),
@@ -164,6 +181,9 @@ export const ActInGameRoomBody = zod.object({
   "targets": zod.array(zod.union([zod.literal(98),zod.literal(99)])).min(1).max(actInGameRoomBodyTargetsMax).optional()
 })
 
+export const actInGameRoomResponseMaxPlayersMin = 2;
+export const actInGameRoomResponseMaxPlayersMax = 4;
+
 export const actInGameRoomResponseBusyForMsMin = 0;
 
 
@@ -179,6 +199,7 @@ export const ActInGameRoomResponse = zod.object({
   "online": zod.boolean()
 })),
   "yourPlayerId": zod.string(),
+  "maxPlayers": zod.number().int().min(actInGameRoomResponseMaxPlayersMin).max(actInGameRoomResponseMaxPlayersMax),
   "rematchVotes": zod.array(zod.string()),
   "event": zod.object({
   "kind": zod.enum(['roll', 'choose', 'defense', 'plant', 'detonate', 'extraDice', 'shoot', 'pass', 'rematch', 'join', 'leave']),

@@ -31,6 +31,7 @@ import { isSavedGame } from "@/lib/saved-game";
 import { ShotAnimation, SHOT_DURATION_MS, type Shot } from "@/components/ShotAnimation";
 import { PowerControls } from "@/components/PowerControls";
 import MysteryCompass from "@/components/MysteryCompass";
+import MatchCelebration from "@/components/MatchCelebration";
 import { RulesDrawer } from "@/components/RulesDrawer";
 import { OnlinePanel } from "@/components/OnlinePanel";
 import BambooReturnArt from "@/components/BambooReturnArt";
@@ -76,6 +77,8 @@ const SPECIAL_MOVE_MS = { ladder: 2200, snake: 2000, boom: 700, torch: 1100, ret
 const PANDA_IMAGES = {
   blue: require("../assets/images/panda-token-blue.png"),
   coral: require("../assets/images/panda-token-coral.png"),
+  green: require("../assets/images/panda-token-green.png"),
+  purple: require("../assets/images/panda-token-purple.png"),
 };
 
 const SNAKE_IMAGES = {
@@ -148,9 +151,9 @@ function Token({
   const point = bamboo ? { x: boardSize * -0.036, y: boardSize * (position === 100 ? 0.05 : 0.948) } : position > 0
     ? getCellCenter(position, boardSize)
     : { x: cellSize * 0.28, y: boardSize - cellSize * 0.22 };
-  const stackOffset = stacked ? (index === 0 ? -cellSize * 0.18 : cellSize * 0.18) : 0;
+  const stackOffset = stacked ? (index % 2 === 0 ? -cellSize * 0.18 : cellSize * 0.18) : 0;
   const targetX = point.x - tokenWidth / 2 + stackOffset;
-  const targetY = point.y - tokenHeight / 2 + (stacked ? (index === 0 ? -2 : 2) : 0);
+  const targetY = point.y - tokenHeight / 2 + (stacked ? (index < 2 ? -4 : 4) : 0);
   const x = useSharedValue(targetX);
   const y = useSharedValue(targetY);
   const hop = useSharedValue(0);
@@ -533,10 +536,8 @@ function Board({
         {game.players.map((player, index) => {
           const position =
             walking?.playerId === player.id ? walking.position : player.position;
-          const otherPosition = game.players[1 - index].id === walking?.playerId
-            ? walking.position
-            : game.players[1 - index].position;
-          const stacked = position === otherPosition;
+          const stacked = game.players.some((other) => other.id !== player.id &&
+            (walking?.playerId === other.id ? walking.position : other.position) === position);
           return (
             <Token
               key={player.id}
@@ -608,12 +609,14 @@ function PlayerRow({
   player,
   active,
   colors,
+  rank, last,
 }: {
+  rank?: number; last?: boolean;
   player: Player;
   active: boolean;
   colors: ReturnType<typeof useColors>;
 }) {
-  const playerColor = player.color === "blue" ? colors.bluePlayer : colors.coralPlayer;
+  const playerColor = {blue:colors.bluePlayer,coral:colors.coralPlayer,green:"#36ba7b",purple:"#ad78ea"}[player.color];
   return (
     <View
       style={[
@@ -625,7 +628,7 @@ function PlayerRow({
     >
       <Image source={PANDA_IMAGES[player.color]} style={styles.playerPanda} resizeMode="contain" />
       <View style={styles.playerInfo}>
-        <Text style={[styles.playerName, { color: colors.foreground }]}>{player.name}</Text>
+        <Text style={[styles.playerName, { color: colors.foreground }]}>{player.name}{rank ? ` · Winner ${rank}` : last ? " · Last" : ""}</Text>
         <Text style={[styles.playerPosition, { color: colors.mutedForeground }]}>
           {player.position ? `SQUARE ${player.position}` : "AT HOME"}
         </Text>
@@ -684,7 +687,7 @@ export default function GameScreen() {
   });
   const remoteDisabled = online.loadingSession || online.busy || (!!online.session && !online.canAct);
   const leaveOnline = () => {
-    const message = "If connected, leaving ends this room for both players. Your local saved round stays intact.";
+    const message = "If connected, leaving ends this room for all players. Your local saved round stays intact.";
     if (Platform.OS === "web") {
       if (window.confirm(message)) void online.leave();
     } else {
@@ -797,6 +800,7 @@ export default function GameScreen() {
     setSelectedTargets([]);
   };
   const winner = game.players.find((player) => player.id === game.winnerId);
+  useEffect(() => { sounds.setCelebrating(!!game.winnerId); }, [game.winnerId, sounds.setCelebrating]);
   const boardSize = Math.min(Math.max(width - 42, 300), 440);
   const topInset = Platform.OS === "web" ? 67 : Math.max(insets.top, 12) + 8;
   const bottomInset = Platform.OS === "web" ? 34 : Math.max(insets.bottom, 12) + 8;
@@ -1021,7 +1025,7 @@ export default function GameScreen() {
               TURN {String(game.turnNumber).padStart(2, "0")}
             </Text>
             <Text style={[styles.turnTitle, { color: colors.foreground }]}>
-              {winner ? `${winner.name} wins!` : `${currentPlayer.name}'s turn`}
+              {winner ? `$Match finished!` : `${currentPlayer.name}'s turn`}
             </Text>
           </View>
           {winner ? (
@@ -1034,11 +1038,14 @@ export default function GameScreen() {
         <View onLayout={(event) => { boardTop.current = event.nativeEvent.layout.y; }}>
           <Board game={game} walking={walking} size={boardSize} shot={shot} choicesEnabled={!remoteDisabled} choiceBusy={rolling || firing}
             onChoosePower={(power) => applyPower((state) => choosePower(state, power), {type: "choose", power})} />
+            {!!game.winnerId && <MatchCelebration players={game.players} winnerIds={game.winnerIds ?? [game.winnerId]} loserId={game.loserId ?? game.players.find((p) => p.id !== game.winnerId)!.id} />}
+            {!!game.winnerId && <Pressable accessibilityRole="button" accessibilityLabel="Play celebration music" testID="celebration-music" disabled={sounds.muted} onPress={() => sounds.setCelebrating(true)} style={{minHeight:44,padding:12,borderRadius:12,backgroundColor:colors.primary,opacity:sounds.muted?0.5:1}}><Text style={{color:colors.primaryForeground,textAlign:"center"}}>Play celebration music</Text></Pressable>}
         </View>
 
         <View style={[styles.playersCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {game.players.map((player, index) => (
             <PlayerRow
+                  rank={game.winnerIds?.includes(player.id) ? game.winnerIds.indexOf(player.id)+1 : undefined} last={game.loserId===player.id}
               key={player.id}
               player={player}
               active={!winner && index === game.currentPlayerIndex}
@@ -1059,7 +1066,7 @@ export default function GameScreen() {
         <PowerControls
           position={currentPlayer.position}
               detonationDisabled={rolling || firing || online.loadingSession || online.busy || !!winner || !!game.pendingChoice || !!waitingToFire || (!!online.session && !online.canDetonate)}
-              detonationBombs={game.bombs.filter((bomb) => bomb.armed && game.players.some((player) => player.id !== bomb.ownerId && player.position === bomb.square) && (!online.session || bomb.ownerId === online.room?.yourPlayerId)).map((bomb) => ({...bomb, ownerName: game.players.find((player) => player.id === bomb.ownerId)!.name}))}
+              detonationBombs={game.bombs.filter((bomb) => bomb.armed && game.players.some((player) => player.id !== bomb.ownerId && player.position === bomb.square && !game.winnerIds?.includes(player.id)) && (!online.session || bomb.ownerId === online.room?.yourPlayerId)).map((bomb) => ({...bomb, ownerName: game.players.find((player) => player.id === bomb.ownerId)!.name}))}
               playerName={currentPlayer.name}
           powers={currentPlayer.powers} pending={game.pendingChoice}
           extraRollCredits={currentPlayer.extraRollCredits}
@@ -1075,7 +1082,7 @@ export default function GameScreen() {
           onExtraDice={() => applyPower(useExtraDice, { type: "extraDice" })}
           onDetonate={(id) => { void applyAnimatedPower(
             (state) => ({ state: detonateBomb(state, id, state.bombs.find((bomb) => bomb.id === id)!.ownerId), path: [], effect: "boom" }),
-            game.players.find((player) => player.id !== game.bombs.find((bomb) => bomb.id === id)!.ownerId)!.id,
+            game.players.find((player) => player.id !== game.bombs.find((bomb) => bomb.id === id)!.ownerId && player.position === game.bombs.find((bomb) => bomb.id === id)!.square)!.id,
             { type: "detonate", bombId: id },
           ); }}
         />

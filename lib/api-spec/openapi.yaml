@@ -19,7 +19,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/RoomMemberInput" }
+            schema: { $ref: "#/components/schemas/RoomCreateInput" }
       responses:
         "201":
           description: Private room created; keep the seat token on this device.
@@ -93,6 +93,11 @@ components:
       type: http
       scheme: bearer
   schemas:
+    RoomCreateInput:
+      type: object
+      properties:
+        name: { type: string, maxLength: 24 }
+        maxPlayers: { type: integer, minimum: 2, maximum: 4, default: 2 }
     RoomMemberInput:
       type: object
       properties:
@@ -146,7 +151,7 @@ components:
         targets: { type: array, items: { type: integer } }
     OnlineRoom:
       type: object
-      required: [code, status, version, game, members, yourPlayerId, rematchVotes, event, busyForMs]
+      required: [code, status, version, game, members, maxPlayers, yourPlayerId, rematchVotes, event, busyForMs]
       properties:
         code: { type: string }
         status: { type: string, enum: [waiting, playing, finished, closed] }
@@ -159,6 +164,7 @@ components:
           type: array
           items: { $ref: "#/components/schemas/OnlineRoomMember" }
         yourPlayerId: { type: string }
+        maxPlayers: { type: integer, minimum: 2, maximum: 4 }
         rematchVotes: { type: array, items: { type: string } }
         event: { $ref: "#/components/schemas/OnlineRoomEvent" }
         busyForMs: { type: integer, minimum: 0 }

@@ -11,9 +11,9 @@ Finish the browser game first and use it as the reference version before moving 
 
 ## Sound scope
 
-Use short action sound effects for dice, panda movement, ladder climbing, snake bites, bullet collection and key collection. Give bullet and key pickups distinct sounds. Do not add background music.
+Use short action sound effects for dice, panda movement, ladder climbing, snake bites, bullet collection and key collection. Give bullet and key pickups distinct sounds. Do not add background music during active gameplay. Post-match winner dance music is now explicitly requested.
 
-**Why:** The user explicitly requested these effects, later asked for separate bullet/key pickup sounds, and said not to add background music.
+**Why:** The user explicitly requested these effects, later asked for separate bullet/key pickup sounds, and said not to add background music. They subsequently requested music for the winners’ post-match dance, so that is a scoped exception.
 
 **How to apply:** Keep audio event-driven and non-looping; audio failure must never block a turn.
 

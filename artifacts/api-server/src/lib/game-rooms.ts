@@ -24,7 +24,7 @@ export function roomSnapshot(room: StoredRoom, member: Member): RoomSnapshot {
   return {
     code: room.code, status: room.status, version: room.version, game: room.game,
     members: room.members.map(({ id, name, lastSeen }) => ({ id, name, online: Date.now() - lastSeen < 25_000 })),
-    yourPlayerId: member.id, rematchVotes: room.rematch_votes, event: room.transition,
+    maxPlayers: room.game.players.length, yourPlayerId: member.id, rematchVotes: room.rematch_votes, event: room.transition,
     busyForMs: Math.max(0, room.ready_at.getTime() - Date.now()),
   };
 }
@@ -56,10 +56,11 @@ async function locked<T>(code: string, callback: (room: StoredRoom) => T): Promi
   } finally { client.release(); }
 }
 
-export async function createRoom(name?: string): Promise<{ session: RoomSession; room: RoomSnapshot }> {
+export async function createRoom(name?: string, maxPlayers = 2): Promise<{ session: RoomSession; room: RoomSnapshot }> {
+  if (!Number.isInteger(maxPlayers) || maxPlayers < 2 || maxPlayers > 4) throw new RoomError(400, "Choose 2, 3 or 4 players.");
   const token = newToken();
   const member: Member = { id: "player-1", name: nameFor(name, "Player 1"), tokenHash: digest(token), lastSeen: Date.now() };
-  const game = createGame();
+  const game = createGame(maxPlayers);
   game.players[0].name = member.name;
   const stored: StoredRoom = { code: "", status: "waiting", version: 0, game, members: [member],
     receipts: [], transition: null, rematch_votes: [], ready_at: new Date() };
@@ -77,12 +78,15 @@ export async function joinRoom(code: string, name?: string) {
   const token = newToken();
   return locked(code, (room) => {
     if (room.status === "closed") throw new RoomError(410, "This room has ended. Create a new room.");
-    if (room.members.length >= 2) throw new RoomError(409, "This room already has two players.");
-    const member: Member = { id: "player-2", name: nameFor(name, "Player 2"), tokenHash: digest(token), lastSeen: Date.now() };
+    if (room.status !== "waiting" || room.members.length >= room.game.players.length) throw new RoomError(409, "This room is full or already playing.");
+    const slot = room.members.length;
+    const member: Member = { id: room.game.players[slot].id, name: nameFor(name, `Player ${slot + 1}`), tokenHash: digest(token), lastSeen: Date.now() };
     room.members.push(member);
-    room.game.players[1].name = member.name;
+    room.game.players[slot].name = member.name;
     room.game.message = `${room.game.players[0].name} and ${member.name} are connected. ${room.game.players[0].name} rolls first.`;
-    room.status = "playing"; room.version++;
+    room.status = room.members.length === room.game.players.length ? "playing" : "waiting";
+    room.game.message = room.status === "playing" ? `${room.members.map((m) => m.name).join(", ")} are connected. ${room.game.players[0].name} rolls first.` : `Waiting for players: ${room.members.length}/${room.game.players.length}.`;
+    room.version++;
     room.transition = { kind: "join", playerId: member.id, from: 0, roll: null, path: [], effect: null, targets: [] };
     return { session: { code, token, playerId: member.id }, room: roomSnapshot(room, member) };
   });
@@ -107,15 +111,16 @@ export function applyRoomAction(room: StoredRoom, member: Member, action: RoomAc
   } else if (action.type === "rematch") {
     if (room.status !== "finished") throw new RoomError(400, "Finish this round before requesting a rematch.");
     if (!room.rematch_votes.includes(member.id)) room.rematch_votes.push(member.id);
-    if (room.rematch_votes.length === 2) {
-      room.game = createGame();
+    if (room.rematch_votes.length === room.members.length) {
+      room.game = createGame(room.game.players.length);
       room.members.forEach((item, index) => { room.game.players[index].name = item.name; });
       room.game.message = `New round! ${room.game.players[0].name} rolls first.`;
       room.status = "playing"; room.rematch_votes = []; room.ready_at = new Date();
     }
   } else {
-    if (room.status !== "playing" || room.members.length !== 2) throw new RoomError(409, "Wait for your friend to join before playing.");
-    if (room.members.some((item) => Date.now() - item.lastSeen >= 25_000)) throw new RoomError(409, "Your friend is reconnecting. The round is saved; wait for them.");
+    if (room.status !== "playing" || room.members.length !== room.game.players.length) throw new RoomError(409, "Wait for your friend to join before playing.");
+    if (room.members.some((item) => !room.game.winnerIds?.includes(item.id) && Date.now() - item.lastSeen >= 25_000)) throw new RoomError(409, "Your friend is reconnecting. The round is saved; wait for them.");
+    if (room.game.winnerIds?.includes(member.id)) throw new RoomError(403, "You have finished. Watch the remaining players race.");
     if (action.type !== "detonate" && room.game.players[room.game.currentPlayerIndex].id !== member.id) throw new RoomError(403, "It is your friend's turn.");
     if (room.ready_at.getTime() > Date.now()) throw new RoomError(409, "Wait for the current animation to finish.");
     switch (action.type) {
@@ -136,7 +141,9 @@ export function applyRoomAction(room: StoredRoom, member: Member, action: RoomAc
       }
       case "plant": room.game = plantBomb(room.game, action.square!); break;
       case "detonate": {
-        const rival = room.game.players.find((item) => item.id !== member.id)!;
+        const bomb = room.game.bombs.find((b) => b.id === action.bombId);
+        const rival = room.game.players.find((item) => item.id !== member.id && item.position === bomb?.square && !room.game.winnerIds?.includes(item.id));
+        if (!rival) throw new RoomError(400, "No rival is standing in that bomb room.");
         event.playerId = rival.id; event.from = rival.position; event.effect = "boom";
         room.game = detonateBomb(room.game, action.bombId!, member.id); break;
       }

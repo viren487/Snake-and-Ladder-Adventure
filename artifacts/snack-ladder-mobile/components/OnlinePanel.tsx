@@ -7,6 +7,8 @@ export interface OnlinePanelProps {
   room: null | {
     code: string;
     status: "waiting" | "playing" | "finished" | "closed";
+    maxPlayers: number;
+    game?: { winnerIds?: string[] };
     members: { id: string; name: string; online: boolean }[];
     yourPlayerId: string;
     rematchVotes: string[];
@@ -14,7 +16,7 @@ export interface OnlinePanelProps {
   busy: boolean;
   connected: boolean;
   error: string | null;
-  onCreate: (name: string) => void;
+  onCreate: (name: string, maxPlayers: number) => void;
   onJoin: (code: string, name: string) => void;
   onLeave: () => void;
   onRematch: () => void;
@@ -27,6 +29,7 @@ export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, on
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [maxPlayers, setMaxPlayers] = useState(2);
   const [localErr, setLocalErr] = useState<string | null>(null);
   const shownErr = localErr ?? error;
 
@@ -81,7 +84,9 @@ export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, on
           <>
             <TextInput style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.muted }]} placeholder="Your name (optional)"
               placeholderTextColor={colors.mutedForeground} maxLength={24} value={name} editable={!busy} onChangeText={setName} testID="room-player-name" accessibilityLabel="Your name, optional" />
-            <Btn gold text={busy ? "Working..." : "Create Room"} disabled={busy} onPress={() => { setLocalErr(null); onCreate(name.trim().slice(0, 24)); }} testID="create-room" />
+            <Text style={[styles.copy,{color:colors.foreground}]}>Players in this match</Text>
+            <View style={styles.row}>{[2,3,4].map((n) => <Pressable key={n} accessibilityRole="button" accessibilityLabel={`${n} players`} accessibilityState={{selected:maxPlayers===n,disabled:busy}} disabled={busy} testID={`room-size-${n}`} onPress={() => setMaxPlayers(n)} style={[styles.btn,{flex:1,backgroundColor:maxPlayers===n?colors.primary:colors.secondary}]}><Text style={{color:maxPlayers===n?colors.primaryForeground:colors.foreground}}>{n} players</Text></Pressable>)}</View>
+            <Btn gold text={busy ? "Working..." : "Create Room"} disabled={busy} onPress={() => { setLocalErr(null); onCreate(name.trim().slice(0, 24), maxPlayers); }} testID="create-room" />
             <View style={styles.row}>
               <TextInput style={[styles.input, { flex: 1, letterSpacing: 3, textAlign: "center", color: colors.foreground, borderColor: colors.border, backgroundColor: colors.muted }]}
                 placeholder="CODE" placeholderTextColor={colors.mutedForeground} maxLength={6} autoCapitalize="characters" autoCorrect={false} value={code} editable={!busy}
@@ -117,8 +122,8 @@ export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, on
           <Text style={[styles.copy, { color: colors.mutedForeground }]}>{room.status === "closed" ? "ended" : m.online ? "online" : "offline"}</Text>
         </View>
       ))}
-      {room.status === "waiting" ? <Text style={[styles.copy, { color: colors.mutedForeground }]} accessibilityLiveRegion="polite">Waiting for a friend. Share the code; the game starts when they join.</Text> : null}
-      {room.status === "playing" && room.members.some((m) => !m.online) ? <Text style={[styles.copy, { color: colors.mutedForeground }]} accessibilityLiveRegion="polite">Your friend is offline. Opening the game again on their original device restores their seat.</Text> : null}
+      {room.status === "waiting" ? <Text style={[styles.copy, { color: colors.mutedForeground }]} accessibilityLiveRegion="polite">Waiting for players: {room.members.length}/{room.maxPlayers}. Share the code; the game starts when all selected players join.</Text> : null}
+      {room.status === "playing" && room.members.some((m) => !m.online && !room.game?.winnerIds?.includes(m.id)) ? <Text style={[styles.copy, { color: colors.mutedForeground }]} accessibilityLiveRegion="polite">An unfinished player is offline. Opening the game again on their original device restores their seat.</Text> : null}
       {!connected ? (
         <View style={styles.row} accessibilityLiveRegion="polite">
           <Text style={[styles.copy, { color: colors.primary, flex: 1 }]}>Reconnecting...</Text>
@@ -128,7 +133,7 @@ export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, on
       {shownErr ? <Text style={[styles.copy, { color: colors.destructive }]} accessibilityRole="alert">{shownErr}</Text> : null}
       {room.status === "finished" ? (
         <Btn gold testID="request-rematch" disabled={busy || !connected || voted} onPress={onRematch}
-          text={voted ? "Waiting for friend to agree" : room.rematchVotes.length ? "Friend wants a rematch: accept" : "Request rematch"} />
+          text={voted ? "Waiting for all players to agree" : room.rematchVotes.length ? "Accept rematch" : "Request rematch"} />
       ) : null}
       {room.status === "closed" ? <Text style={[styles.copy, { color: colors.foreground }]} testID="room-ended">This room has ended. Return to local play.</Text> : null}
       <Btn icon="logout" testID="leave-online-room" disabled={busy} onPress={onLeave} text={room.status === "closed" ? "Back to local play" : "Leave room"} />

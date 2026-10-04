@@ -15,6 +15,7 @@ export type RoomSnapshot = {
   status: "waiting" | "playing" | "finished" | "closed";
   version: number;
   game: GameState;
+  maxPlayers: number;
   members: { id: string; name: string; online: boolean }[];
   yourPlayerId: string;
   rematchVotes: string[];
