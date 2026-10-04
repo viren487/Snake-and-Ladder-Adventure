@@ -48,13 +48,28 @@ if (css.includes('fonts.googleapis.com') || css.includes('fonts.gstatic.com'))
   throw new Error('Font embedding incomplete; refusing an online-dependent mobile game.');
 
 html = html.replace(/<link\b[^>]*rel="stylesheet"[^>]*>/g, '');
+html = html.replace(/<link\b[^>]*href="(https:\/\/fonts\.(?:googleapis|gstatic)\.com\/[^"]+)"[^>]*>/g, '');
 html = html.replace('</head>', `<style>${css.replaceAll('</style', '<\\/style')}</style></head>`);
 for (const match of html.matchAll(/<script\b[^>]*src="\/assets\/([^"]+)"[^>]*><\/script>/g)) {
   const script = await readFile(path.join(output, 'assets', match[1]), 'utf8');
   html = html.replace(match[0], `<script type="module">${script.replaceAll('</script', '<\\/script')}</script>`);
 }
+const mimeTypes = { '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
+for (const match of html.matchAll(/\b(?:src|href)="(\/[^"]+)"/g)) {
+  const assetPath = path.join(output, decodeURIComponent(match[1].split(/[?#]/, 1)[0].slice(1)));
+  try {
+    const extension = path.extname(assetPath).toLowerCase();
+    const mime = mimeTypes[extension];
+    if (mime) {
+      const dataUrl = `data:${mime}${extension === '.svg' ? ';charset=utf-8' : ''};base64,${(await readFile(assetPath)).toString('base64')}`;
+      html = html.replace(match[0], match[0].replace(match[1], dataUrl));
+    }
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+}
 html = html.replace('<head>', '<head><!--SNACK_LADDER_MOBILE_BOOTSTRAP-->');
-if (/\b(?:src|href)="\/assets\//.test(html))
+if (/\b(?:src|href)="(?:\/assets\/|https:\/\/fonts\.(?:googleapis|gstatic)\.com\/)/.test(html))
   throw new Error('External build assets remain; refusing an incomplete mobile package.');
 await mkdir(path.join(mobile, 'lib/generated'), { recursive: true });
 await writeFile(path.join(mobile, 'lib/generated/web-game.js'),
