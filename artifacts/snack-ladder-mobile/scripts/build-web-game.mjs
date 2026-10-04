@@ -68,11 +68,12 @@ for (const match of html.matchAll(/\b(?:src|href)="(\/[^"]+)"/g)) {
     if (error.code !== 'ENOENT') throw error;
   }
 }
-html = html.replace('<head>', '<head><!--SNACK_LADDER_MOBILE_BOOTSTRAP-->');
-const missingAssets = [...html.matchAll(/<(?:script|link|img)\b[^>]*\b(?:src|href)="(?:\/assets\/|https:\/\/fonts\.(?:googleapis|gstatic)\.com\/)[^"]*"[^>]*>/gi)]
-  .map((match) => match[0]);
+const missingAssets = [...html.matchAll(/<(?:script|link|img)\b[^>]*>/gi)]
+  .map((match) => match[0])
+  .filter((tag) => /\b(?:src|href)="(?:\/assets\/|https:\/\/fonts\.(?:googleapis|gstatic)\.com\/)/i.test(tag));
 if (missingAssets.length)
   throw new Error(`External build assets remain; refusing an incomplete mobile package: ${missingAssets.join(', ')}`);
+html = html.replace('<head>', '<head><!--SNACK_LADDER_MOBILE_BOOTSTRAP-->');
 await mkdir(path.join(mobile, 'lib/generated'), { recursive: true });
 await writeFile(path.join(mobile, 'lib/generated/web-game.js'),
   `// Generated from the browser game. Run pnpm --filter @workspace/snack-ladder-mobile bundle:web.\nmodule.exports = ${JSON.stringify(html)};\n`);
