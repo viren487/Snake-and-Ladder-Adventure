@@ -2,6 +2,7 @@ export const GAME_STORAGE_KEYS = [
   'snack-ladder-adventure-v5', 'snack-ladder-adventure-v4',
   'snack-ladder-adventure-v3', 'snack-ladder-adventure-v2',
   'snack-ladder-adventure-v1', 'snake-ladder-online-seat-v1',
+  'snake-ladder-online-pending-v1',
 ] as const;
 export const BRIDGE_TYPE = 'snack-ladder-mobile-storage-v1';
 export type StorageChange = { type: typeof BRIDGE_TYPE; key: string; value: string | null };
@@ -46,7 +47,8 @@ export function createMobileHtml(template: string, snapshot: StorageSnapshot, ap
     (function() {
       var config = ${config};
       window.__SNACK_LADDER_MOBILE__ = {apiOrigin: config.apiOrigin};
-      var isOnlineKey = function(key) { return key === 'snake-ladder-online-seat-v1'; };
+      var isOnlineKey = function(key) { return key === 'snake-ladder-online-seat-v1' ||
+        key === 'snake-ladder-online-pending-v1'; };
       config.keys.forEach(function(key) {
         var value = config.snapshot[key];
         if (!config.apiOrigin && isOnlineKey(key)) value = null;

@@ -11,7 +11,8 @@
     "build": "node scripts/build.js",
     "serve": "node server/serve.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:engine": "node --experimental-strip-types --test scripts/game-engine.test.mjs"
+    "test:engine": "node --experimental-strip-types --test scripts/game-engine.test.mjs",
+    "test:storage-bridge": "node --experimental-strip-types --test scripts/storage-bridge.test.mjs"
   },
   "devDependencies": {
     "@workspace/game-core": "workspace:*",
