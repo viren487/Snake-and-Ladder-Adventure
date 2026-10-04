@@ -9,8 +9,8 @@ When changing supported player counts, audit snapshot acceptance, turn eligibili
 
 **How to apply:** Include at least one actual three-or-four-person admission/render flow in verification. Use predicates over all opponents rather than two-seat index arithmetic. Keep local save validation separate from online room validation.
 
-A timed-out admission POST may already have allocated a seat on the server. Repeating join is not equivalent to reconnecting, and can consume another seat.
+A timed-out browser admission may already have allocated a seat on the server. Repeating join is not equivalent to reconnecting, and can consume another seat.
 
-**Why:** A cold Expo preview admission exceeded the short request deadline: the host saw the allocated guest offline, while a subsequent join admitted that same browser as the next player. This is a transport/admission safety concern, distinct from valid multi-player rendering.
+**Why:** A cold client admission exceeded the short request deadline: the host saw the allocated guest offline, while a subsequent join admitted that same browser as the next player. This is a transport/admission safety concern, distinct from valid multi-player rendering.
 
 **How to apply:** Keep original-device seat recovery separate from new admissions. Do not assume a failed client request means no server mutation occurred; duplicate-safe admission needs its own proof rather than reusing the ordinary room code.
