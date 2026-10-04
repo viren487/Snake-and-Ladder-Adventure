@@ -22,9 +22,10 @@ export interface OnlinePanelProps {
   onRetry: () => void;
   resumeCode?: string;
   pendingAdmission?: boolean;
+  available?: boolean;
 }
 
-export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, onLeave, onRematch, onRetry, resumeCode, pendingAdmission }: OnlinePanelProps) {
+export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, onLeave, onRematch, onRetry, resumeCode, pendingAdmission, available = true }: OnlinePanelProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
@@ -68,11 +69,12 @@ export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, on
         </button>
         {open && (
           <>
+            {!available && <p className="op-warn" role="status">This APK has no online backend configured. Local Pass &amp; Play works offline.</p>}
             <input className="op-input" data-testid="room-player-name" aria-label="Your name (optional)" placeholder="Your name (optional)" maxLength={24}
               value={name} disabled={busy} onChange={(e) => setName(e.target.value)} />
             <div className="op-row" role="group" aria-label="Players in this match">{[2,3,4].map((n) => <button key={n} type="button" className={`op-btn ${maxPlayers===n?"gold":""}`} aria-pressed={maxPlayers===n} data-testid={`room-size-${n}`} disabled={busy} onClick={() => setMaxPlayers(n)}>{n} players</button>)}</div>
             <div className="op-row">
-              <button type="button" className="op-btn gold" data-testid="create-room" disabled={busy} onClick={() => { setLocalErr(null); onCreate(name.trim().slice(0, 24), maxPlayers); }}>
+              <button type="button" className="op-btn gold" data-testid="create-room" disabled={busy || !available} onClick={() => { setLocalErr(null); onCreate(name.trim().slice(0, 24), maxPlayers); }}>
                 {busy ? 'Working...' : 'Create Room'}
               </button>
             </div>
@@ -80,8 +82,8 @@ export function OnlinePanel({ room, busy, connected, error, onCreate, onJoin, on
               <input className="op-input op-code" data-testid="room-code-input" aria-label="Room code" placeholder="CODE" maxLength={6} autoCapitalize="characters" autoComplete="off"
                 value={code} disabled={busy}
                 onChange={(e) => { setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)); setLocalErr(null); }}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !busy) join(); }} />
-              <button type="button" className="op-btn" data-testid="join-room" disabled={busy || code.length !== 6} onClick={join}>Join Room</button>
+                onKeyDown={(e) => { if (e.key === 'Enter' && !busy && available) join(); }} />
+              <button type="button" className="op-btn" data-testid="join-room" disabled={busy || !available || code.length !== 6} onClick={join}>Join Room</button>
             </div>
             {shownErr && <p className="op-err" role="alert" data-testid="online-error">{shownErr}</p>}
             <p className="op-note">Play from separate devices on any internet connection.</p>

@@ -29,6 +29,7 @@ if (!basePath) {
 
 // Resolve the live preview at startup, never from a retired host or a saved URL.
 const expoHost = process.env.REPLIT_EXPO_DEV_DOMAIN;
+const mobileExport = process.env.SNACK_LADDER_MOBILE_EXPORT === '1';
 let mobilePreviewUrl = '';
 if (expoHost && process.env.NODE_ENV !== 'production') {
   const url = new URL(`https://${expoHost}`);
@@ -77,6 +78,12 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, 'dist/public'),
     emptyOutDir: true,
+    ...(mobileExport ? {
+      assetsInlineLimit: Infinity,
+      cssCodeSplit: false,
+      modulePreload: false,
+      rollupOptions: { output: { inlineDynamicImports: true } },
+    } : {}),
   },
   server: {
     port,

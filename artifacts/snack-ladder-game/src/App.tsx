@@ -36,6 +36,7 @@ import MatchCelebration from './MatchCelebration';
 import { DicePips } from './DicePips';
 import { OnlinePanel } from './OnlinePanel';
 import { MobilePreview } from './MobilePreview';
+import { onlineAvailable } from './mobile-runtime';
 import BambooReturnArt from './BambooReturnArt';
 import { useOnlineGame } from './use-online-game';
 import type { OnlineAction } from '@workspace/api-client-react';
@@ -778,7 +779,7 @@ function App() {
         </header>
         <MobilePreview />
         <OnlinePanel room={online.room} pendingAdmission={!!online.pendingAdmission} resumeCode={online.session?.code ?? (online.pendingAdmission ? online.pendingAdmission.code ?? "Creating room" : undefined)}
-          busy={online.busy || rolling || firing || online.loadingSession} connected={online.connected}
+          busy={online.busy || rolling || firing || online.loadingSession} connected={online.connected} available={onlineAvailable}
           error={online.error} onCreate={online.create} onJoin={online.join}
           onLeave={leaveOnline} onRematch={() => { void online.action({ type: 'rematch' }); }}
           onRetry={() => { void online.retry(); }} />
