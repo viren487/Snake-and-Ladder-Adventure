@@ -101,6 +101,11 @@
 .sound-toggle:focus-visible { outline:2px solid #f5c653; outline-offset:3px; }
 .top-chip { border: 1px solid #4c4c4d; color: #c5c8cf; border-radius: 99px; padding: 8px 12px; font: 500 10px 'DM Mono', monospace; letter-spacing: .7px; text-transform: uppercase; display:flex; align-items:center; gap:8px; }
 .top-chip i { width:7px;height:7px;background:#70ca8c;border-radius:50%;box-shadow:0 0 0 3px #70ca8c22; }
+.game-mode-chip { cursor:pointer; }
+.game-mode-chip select { appearance:none; border:0; padding:0; color:inherit; background:transparent; font:inherit; letter-spacing:inherit; text-transform:inherit; cursor:inherit; }
+.game-mode-chip select:focus-visible { outline:2px solid #f5c653; outline-offset:3px; border-radius:3px; }
+.game-mode-chip select:disabled { opacity:.65; }
+.game-mode-chip option { color:#fff4d2; background:#20283a; text-transform:none; }
 .game-columns { display: grid; grid-template-columns: minmax(0, 1fr) 316px; gap: clamp(20px, 3vw, 44px); align-items: center; max-width: 1200px; margin: auto; }
 .board-wrap { width: 100%; max-width: 780px; margin: auto; position: relative; padding: clamp(10px,1.8vw,22px); border-radius: 25px; background: linear-gradient(135deg,#ffe89b 0%,#bf7622 8%,#754116 11%,#e9a33a 15%,#70401c 18%,#e7a039 50%,#a85d18 84%,#f2c05c 94%,#6d421e); box-shadow: 0 28px 58px #070a14a6, inset 0 2px 2px #fff6c7, inset 0 -5px 9px #49270c; }
 .board-wrap::before { content:''; position:absolute; inset:6px; border:1px solid #ffe596; border-radius:19px; pointer-events:none; opacity:.75; }

@@ -558,7 +558,8 @@ function Board({
 }
 
 function App() {
-  const [initialSave] = useState(readGame);
+  const [playMode, setPlayMode] = useState<LocalPlayMode>(readLocalPlayMode);
+  const [initialSave] = useState(() => readGame(playMode));
   const [game, setGame] = useState<GameState>(initialSave.game);
   const [saveBlocked, setSaveBlocked] = useState(initialSave.blocked);
   const [storageError, setStorageError] = useState(initialSave.error);
@@ -577,12 +578,47 @@ function App() {
   const screenMounted = useRef(true);
   const online = useOnlineGame({ gameRef: latestGame, setGame, setDiceFace, setWalking,
     setShot, setRolling, setFiring, setSelectedTargets, sounds });
-  const remoteDisabled = online.loadingSession || online.busy || (!!online.session && !online.canAct);
+  const mrBotId = game.players[1]?.id;
+  const mrBotAction = playMode === 'bot' && !online.session && !online.loadingSession && !online.pendingAdmission && mrBotId
+    ? getMrBotAction(game, mrBotId)
+    : null;
+  const mrBotTurn = playMode === 'bot' && !online.session && !game.winnerId &&
+    game.players[game.currentPlayerIndex]?.id === mrBotId;
+  const mrBotIsActing = mrBotTurn || mrBotAction?.type === 'detonate';
+  const humanPlayerId = game.players[0]?.id;
+  const humanBombReady = playMode === 'bot' && !online.session && !!humanPlayerId && !!mrBotId &&
+    game.bombs.some((bomb) => bomb.ownerId === humanPlayerId && bomb.armed &&
+      game.players.some((player) => player.id === mrBotId && player.position === bomb.square && !game.winnerIds?.includes(player.id)));
+  const remoteDisabled = online.loadingSession || online.busy || !!online.pendingAdmission ||
+    (!!online.session && !online.canAct) || mrBotIsActing;
   useEffect(() => {
     if (game.pendingChoice?.kind === "mystery" && !rolling && !firing && window.matchMedia("(max-width: 820px)").matches) {
       scrollToGameSection('[data-testid="game-board"]');
     }
   }, [game.pendingChoice, rolling, firing]);
+  const switchLocalMode = (nextMode: LocalPlayMode) => {
+    if (nextMode === playMode || online.session || online.loadingSession || online.busy ||
+      online.pendingAdmission || rollInFlight.current || fireInFlight.current) return;
+    if (!saveBlocked) {
+      try {
+        localStorage.setItem(storageKeyForMode(playMode), JSON.stringify(latestGame.current));
+      } catch { /* The save effect below will report storage failures for the selected mode. */ }
+    }
+    const loaded = readGame(nextMode);
+    latestGame.current = loaded.game;
+    setPlayMode(nextMode);
+    setGame(loaded.game);
+    setSaveBlocked(loaded.blocked);
+    setStorageError(loaded.error);
+    setPowerError(null);
+    setDiceFace(loaded.game.lastRoll);
+    setWalking(null);
+    setSelectedTargets([]);
+    setShot(null);
+    try {
+      localStorage.setItem(LOCAL_MODE_STORAGE_KEY, nextMode);
+    } catch { /* Keep the chosen mode for this session even if storage is unavailable. */ }
+  };
   const leaveOnline = () => {
     if (window.confirm('Leave online play? If connected, this ends the room for all players. Your local saved round will stay intact.')) void online.leave();
   };
@@ -595,12 +631,12 @@ function App() {
   useEffect(() => {
     if (saveBlocked || online.session || online.loadingSession) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(game));
+      localStorage.setItem(storageKeyForMode(playMode), JSON.stringify(game));
       setStorageError(null);
     } catch {
       setStorageError('This round could not be saved in this browser. Keep this tab open to continue playing.');
     }
-  }, [game, saveBlocked, online.session, online.loadingSession]);
+  }, [game, playMode, saveBlocked, online.session, online.loadingSession]);
 
   const currentPlayer = game.players[game.currentPlayerIndex];
   const winner = game.players.find(player => player.id === game.winnerId);
@@ -686,14 +722,16 @@ function App() {
       : currentPlayer.bullets === 1 ? [square] : [...targets, square]);
   };
 
-  const fireAt = async () => {
+  const fireAtTargets = async (aimedTargets: ShootableSnakeSquare[] = selectedTargets) => {
     if (online.session) {
-      if (online.canAct && selectedTargets.length) await online.action({ type: 'shoot', targets: [...selectedTargets] });
+      if (online.canAct && aimedTargets.length) await online.action({ type: 'shoot', targets: [...aimedTargets] });
       return;
     }
-    if (fireInFlight.current || !waitingToFire || selectedTargets.length === 0) return;
-    const nextGame = shootSnakes(game, selectedTargets);
-    const targets = [...selectedTargets];
+    const before = latestGame.current;
+    const shooter = before.players[before.currentPlayerIndex];
+    if (fireInFlight.current || before.pendingFireForPlayerId !== shooter.id || aimedTargets.length === 0) return;
+    const targets = [...aimedTargets];
+    const nextGame = shootSnakes(before, targets);
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const mobile = window.matchMedia('(max-width: 820px)').matches;
     fireInFlight.current = true;
@@ -704,9 +742,10 @@ function App() {
         await new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 0 : 100));
         if (!screenMounted.current) return;
       }
-      setShot({ from: currentPlayer.position, targets });
+      setShot({ from: shooter.position, targets });
       await new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 150 : 950));
       if (!screenMounted.current) return;
+      latestGame.current = nextGame;
       setGame(nextGame);
       setSelectedTargets([]);
       setShot(null);
@@ -718,11 +757,14 @@ function App() {
       if (screenMounted.current) setFiring(false);
     }
   };
+  const fireAt = () => { void fireAtTargets(); };
 
   const passShot = () => {
     if (online.session) { if (online.canAct) void online.action({ type: 'pass' }); return; }
     if (fireInFlight.current) return;
-    setGame(passFire(game));
+    const nextGame = passFire(latestGame.current);
+    latestGame.current = nextGame;
+    setGame(nextGame);
     setSelectedTargets([]);
   };
 
@@ -800,8 +842,9 @@ function App() {
 
   const startNewGame = () => {
     if (rollInFlight.current || fireInFlight.current) return;
-    if (!window.confirm('Start a new game? This replaces the saved round in this browser.')) return;
-    const fresh = createGame();
+    const modeLabel = playMode === 'bot' ? 'against Mr.Bot' : 'Pass & Play';
+    if (!window.confirm(`Start a new ${modeLabel} game? This replaces only this mode's saved round; the other mode's save stays intact.`)) return;
+    const fresh = createLocalGame(playMode);
     setGame(fresh);
     latestGame.current = fresh;
     setSaveBlocked(false);
@@ -810,14 +853,84 @@ function App() {
     setDiceFace(null);
     setSelectedTargets([]);
     setShot(null);
+    setWalking(null);
     try {
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(QUEST_STORAGE_KEY);
-      localStorage.removeItem(PREVIOUS_STORAGE_KEY);
-      localStorage.removeItem(LEGACY_STORAGE_KEY);
-      localStorage.removeItem(OLDEST_STORAGE_KEY);
+      const keys = playMode === 'bot'
+        ? [BOT_STORAGE_KEY]
+        : [STORAGE_KEY, QUEST_STORAGE_KEY, PREVIOUS_STORAGE_KEY, LEGACY_STORAGE_KEY, OLDEST_STORAGE_KEY];
+      keys.forEach((key) => localStorage.removeItem(key));
     } catch { /* Ignore unavailable storage. */ }
   };
+
+  const performMrBotAction = (action: MrBotAction, botId: string) => {
+    switch (action.type) {
+      case 'roll':
+        void rollDice();
+        break;
+      case 'choose':
+        applyPower((state) => choosePower(state, action.power));
+        break;
+      case 'defend':
+        void applyAnimatedPower((state) => resolveDefense(state, action.use));
+        break;
+      case 'shoot':
+        setSelectedTargets(action.targets);
+        void fireAtTargets(action.targets);
+        break;
+      case 'pass-shot':
+        passShot();
+        break;
+      case 'extra-dice':
+        applyPower(useExtraDice);
+        break;
+      case 'web':
+        void applyAnimatedPower(
+          (state) => useWebShooter(state, action.targetPlayerId),
+          action.targetPlayerId,
+        );
+        break;
+      case 'knife':
+        void applyAnimatedPower(
+          (state) => useKnife(state, action.targetPlayerId),
+          action.targetPlayerId,
+        );
+        break;
+      case 'plant':
+        applyPower((state) => plantBomb(state, action.square));
+        break;
+      case 'detonate':
+        void applyAnimatedPower(
+          (state) => ({
+            state: detonateBomb(state, action.bombId, botId),
+            path: [],
+            effect: 'boom',
+          }),
+          action.targetPlayerId,
+        );
+        break;
+    }
+  };
+
+  useEffect(() => {
+    if (playMode !== 'bot' || online.session || online.loadingSession || online.pendingAdmission || online.busy ||
+      rolling || firing || rollInFlight.current || fireInFlight.current) return;
+    const botId = game.players[1]?.id;
+    if (!botId) return;
+    const action = getMrBotAction(latestGame.current, botId);
+    if (!action) return;
+
+    const humanBombCanBeUsed = latestGame.current.bombs.some((bomb) =>
+      bomb.ownerId === latestGame.current.players[0]?.id && bomb.armed &&
+      latestGame.current.players[1]?.position === bomb.square,
+    );
+    const delay = humanBombCanBeUsed ? 2400 : 520;
+    const timer = window.setTimeout(() => {
+      if (playMode !== 'bot' || online.session) return;
+      const currentAction = getMrBotAction(latestGame.current, botId);
+      if (currentAction) performMrBotAction(currentAction, botId);
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [game, playMode, online.session, online.loadingSession, online.pendingAdmission, online.busy, rolling, firing]);
 
   return (
     <main className="game-shell" style={SPECIAL_MOVE_STYLE}>
@@ -841,7 +954,24 @@ function App() {
             >
               {sounds.muted ? <VolumeX size={19} /> : <Volume2 size={19} />}
             </button>
-            <div className="top-chip" data-testid="game-mode"><i /> {online.session ? 'ONLINE · TWO DEVICES' : 'LOCAL · PASS & PLAY'}</div>
+            {online.session ? (
+              <div className="top-chip" data-testid="game-mode"><i /> ONLINE · TWO DEVICES</div>
+            ) : (
+              <label className="top-chip game-mode-chip" data-testid="game-mode">
+                <i />
+                <span>LOCAL ·</span>
+                <select
+                  aria-label={playMode === 'bot' ? 'Local game mode, playing Mr.Bot' : 'Local game mode, Pass and Play'}
+                  value={playMode}
+                  disabled={online.loadingSession || online.busy || !!online.pendingAdmission || rolling || firing}
+                  onChange={(event) => switchLocalMode(event.target.value as LocalPlayMode)}
+                >
+                  <option value="pass">Pass &amp; Play</option>
+                  <option value="bot">vs. Mr.Bot</option>
+                </select>
+                <ChevronDown size={12} aria-hidden="true" />
+              </label>
+            )}
           </div>
         </header>
         <OnlinePanel room={online.room} pendingAdmission={!!online.pendingAdmission} resumeCode={online.session?.code ?? (online.pendingAdmission ? online.pendingAdmission.code ?? "Creating room" : undefined)}
@@ -879,7 +1009,11 @@ function App() {
               ) : (
                 <>
                   <div className="turn-name" data-testid="current-player">{currentPlayer.name}'s turn</div>
-                  <div className="turn-sub">{game.pendingChoice ? 'Resolve your landing choice before rolling.' : waitingToFire ? 'Aim carefully, or pass this shot.' : 'Use a saved power, or roll the dice.'}</div>
+                  <div className="turn-sub">{mrBotIsActing
+                    ? mrBotTurn ? 'Mr.Bot is thinking through a move.' : 'Mr.Bot is detonating a bomb.'
+                    : game.pendingChoice ? 'Resolve your landing choice before rolling.'
+                      : waitingToFire ? 'Aim carefully, or pass this shot.'
+                        : 'Use a saved power, or roll the dice.'}</div>
                 </>
               )}
               <div className="player-stack">
@@ -913,8 +1047,10 @@ function App() {
 
             <PowerControls
               position={currentPlayer.position}
-              detonationDisabled={rolling || firing || online.loadingSession || online.busy || !!winner || !!game.pendingChoice || !!waitingToFire || (!!online.session && !online.canDetonate)}
-              detonationBombs={game.bombs.filter((bomb) => bomb.armed && game.players.some((player) => player.id !== bomb.ownerId && player.position === bomb.square && !game.winnerIds?.includes(player.id)) && (!online.session || bomb.ownerId === online.room?.yourPlayerId)).map((bomb) => ({...bomb, ownerName: game.players.find((player) => player.id === bomb.ownerId)!.name}))}
+              detonationDisabled={rolling || firing || online.loadingSession || online.busy || !!online.pendingAdmission ||
+                !!winner || !!game.pendingChoice || !!waitingToFire || (!!online.session && !online.canDetonate) ||
+                (mrBotTurn && !humanBombReady) || mrBotAction?.type === 'detonate'}
+              detonationBombs={game.bombs.filter((bomb) => bomb.armed && game.players.some((player) => player.id !== bomb.ownerId && player.position === bomb.square && !game.winnerIds?.includes(player.id)) && (!online.session || bomb.ownerId === online.room?.yourPlayerId) && (playMode !== 'bot' || bomb.ownerId === humanPlayerId)).map((bomb) => ({...bomb, ownerName: game.players.find((player) => player.id === bomb.ownerId)!.name}))}
               playerName={currentPlayer.name}
               powers={currentPlayer.powers} pending={game.pendingChoice}
               extraRollCredits={currentPlayer.extraRollCredits}
@@ -1023,7 +1159,7 @@ function App() {
                 <div className="rule-line"><Crown size={13} color="#f0c65a" /> Return to 100 with your torch and key to unlock the crown. An exact roll is required.</div>
               </div>
             </details>
-            {!online.session && <button className="primary-action" onClick={startNewGame} disabled={rolling || firing || remoteDisabled} data-testid="button-new-game">
+            {!online.session && <button className="primary-action" onClick={startNewGame} disabled={rolling || firing || online.loadingSession || online.busy} data-testid="button-new-game">
               <RotateCcw size={15} /> New game
             </button>}
             <div className="panel-footer"><span>TURN {String(game.turnNumber).padStart(2, '0')}</span><span>YOUR TABLE, YOUR QUEST</span></div>
