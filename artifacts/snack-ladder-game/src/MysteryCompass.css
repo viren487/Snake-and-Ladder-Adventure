@@ -1,14 +1,14 @@
 .mc-halo{position:absolute;width:10%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;border:3px solid #f5c653;box-shadow:0 0 0 4px #f5c65344;z-index:29;pointer-events:none;animation:mc-pulse 1.6s ease-in-out infinite}
 .mc-card{position:absolute;z-index:30;container-type:inline-size;box-sizing:border-box;padding:2.2cqw;background:#151c2bf2;border:2px solid #f5c653;border-radius:14px;color:#fff4d2;box-shadow:0 14px 34px #000a;font-family:'DM Mono',monospace;overflow:hidden;display:flex;flex-direction:column;gap:6px}
 .mc-wrap{container-type:inline-size;width:100%;height:100%;display:flex;flex-direction:column;gap:6px;min-height:0}
-.mc-rose{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr 1fr;gap:4px}
+.mc-rose{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:auto 1fr 1fr 1fr;gap:4px}
+.mc-heading{grid-column:1/-1;text-align:center;padding:2px 0;color:#f5c653;font:700 12px 'DM Mono',monospace;letter-spacing:.25px}
 .mc-btn{min-height:44px;min-width:0;border:1px solid #5c4b39;background:#24364f;color:#f7f2e5;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:600 11px 'DM Mono',monospace;cursor:pointer;position:relative;padding:2px}
 .mc-btn:focus-visible,.mc-get:focus-visible{outline:2px solid #fff4d2;outline-offset:2px}
 .mc-btn:disabled{cursor:default;opacity:.7}
 .mc-btn[aria-pressed=true]{background:#f3bd42;color:#1b1d20;border-color:#fff4d2;box-shadow:0 0 0 2px #f3bd4255;font-weight:800}
-.mc-n{grid-area:1/2}.mc-e{grid-area:2/3}.mc-s{grid-area:3/2}.mc-w{grid-area:2/1}
-.mc-center{grid-area:2/2;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:50%;border:2px dashed #f5c653;font:700 18px 'Fredoka',sans-serif;color:#f5c653;line-height:1}
-.mc-center small{font:500 8px 'DM Mono',monospace;color:#a7b3c4;text-transform:uppercase}
+.mc-n{grid-area:2/2}.mc-e{grid-area:3/3}.mc-s{grid-area:4/2}.mc-w{grid-area:3/1}
+.mc-center-choice{grid-area:3/2;border-radius:50%;border:2px dashed #f5c653;background:#4c3925;color:#ffe59b}
 .mc-info{font-size:11px;line-height:1.3;text-align:center;min-height:2.6em;color:#d9dde5}
 .mc-info b{color:#f5c653}
 .mc-get{min-height:44px;border:0;border-radius:10px;background:#f3bd42;color:#1b1d20;font:800 13px 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.8px;cursor:pointer}

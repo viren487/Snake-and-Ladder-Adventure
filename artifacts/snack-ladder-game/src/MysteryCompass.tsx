@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Bomb, Dices, ShieldPlus, Wrench } from 'lucide-react';
+import { Bomb, Crosshair, ShieldPlus, Sword, Wrench } from 'lucide-react';
+import type { MysteryPowerType } from './game-engine';
 import './MysteryCompass.css';
 
-type Power = 'bomb' | 'antiVenom' | 'defuser' | 'extraDice';
+type Power = MysteryPowerType;
 export interface MysteryCompassProps {
   square: number;
   canChoose: boolean;
@@ -14,7 +15,8 @@ const DIRS: { power: Power; cls: string; dir: string; label: string; blurb: stri
   { power: 'bomb', cls: 'mc-n', dir: 'N', label: 'Bomb', blurb: 'Plant in your current room', Icon: Bomb },
   { power: 'antiVenom', cls: 'mc-e', dir: 'E', label: 'Anti-Venom', blurb: 'Blocks one snake bite', Icon: ShieldPlus },
   { power: 'defuser', cls: 'mc-s', dir: 'S', label: 'Defuser Kit', blurb: 'Disarms one bomb', Icon: Wrench },
-  { power: 'extraDice', cls: 'mc-w', dir: 'W', label: 'Extra Dice', blurb: 'Bank one extra roll', Icon: Dices },
+  { power: 'webShooter', cls: 'mc-w', dir: 'W', label: 'Web Shooter', blurb: 'Pull a nearby rival back three rooms', Icon: Crosshair },
+  { power: 'knife', cls: 'mc-center-choice', dir: 'C', label: 'Knife', blurb: 'Strike a rival sharing your room', Icon: Sword },
 ];
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -40,6 +42,7 @@ export default function MysteryCompass({ square, canChoose, busy, onChoose }: My
         style={{ left: `${left}%`, top: `clamp(4%, ${top}%, calc(100% - max(${H}%, 260px) - 4%))`, width: `${W}%`, height: `max(${H}%, 260px)` }}>
         <div className="mc-wrap">
           <div className="mc-rose">
+            <div className="mc-heading">Mystery room {square} · Choose one</div>
             {DIRS.map(({ power, cls, dir, label, Icon }) => (
               <button key={power} type="button" className={`mc-btn ${cls}`} data-testid={`choose-power-${power}`}
                 aria-pressed={sel === power} disabled={readOnly || busy} aria-label={`${dir}: ${label}`}
@@ -48,7 +51,6 @@ export default function MysteryCompass({ square, canChoose, busy, onChoose }: My
                 <span>{label}</span>
               </button>
             ))}
-            <div className="mc-center" aria-label={`Room ${square}`}><small>Room</small>{square}</div>
           </div>
           <div className="mc-info" aria-live="polite">
             {readOnly ? 'Spectating: the player is choosing a power.' : active ? <><b>{active.label}</b> — {active.blurb}</> : 'Select a power to see what it does.'}

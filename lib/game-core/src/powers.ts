@@ -1,15 +1,19 @@
 import type { GameState, TurnResolution } from "./game-engine";
 
 export const MYSTERY_BOX_SQUARES = [14, 35, 51, 76] as const;
-export const POWER_TYPES = ["bomb", "antiVenom", "defuser", "extraDice"] as const;
+export const MYSTERY_POWER_TYPES = ["bomb", "antiVenom", "defuser", "webShooter", "knife"] as const;
+export const POWER_TYPES = [...MYSTERY_POWER_TYPES, "extraDice"] as const;
 export type PowerType = (typeof POWER_TYPES)[number];
+export type MysteryPowerType = (typeof MYSTERY_POWER_TYPES)[number];
 export type PowerInventory = Record<PowerType, number>;
 export type PlantedBomb = { id: string; square: number; ownerId: string; armed: boolean };
 export type PowerChoice =
   | { kind: "mystery"; playerId: string; square: number }
   | { kind: "snake"; playerId: string; square: number; to: number }
   | { kind: "bomb"; playerId: string; square: number; bombId: string | null; afterMystery?: boolean };
-export const emptyPowers = (): PowerInventory => ({ bomb: 0, antiVenom: 0, defuser: 0, extraDice: 0 });
+export const emptyPowers = (): PowerInventory => ({
+  bomb: 0, antiVenom: 0, defuser: 0, webShooter: 0, knife: 0, extraDice: 0,
+});
 const emptyStuns = () => ({ 98: 0, 99: 0 });
 
 export function cloneGame(state: GameState): GameState {
@@ -55,18 +59,25 @@ function requireAction(state: GameState) {
   }
 }
 
-export function choosePower(state: GameState, power: PowerType): GameState {
+export function choosePower(state: GameState, power: MysteryPowerType): GameState {
   const choice = state.pendingChoice;
   const player = state.players[state.currentPlayerIndex];
   if (!choice || choice.kind !== "mystery" || choice.playerId !== player.id ||
-    player.position !== choice.square || !(POWER_TYPES as readonly string[]).includes(power)) {
+    player.position !== choice.square || !(MYSTERY_POWER_TYPES as readonly string[]).includes(power)) {
     throw new Error("Choose one power while stopped at a mystery box.");
   }
   const next = cloneGame(state);
   const recipient = next.players[next.currentPlayerIndex];
   recipient.powers[power] += 1;
   next.pendingChoice = null;
-  next.message = `${recipient.name} chose ${power === "antiVenom" ? "Anti-Venom" : power === "extraDice" ? "Extra Dice" : power === "defuser" ? "a Bomb Defuser Kit" : "a Bomb"} from room ${choice.square}.`;
+  const names: Record<MysteryPowerType, string> = {
+    bomb: "a Bomb",
+    antiVenom: "Anti-Venom",
+    defuser: "a Bomb Defuser Kit",
+    webShooter: "a Web Shooter",
+    knife: "a Knife",
+  };
+  next.message = `${recipient.name} chose ${names[power]} from room ${choice.square}.`;
   // A newly chosen kit can protect the player before their turn is handed over.
   const bomb = next.bombs.find((item) => item.ownerId !== recipient.id && item.square === recipient.position);
   if (power === "defuser" && bomb) {
@@ -85,6 +96,61 @@ export function useExtraDice(state: GameState): GameState {
   player.extraRollCredits += 1;
   next.message = `${player.name} used Extra Dice. One additional roll is saved after the next roll; it is separate from the valid-six bonus.`;
   return next;
+}
+
+function requireWeaponTarget(state: GameState, targetPlayerId: string) {
+  requireAction(state);
+  const attacker = state.players[state.currentPlayerIndex];
+  if (!attacker || (state.winnerIds ?? []).includes(attacker.id)) {
+    throw new Error("Only an active player can use a weapon.");
+  }
+  const target = state.players.find((player) => player.id === targetPlayerId);
+  if (!target || target.id === attacker.id || (state.winnerIds ?? []).includes(target.id)) {
+    throw new Error("Choose an active rival.");
+  }
+  return { attacker, target };
+}
+
+/** Pull a rival who is one to three rooms ahead back by up to three rooms. */
+export function useWebShooter(state: GameState, targetPlayerId: string): TurnResolution {
+  const { attacker, target } = requireWeaponTarget(state, targetPlayerId);
+  if ((attacker.powers.webShooter ?? 0) < 1) throw new Error("No Web Shooter power is available.");
+  if (target.position < 1 || target.position <= attacker.position || target.position - attacker.position > 3) {
+    throw new Error("The rival must be one to three rooms ahead.");
+  }
+
+  const next = cloneGame(state);
+  const shooter = next.players[next.currentPlayerIndex];
+  const victim = next.players.find((player) => player.id === targetPlayerId)!;
+  const from = victim.position;
+  const destination = Math.max(0, from - 3);
+  const path = Array.from({ length: from - destination }, (_, index) => from - index - 1);
+  shooter.powers.webShooter = (shooter.powers.webShooter ?? 0) - 1;
+  victim.position = destination;
+  next.message = `${shooter.name} fired a Web Shooter at ${victim.name}, pulling them back three rooms from ${from} to ${destination || "Home"}.`;
+  return { state: next, path, effect: "web", sourcePosition: attacker.position };
+}
+
+/** Strike a rival in the same numbered room. A rival's Knife blocks the hit. */
+export function useKnife(state: GameState, targetPlayerId: string): TurnResolution {
+  const { attacker, target } = requireWeaponTarget(state, targetPlayerId);
+  if ((attacker.powers.knife ?? 0) < 1) throw new Error("No Knife power is available.");
+  if (attacker.position < 1 || target.position !== attacker.position) {
+    throw new Error("Use a Knife only against a rival in the same numbered room.");
+  }
+
+  const next = cloneGame(state);
+  const striker = next.players[next.currentPlayerIndex];
+  const victim = next.players.find((player) => player.id === targetPlayerId)!;
+  if ((victim.powers.knife ?? 0) > 0) {
+    next.message = `${striker.name} and ${victim.name} clashed Knives. No effect; neither charge was spent.`;
+    return { state: next, path: [], effect: null, sourcePosition: attacker.position };
+  }
+
+  striker.powers.knife = (striker.powers.knife ?? 0) - 1;
+  victim.position = 0;
+  next.message = `${striker.name} struck ${victim.name} with a Knife, sending them Home. Their torch, key and inventory remain.`;
+  return { state: next, path: [0], effect: "knife", sourcePosition: attacker.position };
 }
 
 export function plantBomb(state: GameState, square: number): GameState {
@@ -172,7 +238,7 @@ export function isValidPowerState(value: unknown): boolean {
   const count = (item: unknown) => Number.isSafeInteger(item) && (item as number) >= 0;
   if (!state.players.every((player) =>
     (player.powers === undefined || (player.powers !== null && typeof player.powers === "object" &&
-      POWER_TYPES.every((power) => count(player.powers[power])))) &&
+      POWER_TYPES.every((power) => player.powers[power] === undefined || count(player.powers[power])))) &&
     (player.extraRollCredits === undefined || count(player.extraRollCredits)))) return false;
   if (state.bonusRollPending !== undefined && typeof state.bonusRollPending !== "boolean") return false;
   if (state.bombs !== undefined) {
@@ -196,7 +262,7 @@ export function isValidPowerState(value: unknown): boolean {
     choice.square !== state.players[state.currentPlayerIndex]?.position) return false;
   if (choice.kind === "mystery") return (MYSTERY_BOX_SQUARES as readonly number[]).includes(choice.square);
   if (choice.kind === "snake") return [
-    [99, 61], [98, 77], [72, 52], [58, 43], [36, 25],
+    [99, 61], [98, 77], [72, 52], [68, 11], [58, 43], [36, 25],
   ].some(([from, to]) => choice.square === from && choice.to === to);
   return choice.kind === "bomb" &&
     (choice.afterMystery === undefined || typeof choice.afterMystery === "boolean") &&

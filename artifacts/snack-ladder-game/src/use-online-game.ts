@@ -5,7 +5,7 @@ import type { GameState, ShootableSnakeSquare } from "./game-engine";
 import type { RoomSnapshot } from "@workspace/game-core/online";
 import type { useGameSounds } from "./use-game-sounds";
 
-type Walking = { playerId: string; position: number; effect: "step" | "ladder" | "snake" | "boom" | "torch" | "return" | "bamboo" };
+type Walking = { playerId: string; position: number; effect: "step" | "ladder" | "snake" | "boom" | "torch" | "return" | "bamboo" | "web" | "knife"; sourcePosition?: number };
 type Shot = { from: number; targets: ShootableSnakeSquare[] };
 type Setter<T> = Dispatch<SetStateAction<T>>;
 type Bindings = {
@@ -75,7 +75,13 @@ export function useOnlineGame(bindings: Bindings) {
           if (!await wait(reduced ? 150 : 950)) return;
         }
         const moved = snapshot.game.players.find((player) => player.id === event.playerId)!;
-        if (event.effect === "torch" || event.effect === "return") {
+        if (event.effect === "web" || event.effect === "knife") {
+          const sourcePosition = event.sourcePosition
+            ?? (event.sourcePlayerId ? snapshot.game.players.find((player) => player.id === event.sourcePlayerId)?.position : undefined)
+            ?? event.from;
+          b.setWalking({ playerId: moved.id, position: moved.position, effect: event.effect, sourcePosition });
+          if (!await wait(reduced ? 45 : event.effect === "web" ? 1500 : 1300)) return;
+        } else if (event.effect === "torch" || event.effect === "return") {
           b.setWalking({ playerId: moved.id, position: 100, effect: event.effect });
           if (!await wait(reduced ? 150 : 1100)) return;
           b.setWalking({ playerId: moved.id, position: 100, effect: "bamboo" });

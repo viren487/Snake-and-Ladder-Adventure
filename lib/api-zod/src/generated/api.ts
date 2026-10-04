@@ -34,6 +34,9 @@ export const CreateGameRoomBody = zod.object({
 export const createGameRoomResponseRoomMaxPlayersMin = 2;
 export const createGameRoomResponseRoomMaxPlayersMax = 4;
 
+export const createGameRoomResponseRoomEventSourcePositionMin = 0;
+export const createGameRoomResponseRoomEventSourcePositionMax = 100;
+
 export const createGameRoomResponseRoomBusyForMsMin = 0;
 
 
@@ -58,12 +61,14 @@ export const CreateGameRoomResponse = zod.object({
   "maxPlayers": zod.number().int().min(createGameRoomResponseRoomMaxPlayersMin).max(createGameRoomResponseRoomMaxPlayersMax),
   "rematchVotes": zod.array(zod.string()),
   "event": zod.object({
-  "kind": zod.enum(['roll', 'choose', 'defense', 'plant', 'detonate', 'extraDice', 'shoot', 'pass', 'rematch', 'join', 'leave']),
+  "kind": zod.enum(['roll', 'choose', 'defense', 'plant', 'detonate', 'extraDice', 'shoot', 'web', 'knife', 'pass', 'rematch', 'join', 'leave']),
   "playerId": zod.string(),
   "from": zod.number().int(),
+  "sourcePlayerId": zod.string().optional(),
+  "sourcePosition": zod.number().int().min(createGameRoomResponseRoomEventSourcePositionMin).max(createGameRoomResponseRoomEventSourcePositionMax).optional(),
   "roll": zod.number().int().nullable(),
   "path": zod.array(zod.number().int()),
-  "effect": zod.union([zod.literal('snake'),zod.literal('ladder'),zod.literal('boom'),zod.literal('torch'),zod.literal('return'),zod.literal(null)]).nullable(),
+  "effect": zod.union([zod.literal('snake'),zod.literal('ladder'),zod.literal('boom'),zod.literal('torch'),zod.literal('return'),zod.literal('web'),zod.literal('knife'),zod.literal(null)]).nullable(),
   "targets": zod.array(zod.number().int())
 }).nullable(),
   "busyForMs": zod.number().int().min(createGameRoomResponseRoomBusyForMsMin)
@@ -91,6 +96,9 @@ export const JoinGameRoomBody = zod.object({
 export const joinGameRoomResponseRoomMaxPlayersMin = 2;
 export const joinGameRoomResponseRoomMaxPlayersMax = 4;
 
+export const joinGameRoomResponseRoomEventSourcePositionMin = 0;
+export const joinGameRoomResponseRoomEventSourcePositionMax = 100;
+
 export const joinGameRoomResponseRoomBusyForMsMin = 0;
 
 
@@ -115,12 +123,14 @@ export const JoinGameRoomResponse = zod.object({
   "maxPlayers": zod.number().int().min(joinGameRoomResponseRoomMaxPlayersMin).max(joinGameRoomResponseRoomMaxPlayersMax),
   "rematchVotes": zod.array(zod.string()),
   "event": zod.object({
-  "kind": zod.enum(['roll', 'choose', 'defense', 'plant', 'detonate', 'extraDice', 'shoot', 'pass', 'rematch', 'join', 'leave']),
+  "kind": zod.enum(['roll', 'choose', 'defense', 'plant', 'detonate', 'extraDice', 'shoot', 'web', 'knife', 'pass', 'rematch', 'join', 'leave']),
   "playerId": zod.string(),
   "from": zod.number().int(),
+  "sourcePlayerId": zod.string().optional(),
+  "sourcePosition": zod.number().int().min(joinGameRoomResponseRoomEventSourcePositionMin).max(joinGameRoomResponseRoomEventSourcePositionMax).optional(),
   "roll": zod.number().int().nullable(),
   "path": zod.array(zod.number().int()),
-  "effect": zod.union([zod.literal('snake'),zod.literal('ladder'),zod.literal('boom'),zod.literal('torch'),zod.literal('return'),zod.literal(null)]).nullable(),
+  "effect": zod.union([zod.literal('snake'),zod.literal('ladder'),zod.literal('boom'),zod.literal('torch'),zod.literal('return'),zod.literal('web'),zod.literal('knife'),zod.literal(null)]).nullable(),
   "targets": zod.array(zod.number().int())
 }).nullable(),
   "busyForMs": zod.number().int().min(joinGameRoomResponseRoomBusyForMsMin)
@@ -134,6 +144,9 @@ export const GetGameRoomParams = zod.object({
 
 export const getGameRoomResponseMaxPlayersMin = 2;
 export const getGameRoomResponseMaxPlayersMax = 4;
+
+export const getGameRoomResponseEventSourcePositionMin = 0;
+export const getGameRoomResponseEventSourcePositionMax = 100;
 
 export const getGameRoomResponseBusyForMsMin = 0;
 
@@ -153,12 +166,14 @@ export const GetGameRoomResponse = zod.object({
   "maxPlayers": zod.number().int().min(getGameRoomResponseMaxPlayersMin).max(getGameRoomResponseMaxPlayersMax),
   "rematchVotes": zod.array(zod.string()),
   "event": zod.object({
-  "kind": zod.enum(['roll', 'choose', 'defense', 'plant', 'detonate', 'extraDice', 'shoot', 'pass', 'rematch', 'join', 'leave']),
+  "kind": zod.enum(['roll', 'choose', 'defense', 'plant', 'detonate', 'extraDice', 'shoot', 'web', 'knife', 'pass', 'rematch', 'join', 'leave']),
   "playerId": zod.string(),
   "from": zod.number().int(),
+  "sourcePlayerId": zod.string().optional(),
+  "sourcePosition": zod.number().int().min(getGameRoomResponseEventSourcePositionMin).max(getGameRoomResponseEventSourcePositionMax).optional(),
   "roll": zod.number().int().nullable(),
   "path": zod.array(zod.number().int()),
-  "effect": zod.union([zod.literal('snake'),zod.literal('ladder'),zod.literal('boom'),zod.literal('torch'),zod.literal('return'),zod.literal(null)]).nullable(),
+  "effect": zod.union([zod.literal('snake'),zod.literal('ladder'),zod.literal('boom'),zod.literal('torch'),zod.literal('return'),zod.literal('web'),zod.literal('knife'),zod.literal(null)]).nullable(),
   "targets": zod.array(zod.number().int())
 }).nullable(),
   "busyForMs": zod.number().int().min(getGameRoomResponseBusyForMsMin)
@@ -178,23 +193,29 @@ export const actInGameRoomBodySquareMax = 100;
 
 export const actInGameRoomBodyBombIdMax = 100;
 
+export const actInGameRoomBodyTargetPlayerIdMax = 100;
+
 export const actInGameRoomBodyTargetsMax = 2;
 
 
 
 export const ActInGameRoomBody = zod.object({
-  "type": zod.enum(['roll', 'choose', 'defense', 'plant', 'detonate', 'extraDice', 'shoot', 'pass', 'rematch', 'leave']),
+  "type": zod.enum(['roll', 'choose', 'defense', 'plant', 'detonate', 'extraDice', 'shoot', 'web', 'knife', 'pass', 'rematch', 'leave']),
   "actionId": zod.string().min(actInGameRoomBodyActionIdMin).max(actInGameRoomBodyActionIdMax),
   "expectedVersion": zod.number().int().min(actInGameRoomBodyExpectedVersionMin),
-  "power": zod.enum(['bomb', 'antiVenom', 'defuser', 'extraDice']).optional(),
+  "power": zod.enum(['bomb', 'antiVenom', 'defuser', 'webShooter', 'knife']).optional(),
   "square": zod.number().int().min(1).max(actInGameRoomBodySquareMax).optional(),
   "bombId": zod.string().max(actInGameRoomBodyBombIdMax).optional(),
+  "targetPlayerId": zod.string().min(1).max(actInGameRoomBodyTargetPlayerIdMax).optional(),
   "use": zod.boolean().optional(),
   "targets": zod.array(zod.union([zod.literal(98),zod.literal(99)])).min(1).max(actInGameRoomBodyTargetsMax).optional()
 })
 
 export const actInGameRoomResponseMaxPlayersMin = 2;
 export const actInGameRoomResponseMaxPlayersMax = 4;
+
+export const actInGameRoomResponseEventSourcePositionMin = 0;
+export const actInGameRoomResponseEventSourcePositionMax = 100;
 
 export const actInGameRoomResponseBusyForMsMin = 0;
 
@@ -214,12 +235,14 @@ export const ActInGameRoomResponse = zod.object({
   "maxPlayers": zod.number().int().min(actInGameRoomResponseMaxPlayersMin).max(actInGameRoomResponseMaxPlayersMax),
   "rematchVotes": zod.array(zod.string()),
   "event": zod.object({
-  "kind": zod.enum(['roll', 'choose', 'defense', 'plant', 'detonate', 'extraDice', 'shoot', 'pass', 'rematch', 'join', 'leave']),
+  "kind": zod.enum(['roll', 'choose', 'defense', 'plant', 'detonate', 'extraDice', 'shoot', 'web', 'knife', 'pass', 'rematch', 'join', 'leave']),
   "playerId": zod.string(),
   "from": zod.number().int(),
+  "sourcePlayerId": zod.string().optional(),
+  "sourcePosition": zod.number().int().min(actInGameRoomResponseEventSourcePositionMin).max(actInGameRoomResponseEventSourcePositionMax).optional(),
   "roll": zod.number().int().nullable(),
   "path": zod.array(zod.number().int()),
-  "effect": zod.union([zod.literal('snake'),zod.literal('ladder'),zod.literal('boom'),zod.literal('torch'),zod.literal('return'),zod.literal(null)]).nullable(),
+  "effect": zod.union([zod.literal('snake'),zod.literal('ladder'),zod.literal('boom'),zod.literal('torch'),zod.literal('return'),zod.literal('web'),zod.literal('knife'),zod.literal(null)]).nullable(),
   "targets": zod.array(zod.number().int())
 }).nullable(),
   "busyForMs": zod.number().int().min(actInGameRoomResponseBusyForMsMin)

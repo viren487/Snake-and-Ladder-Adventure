@@ -3,11 +3,13 @@ import test from "node:test";
 import {
   createGame,
   choosePower,
+  MYSTERY_POWER_TYPES,
   MAX_BULLETS,
   KEY_SQUARES,
   passFire,
   playTurn,
   repairLegacyGame,
+  resolveDefense,
   resolveTurn,
   shootSnake,
   shootSnakes,
@@ -349,10 +351,13 @@ test("1000 seeded rounds reach winners without a gate deadlock", () => {
       const value = roll();
       const resolved = resolveTurn(game, value);
       assert.notEqual(resolved.state, game);
-      game = resolved.state.pendingFireForPlayerId
-        ? passFire(resolved.state)
-        : resolved.state.pendingChoice?.kind === "mystery"
-          ? choosePower(resolved.state, "extraDice") : resolved.state;
+      game = resolved.state;
+      while (game.pendingChoice) {
+        game = game.pendingChoice.kind === "mystery"
+          ? choosePower(game, MYSTERY_POWER_TYPES[round % MYSTERY_POWER_TYPES.length])
+          : resolveDefense(game, false).state;
+      }
+      if (game.pendingFireForPlayerId) game = passFire(game);
     }
     assert.ok(game.winnerId, `Round ${round} did not finish`);
   }

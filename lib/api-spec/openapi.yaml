@@ -136,12 +136,13 @@ components:
       type: object
       required: [type, actionId, expectedVersion]
       properties:
-        type: { type: string, enum: [roll, choose, defense, plant, detonate, extraDice, shoot, pass, rematch, leave] }
+        type: { type: string, enum: [roll, choose, defense, plant, detonate, extraDice, shoot, web, knife, pass, rematch, leave] }
         actionId: { type: string, minLength: 16, maxLength: 100 }
         expectedVersion: { type: integer, minimum: 0 }
-        power: { type: string, enum: [bomb, antiVenom, defuser, extraDice] }
+        power: { type: string, enum: [bomb, antiVenom, defuser, webShooter, knife] }
         square: { type: integer, minimum: 1, maximum: 100 }
         bombId: { type: string, maxLength: 100 }
+        targetPlayerId: { type: string, minLength: 1, maxLength: 100 }
         use: { type: boolean }
         targets:
           type: array
@@ -159,12 +160,14 @@ components:
       type: ["object", "null"]
       required: [kind, playerId, from, roll, path, effect, targets]
       properties:
-        kind: { type: string, enum: [roll, choose, defense, plant, detonate, extraDice, shoot, pass, rematch, join, leave] }
+        kind: { type: string, enum: [roll, choose, defense, plant, detonate, extraDice, shoot, web, knife, pass, rematch, join, leave] }
         playerId: { type: string }
         from: { type: integer }
+        sourcePlayerId: { type: string }
+        sourcePosition: { type: integer, minimum: 0, maximum: 100 }
         roll: { type: ["integer", "null"] }
         path: { type: array, items: { type: integer } }
-        effect: { type: ["string", "null"], enum: [snake, ladder, boom, torch, return, null] }
+        effect: { type: ["string", "null"], enum: [snake, ladder, boom, torch, return, web, knife, null] }
         targets: { type: array, items: { type: integer } }
     OnlineRoom:
       type: object

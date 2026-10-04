@@ -17,6 +17,8 @@ export const OnlineRoomEventKind = {
   detonate: 'detonate',
   extraDice: 'extraDice',
   shoot: 'shoot',
+  web: 'web',
+  knife: 'knife',
   pass: 'pass',
   rematch: 'rematch',
   join: 'join',

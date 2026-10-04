@@ -2,13 +2,15 @@ import type { GameState, TurnResolution } from "./game-engine.ts";
 
 export type RoomSession = { code: string; token: string; playerId: string };
 export type RoomEvent = {
-  kind: "roll" | "choose" | "defense" | "plant" | "detonate" | "extraDice" | "shoot" | "pass" | "rematch" | "join" | "leave";
+  kind: "roll" | "choose" | "defense" | "plant" | "detonate" | "extraDice" | "shoot" | "web" | "knife" | "pass" | "rematch" | "join" | "leave";
   playerId: string;
   from: number;
   roll: number | null;
   path: number[];
   effect: TurnResolution["effect"];
   targets: number[];
+  sourcePlayerId?: string;
+  sourcePosition?: number;
 };
 export type RoomSnapshot = {
   code: string;

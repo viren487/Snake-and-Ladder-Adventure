@@ -17,6 +17,8 @@ export const RoomActionType = {
   detonate: 'detonate',
   extraDice: 'extraDice',
   shoot: 'shoot',
+  web: 'web',
+  knife: 'knife',
   pass: 'pass',
   rematch: 'rematch',
   leave: 'leave',

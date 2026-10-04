@@ -26,6 +26,11 @@ export interface RoomAction {
   square?: number;
   /** @maxLength 100 */
   bombId?: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  targetPlayerId?: string;
   use?: boolean;
   /**
      * @minItems 1

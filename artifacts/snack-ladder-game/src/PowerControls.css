@@ -27,4 +27,12 @@
 .pc-error{color:#ffcfbf;font-size:11px;margin:0}
 .pc-list{list-style:none;margin:0;padding:0;display:grid;gap:4px}
 .pc-list li{padding:5px 8px;border-radius:8px;background:#171f2d99;font-size:11px}
+.pc-weapon-list{display:grid;gap:5px;padding:8px;border:1px solid #647b89;border-radius:12px;background:#172735}
+.pc-target{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:38px;padding:6px 9px;border:1px solid #4e6978;border-radius:9px;background:#263e4b;color:#f3f6ea;text-align:left;font:600 11px 'DM Mono',monospace;cursor:pointer}
+.pc-target:hover:not(:disabled){background:#345666;border-color:#8cdcf2}
+.pc-target:focus-visible{outline:2px solid #fff2bb;outline-offset:2px}
+.pc-target:disabled{opacity:.45;cursor:not-allowed}
+.pc-target-name{font-weight:700}
+.pc-target-effect{color:#9be7f7;white-space:nowrap}
+.pc-target-blocked{color:#ffd27d;white-space:nowrap}
 @media (max-width:360px){.pc-grid{grid-template-columns:1fr}}

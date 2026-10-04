@@ -18,4 +18,6 @@ export const OnlineRoomEventEffect = {
   boom: 'boom',
   torch: 'torch',
   return: 'return',
+  web: 'web',
+  knife: 'knife',
 } as const;

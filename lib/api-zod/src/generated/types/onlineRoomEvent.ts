@@ -15,6 +15,12 @@ export type OnlineRoomEvent = {
   kind: OnlineRoomEventKind;
   playerId: string;
   from: number;
+  sourcePlayerId?: string;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  sourcePosition?: number;
   /** @nullable */
   roll: number | null;
   path: number[];

@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomInt } from "node:crypto";
 import { pool } from "@workspace/db";
 import { createGame, resolveTurn, resolveDefense, choosePower, plantBomb, detonateBomb,
-  useExtraDice, shootSnakes, passFire, isValidPowerState, type GameState } from "@workspace/game-core";
+  useExtraDice, useWebShooter, useKnife, shootSnakes, passFire, isValidPowerState, type GameState } from "@workspace/game-core";
 import type { RoomEvent, RoomSnapshot, RoomSession } from "@workspace/game-core/online";
 import type { RoomAction } from "@workspace/api-zod";
 
@@ -182,6 +182,21 @@ export function applyRoomAction(room: StoredRoom, member: Member, action: RoomAc
         room.game = detonateBomb(room.game, action.bombId!, member.id); break;
       }
       case "extraDice": room.game = useExtraDice(room.game); break;
+      case "web":
+      case "knife": {
+        if (!action.targetPlayerId) throw new RoomError(400, "Choose a rival for this power.");
+        const result = action.type === "web"
+          ? useWebShooter(room.game, action.targetPlayerId)
+          : useKnife(room.game, action.targetPlayerId);
+        event.playerId = action.targetPlayerId;
+        event.from = room.game.players.find((item) => item.id === action.targetPlayerId)?.position ?? 0;
+        event.sourcePlayerId = member.id;
+        event.sourcePosition = result.sourcePosition ?? player.position;
+        event.path = result.path;
+        event.effect = result.effect;
+        room.game = result.state;
+        break;
+      }
       case "shoot":
         event.targets = action.targets ?? [];
         room.game = shootSnakes(room.game, event.targets as (98 | 99)[]); break;
@@ -189,7 +204,8 @@ export function applyRoomAction(room: StoredRoom, member: Member, action: RoomAc
     }
     if (room.game.winnerId) room.status = "finished";
     const specialMs = event.effect === "ladder" ? 2700 : event.effect === "snake" ? 2400 :
-      event.effect === "torch" || event.effect === "return" ? 2200 : event.effect === "boom" ? 1100 : 0;
+      event.effect === "torch" || event.effect === "return" ? 2200 : event.effect === "boom" ? 1100 :
+        event.effect === "web" ? 1750 : event.effect === "knife" ? 1500 : 0;
     room.ready_at = new Date(Date.now() + (event.kind === "roll" ? 950 + event.path.length * 240 + specialMs :
       event.kind === "shoot" ? 1500 : specialMs));
   }

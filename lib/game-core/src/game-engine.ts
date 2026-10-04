@@ -1,7 +1,7 @@
 import { cloneGame, emptyPowers, finishTurn, MYSTERY_BOX_SQUARES, resolveDefenseWith,
   type PowerInventory, type PlantedBomb, type PowerChoice } from "./powers.ts";
-export { choosePower, plantBomb, detonateBomb, useExtraDice, isValidPowerState, MYSTERY_BOX_SQUARES, POWER_TYPES } from "./powers.ts";
-export type { PowerType } from "./powers.ts";
+export { choosePower, plantBomb, detonateBomb, useExtraDice, useWebShooter, useKnife, isValidPowerState, MYSTERY_BOX_SQUARES, MYSTERY_POWER_TYPES, POWER_TYPES } from "./powers.ts";
+export type { PowerType, MysteryPowerType } from "./powers.ts";
 
 export type Player = {
   id: string;
@@ -38,6 +38,7 @@ export const SNAKES = [
   { from: 99, to: 61, color: "violet" },
   { from: 98, to: 77, color: "green" },
   { from: 72, to: 52, color: "red" },
+  { from: 68, to: 11, color: "red" },
   { from: 58, to: 43, color: "blue" },
   { from: 36, to: 25, color: "orange" },
 ] as const;
@@ -102,7 +103,8 @@ export function squareAt(rowFromTop: number, column: number): number {
 export type TurnResolution = {
   state: GameState;
   path: number[];
-  effect: "snake" | "ladder" | "boom" | "torch" | "return" | null;
+  effect: "snake" | "ladder" | "boom" | "torch" | "return" | "web" | "knife" | null;
+  sourcePosition?: number;
 };
 
 /** Preserve old progress without treating former ammo-room keys as crown keys. */

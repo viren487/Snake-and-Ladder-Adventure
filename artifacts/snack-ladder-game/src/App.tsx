@@ -22,11 +22,14 @@ import {
   plantBomb,
   detonateBomb,
   useExtraDice,
+  useWebShooter,
+  useKnife,
   resolveDefense,
   isValidPowerState,
   type ShootableSnakeSquare,
   type GameState,
   type TurnResolution,
+  type MysteryPowerType,
 } from './game-engine';
 import { useGameSounds } from './use-game-sounds';
 import { ShotAnimation } from './ShotAnimation';
@@ -45,16 +48,19 @@ const PREVIOUS_STORAGE_KEY = 'snack-ladder-adventure-v3';
 const LEGACY_STORAGE_KEY = 'snack-ladder-adventure-v2';
 const OLDEST_STORAGE_KEY = 'snack-ladder-adventure-v1';
 const MOVEMENT_STEP_DELAY_MS = 240;
-const SPECIAL_MOVE_DURATION_MS = { ladder: 2200, snake: 2000, boom: 700 } as const;
+const SPECIAL_MOVE_DURATION_MS = { ladder: 2200, snake: 2000, boom: 700, web: 1450, knife: 1250 } as const;
 const SPECIAL_MOVE_STYLE = {
   '--ladder-move-duration': `${SPECIAL_MOVE_DURATION_MS.ladder}ms`,
   '--snake-move-duration': `${SPECIAL_MOVE_DURATION_MS.snake}ms`,
   '--bamboo-move-duration': '2600ms',
+  '--web-move-duration': `${SPECIAL_MOVE_DURATION_MS.web}ms`,
+  '--knife-move-duration': `${SPECIAL_MOVE_DURATION_MS.knife}ms`,
 } as CSSProperties;
 type WalkingPiece = {
   playerId: string;
   position: number;
-  effect: 'step' | 'ladder' | 'snake' | 'boom' | 'torch' | 'return' | 'bamboo';
+  effect: 'step' | 'ladder' | 'snake' | 'boom' | 'torch' | 'return' | 'bamboo' | 'web' | 'knife';
+  sourcePosition?: number;
 };
 type Shot = { from: number; targets: ShootableSnakeSquare[] };
 
@@ -259,6 +265,37 @@ function SnakeArt({ from, to, color, sleeping }: { from: number; to: number; col
   );
 }
 
+function PowerAnimation({ walking }: { walking: WalkingPiece | null }) {
+  if (!walking || walking.sourcePosition === undefined) return null;
+  const source = centerOf(walking.sourcePosition);
+  if (walking.effect === 'web') {
+    const target = centerOf(walking.position);
+    const controlX = (source.x + target.x) / 2;
+    const controlY = Math.min(source.y, target.y) - 72;
+    const webPath = `M${source.x} ${source.y} Q${controlX} ${controlY} ${target.x} ${target.y}`;
+    return (
+      <svg className="power-animation-layer" viewBox="0 0 1000 1000" aria-hidden="true">
+        <path d={webPath} pathLength="1" className="web-thread-glow" />
+        <path d={webPath} pathLength="1" className="web-thread" />
+        <circle cx={target.x} cy={target.y} r="32" className="web-impact-net" />
+        <path d={`M${target.x - 21} ${target.y - 19}L${target.x + 21} ${target.y + 19}M${target.x + 21} ${target.y - 19}L${target.x - 21} ${target.y + 19}`} className="web-net-cross" />
+      </svg>
+    );
+  }
+  if (walking.effect === 'knife') {
+    return (
+      <svg className="power-animation-layer" viewBox="0 0 1000 1000" aria-hidden="true">
+        <g transform={`translate(${source.x} ${source.y})`}>
+          <path d="M-38 29 33-31" className="knife-cut knife-cut-one" />
+          <path d="M-30-27 37 31" className="knife-cut knife-cut-two" />
+          <path d="m-4-48 8 15 16 1-12 10 4 16-16-8-13 9 3-16-12-11 16-1Z" className="knife-impact" />
+        </g>
+      </svg>
+    );
+  }
+  return null;
+}
+
 function PandaToken({
   color,
   hopping,
@@ -322,7 +359,7 @@ function Board({
   game: GameState;
   choicesEnabled: boolean;
   choiceBusy: boolean;
-  onChoosePower: (power: "bomb" | "antiVenom" | "defuser" | "extraDice") => void;
+   onChoosePower: (power: MysteryPowerType) => void;
   walking: WalkingPiece | null;
   aiming: boolean;
   selectedTargets: ShootableSnakeSquare[];
@@ -387,7 +424,11 @@ function Board({
           ))}
           {LADDERS.map(ladder => <LadderArt key={ladder.from} from={ladder.from} to={ladder.to} />)}
         </svg>
-        <BambooReturnArt active={walking?.effect === 'bamboo'} />
+        <BambooReturnArt
+          active={walking?.effect === 'bamboo'}
+          torchVisible={!activePlayer.hasTorch && !(walking?.effect === 'bamboo' && walking.position === 100)}
+          collecting={walking?.effect === 'bamboo' && walking.position === 100}
+        />
         {game.bombs.map((bomb) => {
           const point = centerOf(bomb.square);
           const owner = game.players.find((player) => player.id === bomb.ownerId)!;
@@ -401,16 +442,8 @@ function Board({
           aria-label={!activePlayer.hasTorch ? '100: collect torch and return Home; crown locked' : activePlayer.crownKeyRoom === null ? '100: crown locked; collect a black-room key first' : '100: crown unlocked; return here to win'}>
           <Crown className="goal-crown-icon" />
           {activePlayer.crownKeyRoom === null && <LockKeyhole className="goal-lock-icon" data-testid="crown-lock" />}
-          {!activePlayer.hasTorch && <Flashlight className="goal-torch-icon" data-testid="goal-torch" />}
           <span>100</span>
         </div>
-        {(walking?.effect === 'torch' || walking?.effect === 'return') && (
-          <div className="quest-pickup" role="status" data-testid="quest-pickup">
-            {walking.effect === 'torch' ? <Flashlight size={25} /> : <LockKeyhole size={25} />}
-            <strong>{walking.effect === 'torch' ? 'Torch collected!' : 'A black-room key is needed!'}</strong>
-            <span>Returning Home</span>
-          </div>
-        )}
         {SHOOTABLE_SNAKE_SQUARES.map((square) => {
           const rounds = activeStuns[square];
           if (rounds <= 0) return null;
@@ -448,6 +481,7 @@ function Board({
           );
         })}
         {shot && <ShotAnimation from={centerOf(shot.from)} targets={shot.targets.map((square) => ({ square, ...centerOf(square) }))} />}
+        <PowerAnimation walking={walking} />
         {game.pendingChoice?.kind === "mystery" && <MysteryCompass
           key={game.pendingChoice.playerId + "-" + game.pendingChoice.square}
           square={game.pendingChoice.square} canChoose={choicesEnabled} busy={choiceBusy}
@@ -589,7 +623,10 @@ function App() {
           await new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 45 : 300));
         } else {
           if (effect === 'snake' || effect === 'ladder') sounds.play(effect);
-          setWalking({ playerId: id, position: moved.position, effect });
+          setWalking({
+            playerId: id, position: moved.position, effect,
+            ...(resolution.sourcePosition === undefined ? {} : { sourcePosition: resolution.sourcePosition }),
+          });
           await new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 45 : SPECIAL_MOVE_DURATION_MS[effect] + 80));
         }
         if (!screenMounted.current) return;
@@ -855,10 +892,20 @@ function App() {
                 owned: bomb.ownerId === currentPlayer.id,
                 ready: bomb.armed && game.players.some((player) => player.id !== bomb.ownerId && player.position === bomb.square),
               }))}
-              onChoose={(power) => applyPower((state) => choosePower(state, power), { type: 'choose', power })}
               onDefense={(use) => { void applyAnimatedPower((state) => resolveDefense(state, use), undefined, { type: 'defense', use }); }}
               onPlant={(square) => applyPower((state) => plantBomb(state, square), { type: 'plant', square })}
               onExtraDice={() => applyPower(useExtraDice, { type: 'extraDice' })}
+              rivals={game.players.filter((rival) => rival.id !== currentPlayer.id
+                && rival.id !== game.winnerId && !game.winnerIds?.includes(rival.id))
+                .map((rival) => ({ id: rival.id, name: rival.name, position: rival.position, hasKnife: rival.powers.knife > 0 }))}
+              onWebShoot={(targetPlayerId) => { void applyAnimatedPower(
+                (state) => useWebShooter(state, targetPlayerId), targetPlayerId,
+                { type: 'web', targetPlayerId },
+              ); }}
+              onKnife={(targetPlayerId) => { void applyAnimatedPower(
+                (state) => useKnife(state, targetPlayerId), targetPlayerId,
+                { type: 'knife', targetPlayerId },
+              ); }}
               onDetonate={(id) => { void applyAnimatedPower(
                 (state) => ({ state: detonateBomb(state, id, state.bombs.find((bomb) => bomb.id === id)!.ownerId), path: [], effect: 'boom' }),
                 game.players.find((player) => player.id !== game.bombs.find((bomb) => bomb.id === id)!.ownerId && player.position === game.bombs.find((bomb) => bomb.id === id)!.square)!.id,

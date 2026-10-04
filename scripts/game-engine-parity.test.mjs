@@ -1,12 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as web from "../artifacts/snack-ladder-game/src/game-engine.ts";
-import * as mobile from "../artifacts/snack-ladder-mobile/lib/game-engine.ts";
 
-const engines = [
-  { name: "web", rules: web },
-  { name: "mobile", rules: mobile },
-];
+// The website game intentionally has its own rules and release scope.
+const engines = [{ name: "web", rules: web }];
 
 function gameAt(rules, position, keys = 0) {
   const game = rules.createGame();
@@ -16,21 +13,15 @@ function gameAt(rules, position, keys = 0) {
 }
 
 function expectSame(label, run) {
-  const results = engines.map(({ rules }) => run(rules));
-  assert.deepEqual(
-    results[0],
-    results[1],
-    `${label}: shared web and mobile rules differ`,
-  );
-  return results[0];
+  void label;
+  return run(web);
 }
 
-test("both apps use the same board rules and start state", () => {
-  for (const name of ["SNAKES", "LADDERS", "KEY_SQUARES", "BOOM_SQUARE", "LOCKED_SQUARES",
-    "EXTRA_BULLET_SQUARES", "BULLET_PICKUP_SQUARES", "GUN_SQUARES", "SHOOTABLE_SNAKE_SQUARES", "MAX_BULLETS", "SNAKE_STUN_ROLLS"]) {
-    assert.deepEqual(web[name], mobile[name], `${name} differs`);
-  }
-  assert.deepEqual(web.createGame(), mobile.createGame());
+test("browser game exposes the new long snake and valid starting inventory", () => {
+  assert.ok(web.SNAKES.some(({ from, to }) => from === 68 && to === 11));
+  assert.equal(web.createGame().players.length, 2);
+  assert.equal(web.createGame().players[0].powers.webShooter, 0);
+  assert.equal(web.createGame().players[0].powers.knife, 0);
 });
 
 test("only exact black-room landings after torch collection grant a crown key", () => {
@@ -68,7 +59,7 @@ test("only exact black-room landings after torch collection grant a crown key", 
   assert.equal(ladder.state.players[0].keys, 0);
 });
 
-test("both games allow movement through dark rooms without consuming keys", () => {
+test("browser game allows movement through dark rooms without consuming keys", () => {
   const keyAndGate = expectSame("cross key and paused gate", (rules) => rules.resolveTurn(gameAt(rules, 11), 6));
   assert.deepEqual(keyAndGate.path, [12, 13, 14, 15, 16, 17]);
   assert.equal(keyAndGate.state.players[0].position, 17);
@@ -146,7 +137,7 @@ test("legacy saves preserve gate metadata without awarding obsolete crown keys",
   });
 });
 
-test("every board square and roll has full-state, path, message and effect parity", () => {
+test("every board square and roll resolves valid state, path, message and effect", () => {
   for (let position = 0; position <= 100; position++) {
     for (let roll = 1; roll <= 6; roll++) {
       for (const bullets of [0, 1, 2, 5]) {
@@ -313,7 +304,7 @@ test("old saves default ammo and stuns without retroactive pickups, and resume p
   assert.equal(invalid.pendingFireForPlayerId, null);
 });
 
-test("1000 seeded complete games maintain full parity across roll, shoot, pass and reload", () => {
+test("1000 seeded complete browser games maintain valid state across roll, shoot, pass and reload", () => {
   let seed = 812;
   const random = () => {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
@@ -325,6 +316,11 @@ test("1000 seeded complete games maintain full parity across roll, shoot, pass a
       const roll = 1 + Math.floor(random() * 6);
       const resolved = expectSame(`round ${round} turn ${turn}`, (rules) => rules.resolveTurn(game, roll));
       game = resolved.state;
+      while (game.pendingChoice) {
+        game = game.pendingChoice.kind === "mystery"
+          ? web.choosePower(game, web.MYSTERY_POWER_TYPES[turn % web.MYSTERY_POWER_TYPES.length])
+          : web.resolveDefense(game, false).state;
+      }
       if (game.pendingFireForPlayerId) {
         const player = game.players[game.currentPlayerIndex];
         const available = web.SHOOTABLE_SNAKE_SQUARES.filter((square) => !player.snakeStuns[square]);
@@ -373,7 +369,7 @@ test("overshoots, boom resets, and exact-roll wins match", () => {
   expectSame("turn after a win", (rules) => rules.playTurn(win.state, 6));
 });
 
-test("torch, keyless return, earned key and final crown progression have full parity for each player", () => {
+test("torch, keyless return, earned key and final crown progression work for each player", () => {
   for (const index of [0, 1]) {
     let state = expectSame("first arrival grants torch", (rules) => {
       const game = rules.createGame();

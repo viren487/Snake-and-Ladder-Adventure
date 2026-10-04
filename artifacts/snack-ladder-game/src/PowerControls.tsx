@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Bomb, Dices, ShieldPlus, Wrench, Gift, List } from 'lucide-react';
+import { Bomb, Crosshair, Dices, ShieldPlus, Sword, Wrench, List } from 'lucide-react';
+import type { PowerType } from './game-engine';
 import './PowerControls.css';
 
-export type PowerKind = 'bomb' | 'antiVenom' | 'defuser' | 'extraDice';
+export type PowerKind = PowerType;
+type RivalTarget = { id: string; name: string; position: number; hasKnife: boolean };
 export interface PowerControlsProps {
   position: number;
   detonationBombs: { id: string; square: number; ownerName: string }[];
@@ -14,29 +16,45 @@ export interface PowerControlsProps {
   busy: boolean;
   actionsEnabled: boolean;
   extraRollCredits: number;
-  onChoose: (power: PowerKind) => void;
   onDefense: (use: boolean) => void;
   onPlant: (square: number) => void;
   onDetonate: (id: string) => void;
   onExtraDice: () => void;
+  rivals: RivalTarget[];
+  onWebShoot: (targetPlayerId: string) => void;
+  onKnife: (targetPlayerId: string) => void;
 }
 
-const LABELS: Record<PowerKind, string> = { bomb: 'Bomb', antiVenom: 'Anti-Venom', defuser: 'Defuser Kit', extraDice: 'Extra Dice' };
+const LABELS: Record<PowerKind, string> = {
+  bomb: 'Bomb', antiVenom: 'Anti-Venom', defuser: 'Defuser Kit',
+  webShooter: 'Web Shooter', knife: 'Knife', extraDice: 'Extra Dice',
+};
 const BLURB: Record<PowerKind, string> = {
   bomb: 'Plant in your current room',
   antiVenom: 'Blocks one snake bite',
   defuser: 'Disarms one bomb',
+  webShooter: 'Pull a rival 1–3 rooms ahead back three rooms',
+  knife: 'Strike a rival sharing your numbered room',
   extraDice: 'Bank one extra roll',
 };
-const ORDER: PowerKind[] = ['bomb', 'antiVenom', 'defuser', 'extraDice'];
-const ICONS = { bomb: Bomb, antiVenom: ShieldPlus, defuser: Wrench, extraDice: Dices };
+const ORDER: PowerKind[] = ['bomb', 'antiVenom', 'defuser', 'webShooter', 'knife'];
+const ICONS: Record<PowerKind, typeof Bomb> = {
+  bomb: Bomb, antiVenom: ShieldPlus, defuser: Wrench, webShooter: Crosshair, knife: Sword, extraDice: Dices,
+};
 
-export function PowerControls({ position, detonationBombs, detonationDisabled, playerName, powers, pending, bombs, busy, actionsEnabled, extraRollCredits, onChoose, onDefense, onPlant, onDetonate, onExtraDice }: PowerControlsProps) {
+export function PowerControls({ position, detonationBombs, detonationDisabled, playerName, powers, pending, bombs, busy, actionsEnabled, extraRollCredits, onDefense, onPlant, onDetonate, onExtraDice, rivals, onWebShoot, onKnife }: PowerControlsProps) {
   const [plantOpen, setPlantOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [info, setInfo] = useState<PowerKind | null>(null);
+  const [targetPower, setTargetPower] = useState<'webShooter' | 'knife' | null>(null);
   const inventoryOk = !busy && actionsEnabled && !pending;
   const canPlant = inventoryOk && powers.bomb > 0 && position >= 1 && position <= 100 && !bombs.some((bomb) => bomb.square === position);
+  const visibleOrder: PowerKind[] = powers.extraDice > 0 ? [...ORDER, 'extraDice'] : ORDER;
+  const availableTargets = targetPower === 'webShooter'
+    ? rivals.filter((rival) => rival.position > position && rival.position - position <= 3)
+    : targetPower === 'knife'
+      ? rivals.filter((rival) => position > 0 && rival.position === position)
+      : [];
 
   const plant = () => {
     if (!canPlant) return;
@@ -78,14 +96,14 @@ export function PowerControls({ position, detonationBombs, detonationDisabled, p
       )}
 
       <div className="pc-bar" role="group" aria-label="Power stash">
-        {ORDER.map((p) => {
+        {visibleOrder.map((p) => {
           const Icon = ICONS[p];
           const label = `${LABELS[p]}: ${powers[p]}`;
           const badge = <span className={`pc-badge ${powers[p] ? '' : 'zero'}`} data-testid={`power-count-${p}`} aria-label={`${LABELS[p]} count`}>{powers[p]}</span>;
           if (p === 'bomb') return (
             <button key={p} type="button" className="pc-ico" data-testid="power-toggle-bomb" title={`${label}. Plant a bomb`}
               aria-label={`${label}. Plant a bomb`} aria-expanded={plantOpen}
-              disabled={busy || (!plantOpen && !canPlant)} onClick={() => setPlantOpen((o) => !o)}>
+              disabled={busy || (!plantOpen && !canPlant)} onClick={() => { setTargetPower(null); setPlantOpen((o) => !o); }}>
               <Icon size={20} />{badge}
             </button>
           );
@@ -96,10 +114,18 @@ export function PowerControls({ position, detonationBombs, detonationDisabled, p
               <Icon size={20} />{badge}
             </button>
           );
+          if (p === 'webShooter' || p === 'knife') return (
+            <button key={p} type="button" className="pc-ico" data-testid={`power-toggle-${p}`}
+              title={`${label}: ${BLURB[p]}`} aria-label={`${label}: ${powers[p]} available`}
+              aria-expanded={targetPower === p} disabled={!inventoryOk || powers[p] < 1}
+              onClick={() => { setInfo(null); setTargetPower((active) => active === p ? null : p); }}>
+              <Icon size={20} />{badge}
+            </button>
+          );
           return (
             <button key={p} type="button" className="pc-ico" title={`${label}. ${BLURB[p]}; used from a hazard prompt`}
               aria-label={`${label}. Used from a hazard prompt`} aria-pressed={info === p}
-              onClick={() => setInfo((c) => (c === p ? null : p))}>
+              onClick={() => { setTargetPower(null); setInfo((c) => (c === p ? null : p)); }}>
               <Icon size={20} />{badge}
             </button>
           );
@@ -120,6 +146,33 @@ export function PowerControls({ position, detonationBombs, detonationDisabled, p
           </button>
         )}
       </div>
+
+      {targetPower && (
+        <div className="pc-weapon-list" role="group" aria-label={`Choose a rival for ${LABELS[targetPower]}`} data-testid={`${targetPower}-targets`}>
+          <p className="pc-copy">{targetPower === 'webShooter' ? BLURB.webShooter : BLURB.knife}</p>
+          {availableTargets.length === 0 ? (
+            <p className="pc-copy" role="status">
+              {targetPower === 'webShooter' ? 'No rival is one to three rooms ahead.' : 'No rival is in your numbered room.'}
+            </p>
+          ) : availableTargets.map((rival) => (
+            <button key={rival.id} type="button" className="pc-target" disabled={!inventoryOk}
+              data-testid={`use-${targetPower}-${rival.id}`}
+              aria-label={targetPower === 'webShooter'
+                ? `Use Web Shooter on ${rival.name}, room ${rival.position}; pull them back three rooms`
+                : `Use Knife on ${rival.name}${rival.hasKnife ? '; their Knife blocks the hit and neither charge is spent' : '; send them Home'}`}
+              onClick={() => {
+                setTargetPower(null);
+                if (targetPower === 'webShooter') onWebShoot(rival.id);
+                else onKnife(rival.id);
+              }}>
+              <span className="pc-target-name">{rival.name} · #{rival.position}</span>
+              <span className={rival.hasKnife && targetPower === 'knife' ? 'pc-target-blocked' : 'pc-target-effect'}>
+                {targetPower === 'webShooter' ? 'Pull back 3' : rival.hasKnife ? 'Knife blocks · no charge spent' : 'Send Home'}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {info && <p className="pc-copy" role="status">{LABELS[info]}: {BLURB[info]}. Used only from a hazard prompt when you land on one.</p>}
 

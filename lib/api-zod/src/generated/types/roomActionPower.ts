@@ -13,5 +13,6 @@ export const RoomActionPower = {
   bomb: 'bomb',
   antiVenom: 'antiVenom',
   defuser: 'defuser',
-  extraDice: 'extraDice',
+  webShooter: 'webShooter',
+  knife: 'knife',
 } as const;

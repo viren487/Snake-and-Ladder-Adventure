@@ -62,6 +62,8 @@ export const OnlineRoomEventKind = {
   detonate: 'detonate',
   extraDice: 'extraDice',
   shoot: 'shoot',
+  web: 'web',
+  knife: 'knife',
   pass: 'pass',
   rematch: 'rematch',
   join: 'join',
@@ -80,6 +82,8 @@ export const OnlineRoomEventEffect = {
   boom: 'boom',
   torch: 'torch',
   return: 'return',
+  web: 'web',
+  knife: 'knife',
 } as const;
 
 /**
@@ -89,6 +93,12 @@ export type OnlineRoomEvent = {
   kind: OnlineRoomEventKind;
   playerId: string;
   from: number;
+  sourcePlayerId?: string;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  sourcePosition?: number;
   /** @nullable */
   roll: number | null;
   path: number[];
@@ -137,6 +147,8 @@ export const RoomActionType = {
   detonate: 'detonate',
   extraDice: 'extraDice',
   shoot: 'shoot',
+  web: 'web',
+  knife: 'knife',
   pass: 'pass',
   rematch: 'rematch',
   leave: 'leave',
@@ -149,7 +161,8 @@ export const RoomActionPower = {
   bomb: 'bomb',
   antiVenom: 'antiVenom',
   defuser: 'defuser',
-  extraDice: 'extraDice',
+  webShooter: 'webShooter',
+  knife: 'knife',
 } as const;
 
 export type RoomActionTargetsItem = typeof RoomActionTargetsItem[keyof typeof RoomActionTargetsItem];
@@ -177,6 +190,11 @@ export interface RoomAction {
   square?: number;
   /** @maxLength 100 */
   bombId?: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  targetPlayerId?: string;
   use?: boolean;
   /**
      * @minItems 1

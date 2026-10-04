@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as web from "./game-engine.ts";
-import * as native from "../../snack-ladder-mobile/lib/game-engine.ts";
-import { isSavedGame } from "../../snack-ladder-mobile/lib/saved-game.ts";
 
-for (const [name, engine] of [["web", web], ["native", native]]) {
+for (const [name, engine] of [["web", web]]) {
   const at = (position) => {
     const game = engine.createGame();
     game.players[0].position = position;
@@ -26,9 +24,10 @@ for (const [name, engine] of [["web", web], ["native", native]]) {
     assert.equal(torch.players[0].hasTorch, true);
     assert.equal(torch.winnerId, null);
   });
-  test(`${name}: all four mystery rooms offer all four persistent choices once`, () => {
+  test(`${name}: all mystery rooms offer five powers, without Extra Dice`, () => {
+    assert.deepEqual(engine.MYSTERY_POWER_TYPES, ["bomb", "antiVenom", "defuser", "webShooter", "knife"]);
     for (const square of [14, 35, 51, 76]) {
-      for (const power of engine.POWER_TYPES) {
+      for (const power of engine.MYSTERY_POWER_TYPES) {
         let game = engine.playTurn(at(square - 1), 1);
         assert.equal(game.pendingChoice.kind, "mystery");
         assert.equal(game.currentPlayerIndex, 0);
@@ -41,6 +40,7 @@ for (const [name, engine] of [["web", web], ["native", native]]) {
         assert.deepEqual(engine.repairLegacyGame(JSON.parse(JSON.stringify(game))), game);
       }
     }
+    assert.throws(() => engine.choosePower(engine.playTurn(at(13), 1), "extraDice"));
     assert.equal(engine.playTurn(at(12), 3).pendingChoice, null); // Cross box 14.
     let six = engine.playTurn(at(8), 6);
     six = engine.choosePower(six, "bomb");
@@ -52,6 +52,70 @@ for (const [name, engine] of [["web", web], ["native", native]]) {
     const picked = engine.choosePower(engine.playTurn(second, 1), "antiVenom");
     assert.equal(picked.players[1].powers.antiVenom, 1);
     assert.equal(picked.players[0].powers.antiVenom, 0);
+  });
+  test(`${name}: Web Shooter pulls only a rival one to three rooms ahead and clamps Home`, () => {
+    const game = at(20);
+    game.players[0].powers.webShooter = 1;
+    game.players[1].position = 23;
+    const before = structuredClone(game);
+    const hit = engine.useWebShooter(game, "player-2");
+    assert.deepEqual(hit.path, [22, 21, 20]);
+    assert.equal(hit.effect, "web");
+    assert.equal(hit.sourcePosition, 20);
+    assert.equal(hit.state.players[1].position, 20);
+    assert.equal(hit.state.players[0].powers.webShooter, 0);
+    assert.deepEqual(game, before);
+
+    const nearHome = at(0);
+    nearHome.players[0].powers.webShooter = 1;
+    nearHome.players[1].position = 2;
+    const homeHit = engine.useWebShooter(nearHome, "player-2");
+    assert.deepEqual(homeHit.path, [1, 0]);
+    assert.equal(homeHit.state.players[1].position, 0);
+
+    const tooFar = at(20);
+    tooFar.players[0].powers.webShooter = 1;
+    tooFar.players[1].position = 24;
+    assert.throws(() => engine.useWebShooter(tooFar, "player-2"), /one to three rooms ahead/);
+    const noCharge = at(20);
+    noCharge.players[1].position = 21;
+    assert.throws(() => engine.useWebShooter(noCharge, "player-2"), /No Web Shooter/);
+  });
+  test(`${name}: Knife sends an unprotected rival Home and preserves their progress`, () => {
+    const game = at(44);
+    game.players[0].powers.knife = 1;
+    game.players[1].position = 44;
+    game.players[1].hasTorch = true;
+    game.players[1].crownKeyRoom = 17;
+    game.players[1].keys = 1;
+    game.players[1].bullets = 2;
+    game.players[1].powers.bomb = 1;
+    const hit = engine.useKnife(game, "player-2");
+    assert.equal(hit.effect, "knife");
+    assert.equal(hit.state.players[1].position, 0);
+    assert.equal(hit.state.players[1].hasTorch, true);
+    assert.equal(hit.state.players[1].crownKeyRoom, 17);
+    assert.equal(hit.state.players[1].keys, 1);
+    assert.equal(hit.state.players[1].bullets, 2);
+    assert.equal(hit.state.players[1].powers.bomb, 1);
+    assert.equal(hit.state.players[0].powers.knife, 0);
+    assert.equal(game.players[1].position, 44);
+
+    const clash = at(44);
+    clash.players[0].powers.knife = 2;
+    clash.players[1].position = 44;
+    clash.players[1].powers.knife = 1;
+    const blocked = engine.useKnife(clash, "player-2");
+    assert.equal(blocked.effect, null);
+    assert.equal(blocked.state.players[0].powers.knife, 2);
+    assert.equal(blocked.state.players[1].powers.knife, 1);
+    assert.equal(blocked.state.players[1].position, 44);
+    assert.match(blocked.state.message, /neither charge was spent/);
+
+    const home = at(0);
+    home.players[0].powers.knife = 1;
+    home.players[1].position = 0;
+    assert.throws(() => engine.useKnife(home, "player-2"), /same numbered room/);
   });
   test(`${name}: six and Extra Dice survive shooting or passing`, () => {
     const armed = at(88);
@@ -99,7 +163,7 @@ for (const [name, engine] of [["web", web], ["native", native]]) {
     assert.equal(waiting.state.players[0].position, 98);
     assert.equal(waiting.effect, null);
     assert.equal(waiting.state.pendingChoice.kind, "snake");
-    assert.equal(isSavedGame(waiting.state), true);
+    assert.equal(engine.isValidPowerState(waiting.state), true);
     const safe = engine.resolveDefense(waiting.state, true);
     assert.equal(safe.state.players[0].position, 98);
     assert.equal(safe.state.players[0].powers.antiVenom, 0);
@@ -234,7 +298,7 @@ for (const [name, engine] of [["web", web], ["native", native]]) {
     const game = hostileBomb(at(94), 100);
     game.players[0].powers.defuser = 1;
     const waiting = engine.playTurn(game, 6);
-    assert.equal(isSavedGame(waiting), true);
+    assert.equal(engine.isValidPowerState(waiting), true);
     const repaired = engine.repairLegacyGame(JSON.parse(JSON.stringify(waiting)));
     assert.deepEqual(repaired, waiting);
     const torch = engine.resolveDefense(repaired, true);
@@ -250,44 +314,44 @@ for (const [name, engine] of [["web", web], ["native", native]]) {
     assert.equal(migrated.turnNumber, 21);
     assert.equal(migrated.players[0].position, 35);
     assert.equal(migrated.pendingChoice, null); // No retroactive box award.
-    assert.deepEqual(migrated.players[0].powers, { bomb: 0, antiVenom: 0, defuser: 0, extraDice: 0 });
+    assert.deepEqual(migrated.players[0].powers, { bomb: 0, antiVenom: 0, defuser: 0, webShooter: 0, knife: 0, extraDice: 0 });
     for (const bad of [-1, 1.2, "1", null]) {
       const invalid = at(14);
       invalid.players[0].powers.bomb = bad;
       assert.equal(engine.isValidPowerState(invalid), false);
-      assert.equal(isSavedGame(invalid), false);
+      assert.equal(engine.isValidPowerState(invalid), false);
     }
+    const olderInventory = at(35);
+    olderInventory.players[0].powers = { bomb: 0, antiVenom: 0, defuser: 0, extraDice: 1 };
+    assert.equal(engine.isValidPowerState(olderInventory), true);
+    assert.equal(engine.repairLegacyGame(olderInventory).players[0].powers.extraDice, 1);
   });
 }
 
-test("browser and native remain identical across 100 complete, powered seeded rounds", () => {
+test("browser engine keeps 100 complete, powered seeded rounds valid", () => {
   let seed = 573;
   const random = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
   for (let round = 0; round < 100; round++) {
-    let games = [web.createGame(), native.createGame()];
-    for (let turn = 0; turn < 2500 && !games[0].winnerId; turn++) {
-      const current = games[0].players[games[0].currentPlayerIndex];
-      const free = Array.from({ length: 100 }, (_, i) => i + 1).filter((n) => !games[0].bombs.some((b) => b.square === n));
-      const ready = games[0].bombs.find((b) => b.ownerId === current.id && b.armed);
+    let game = web.createGame();
+    for (let turn = 0; turn < 2500 && !game.winnerId; turn++) {
+      const current = game.players[game.currentPlayerIndex];
+      const free = Array.from({ length: 100 }, (_, i) => i + 1).filter((n) => !game.bombs.some((b) => b.square === n));
+      const ready = game.bombs.find((b) => b.ownerId === current.id && b.armed);
       const square = free.includes(current.position) ? current.position : null;
       const roll = Math.floor(random() * 6) + 1;
-      const pick = web.POWER_TYPES[Math.floor(random() * 4)];
+      const pick = web.MYSTERY_POWER_TYPES[Math.floor(random() * web.MYSTERY_POWER_TYPES.length)];
       const use = random() > 0.35;
-      games = games.map((game, i) => {
-        const engine = i === 0 ? web : native;
-        if (ready) game = engine.detonateBomb(game, ready.id);
-        if (current.powers.bomb > 0 && square) game = engine.plantBomb(game, square);
-        if (current.powers.extraDice > 0) game = engine.useExtraDice(game);
-        game = engine.playTurn(game, roll);
-        while (game.pendingChoice) {
-          game = game.pendingChoice.kind === "mystery" ? engine.choosePower(game, pick) : engine.resolveDefense(game, use).state;
-        }
-        if (game.pendingFireForPlayerId) game = engine.passFire(game);
-        assert.equal(isSavedGame(game), true);
-        return engine.repairLegacyGame(JSON.parse(JSON.stringify(game)));
-      });
-      assert.deepEqual(games[0], games[1]);
+      if (ready) game = web.detonateBomb(game, ready.id);
+      if (current.powers.bomb > 0 && square) game = web.plantBomb(game, square);
+      if (current.powers.extraDice > 0) game = web.useExtraDice(game);
+      game = web.playTurn(game, roll);
+      while (game.pendingChoice) {
+        game = game.pendingChoice.kind === "mystery" ? web.choosePower(game, pick) : web.resolveDefense(game, use).state;
+      }
+      if (game.pendingFireForPlayerId) game = web.passFire(game);
+      assert.equal(web.isValidPowerState(game), true);
+      game = web.repairLegacyGame(JSON.parse(JSON.stringify(game)));
     }
-    assert.ok(games[0].winnerId, `Powered round ${round} should finish.`);
+    assert.ok(game.winnerId, `Powered round ${round} should finish.`);
   }
 });
