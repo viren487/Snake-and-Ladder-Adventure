@@ -27,23 +27,8 @@ if (!basePath) {
   );
 }
 
-// Resolve the live preview at startup, never from a retired host or a saved URL.
-const expoHost = process.env.REPLIT_EXPO_DEV_DOMAIN;
-const mobileExport = process.env.SNACK_LADDER_MOBILE_EXPORT === '1';
-let mobilePreviewUrl = '';
-if (expoHost && process.env.NODE_ENV !== 'production') {
-  const url = new URL(`https://${expoHost}`);
-  if (url.hostname.endsWith('.replit.dev') && !url.username && !url.password &&
-      !url.port && url.pathname === '/' && !url.search && !url.hash) {
-    mobilePreviewUrl = url.origin + '/';
-  }
-}
-
 export default defineConfig({
   base: basePath,
-  define: {
-    'import.meta.env.VITE_MOBILE_PREVIEW_URL': JSON.stringify(mobilePreviewUrl),
-  },
   plugins: [
     react(),
     tailwindcss(),
@@ -78,12 +63,6 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, 'dist/public'),
     emptyOutDir: true,
-    ...(mobileExport ? {
-      assetsInlineLimit: Infinity,
-      cssCodeSplit: false,
-      modulePreload: false,
-      rollupOptions: { output: { inlineDynamicImports: true } },
-    } : {}),
   },
   server: {
     port,

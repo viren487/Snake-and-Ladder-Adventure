@@ -17,18 +17,10 @@ type Bindings = {
 const storage: RoomStorage = {
   async load() {
     const raw = localStorage.getItem("snake-ladder-online-seat-v1");
-    const pending = localStorage.getItem("snake-ladder-online-pending-v1");
-    if (raw) {
-      const value: unknown = JSON.parse(raw);
-      if (!isRoomSession(value)) throw new Error("Invalid room seat");
-      return value;
-    }
-    if (pending) {
-      const value: unknown = JSON.parse(pending);
-      if (!isPendingAdmission(value)) throw new Error("Invalid pending room");
-      return value;
-    }
-    return null;
+    if (!raw) return null;
+    const value: unknown = JSON.parse(raw);
+    if (!isRoomSession(value) && !isPendingAdmission(value)) throw new Error("Invalid room seat");
+    return value;
   },
   async save(session) {
     if (session) localStorage.setItem("snake-ladder-online-seat-v1", JSON.stringify(session));

@@ -71,9 +71,7 @@ jobs:
         working-directory: artifacts/snack-ladder-mobile
         env:
           NODE_ENV: production
-        run: |
-          pnpm run bundle:web
-          pnpm exec expo prebuild --platform android --no-install
+        run: pnpm exec expo prebuild --platform android --no-install
 
       - name: Build bundled release APK
         working-directory: artifacts/snack-ladder-mobile/android

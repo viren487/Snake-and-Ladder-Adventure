@@ -1,5 +1,4 @@
 import { createRoot } from 'react-dom/client';
-import './mobile-runtime';
 
 import App from './App';
 import { ErrorBoundary } from '@/components/error-boundary';
