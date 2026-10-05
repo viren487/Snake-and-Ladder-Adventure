@@ -7,11 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "snack-ladder-mobile",
     "userInterfaceStyle": "dark",
-    "splash": {
-      "image": "./assets/images/icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#131a25"
-    },
     "ios": {
       "supportsTablet": false
     },
@@ -39,8 +34,8 @@
       [
         "expo-audio",
         {
-          "microphonePermission": false,
-          "recordAudioAndroid": false,
+          "microphonePermission": "Allow microphone access only when you join optional room voice chat.",
+          "recordAudioAndroid": true,
           "enableBackgroundPlayback": false,
           "enableBackgroundRecording": false
         }

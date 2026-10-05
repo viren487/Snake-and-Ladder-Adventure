@@ -50,27 +50,54 @@ export function createMobileHtml(template: string, snapshot: StorageSnapshot, ap
       window.__SNACK_LADDER_MOBILE__ = {apiOrigin: config.apiOrigin};
       var isOnlineKey = function(key) { return key === 'snake-ladder-online-seat-v1' ||
         key === 'snake-ladder-online-pending-v1'; };
+      var notify = function(key, value) {
+        if (restoring || config.keys.indexOf(key) < 0 || (!config.apiOrigin && isOnlineKey(key))) return;
+        var change = {type: config.type, key: key, value: value};
+        if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(change));
+        else window.parent.postMessage(change, window.location.origin === 'null' ? '*' : window.location.origin);
+      };
+      var storage;
+      try {
+        storage = window.localStorage;
+        storage.length;
+        var probeKey = '__snack_ladder_mobile_storage_probe__';
+        var previousProbe = storage.getItem(probeKey);
+        storage.setItem(probeKey, '1');
+        storage.removeItem(probeKey);
+        if (previousProbe !== null) storage.setItem(probeKey, previousProbe);
+      }
+      catch { storage = null; }
+      var memory = Object.create(null);
+      if (!storage) {
+        storage = {
+          get length() { return Object.keys(memory).length; },
+          clear: function() { Object.keys(memory).forEach(function(key) { delete memory[key]; notify(key, null); }); },
+          getItem: function(key) { key = String(key); return Object.prototype.hasOwnProperty.call(memory, key) ? memory[key] : null; },
+          key: function(index) { return Object.keys(memory)[index] || null; },
+          removeItem: function(key) { key = String(key); delete memory[key]; notify(key, null); },
+          setItem: function(key, value) { key = String(key); value = String(value); memory[key] = value; notify(key, value); }
+        };
+        Object.defineProperty(window, 'localStorage', {configurable: true, value: storage});
+      }
+      var restoring = true;
       config.keys.forEach(function(key) {
         var value = config.snapshot[key];
         if (!config.apiOrigin && isOnlineKey(key)) value = null;
-        if (typeof value === 'string') localStorage.setItem(key, value);
-        else localStorage.removeItem(key);
+        if (typeof value === 'string') storage.setItem(key, value);
+        else storage.removeItem(key);
       });
-      var notify = function(key, value) {
-        if (config.keys.indexOf(key) < 0 || (!config.apiOrigin && isOnlineKey(key))) return;
-        var change = {type: config.type, key: key, value: value};
-        if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(change));
-        else window.parent.postMessage(change, window.location.origin);
-      };
-      var set = Storage.prototype.setItem, remove = Storage.prototype.removeItem;
-      Storage.prototype.setItem = function(key, value) {
-        set.call(this, key, value);
-        if (this === localStorage) notify(String(key), String(value));
-      };
-      Storage.prototype.removeItem = function(key) {
-        remove.call(this, key);
-        if (this === localStorage) notify(String(key), null);
-      };
+      restoring = false;
+      if (storage === window.localStorage && typeof Storage !== 'undefined' && storage instanceof Storage) {
+        var set = Storage.prototype.setItem, remove = Storage.prototype.removeItem;
+        Storage.prototype.setItem = function(key, value) {
+          set.call(this, key, value);
+          if (this === storage) notify(String(key), String(value));
+        };
+        Storage.prototype.removeItem = function(key) {
+          remove.call(this, key);
+          if (this === storage) notify(String(key), null);
+        };
+      }
     })();
   </script>`;
   if (!template.includes('<!--SNACK_LADDER_MOBILE_BOOTSTRAP-->'))

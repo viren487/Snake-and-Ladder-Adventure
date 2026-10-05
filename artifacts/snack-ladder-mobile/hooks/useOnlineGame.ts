@@ -7,7 +7,7 @@ import type { GameState, ShootableSnakeSquare } from "@/lib/game-engine";
 import type { RoomSnapshot } from "@workspace/game-core/online";
 import type { useGameSounds } from "./useGameSounds";
 
-type Walking = { playerId: string; position: number; isSpecialMove: boolean; effect?: "ladder" | "snake" | "boom" | "torch" | "return" | "bamboo" };
+type Walking = { playerId: string; position: number; isSpecialMove: boolean; effect?: "ladder" | "snake" | "boom" | "torch" | "return" | "bamboo" | "web" | "knife" };
 type Shot = { from: number; targets: ShootableSnakeSquare[] };
 type Setter<T> = Dispatch<SetStateAction<T>>;
 type Bindings = {

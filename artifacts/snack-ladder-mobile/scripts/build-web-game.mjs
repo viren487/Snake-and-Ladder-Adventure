@@ -48,11 +48,14 @@ if (css.includes('fonts.googleapis.com') || css.includes('fonts.gstatic.com'))
   throw new Error('Font embedding incomplete; refusing an online-dependent mobile game.');
 
 html = html.replace(/<link\b[^>]*rel="stylesheet"[^>]*>/g, '');
-html = html.replace(/<link\b[^>]*href="(https:\/\/fonts\.(?:googleapis|gstatic)\.com\/[^"]+)"[^>]*>/g, '');
+html = html.replace(/<link\b[^>]*href="https:\/\/fonts\.(?:googleapis|gstatic)\.com(?:\/[^"]*)?"[^>]*>/g, '');
 html = html.replace('</head>', `<style>${css.replaceAll('</style', '<\\/style')}</style></head>`);
+const inlineScripts = [];
 for (const match of html.matchAll(/<script\b[^>]*src="\/assets\/([^"]+)"[^>]*><\/script>/g)) {
   const script = await readFile(path.join(output, 'assets', match[1]), 'utf8');
-  html = html.replace(match[0], `<script type="module">${script.replaceAll('</script', '<\\/script')}</script>`);
+  const placeholder = `SNACK_LADDER_INLINE_SCRIPT_${inlineScripts.length}`;
+  inlineScripts.push({ placeholder, script });
+  html = html.replace(match[0], `<script type="module">${placeholder}</script>`);
 }
 const mimeTypes = { '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
 for (const match of html.matchAll(/\b(?:src|href)="(\/[^"]+)"/g)) {
@@ -68,11 +71,26 @@ for (const match of html.matchAll(/\b(?:src|href)="(\/[^"]+)"/g)) {
     if (error.code !== 'ENOENT') throw error;
   }
 }
-const missingAssets = [...html.matchAll(/<(?:script|link|img)\b[^>]*>/gi)]
-  .map((match) => match[0])
-  .filter((tag) => /\b(?:src|href)="(?:\/assets\/|https:\/\/fonts\.(?:googleapis|gstatic)\.com\/)/i.test(tag));
+function getMarkupAssetTags(markup) {
+  const tags = [];
+  const tagPattern = /<(script|link|img)\b[^>]*>/gi;
+  let match;
+  while ((match = tagPattern.exec(markup))) {
+    tags.push(match[0]);
+    if (match[1].toLowerCase() === 'script') {
+      const closingTag = markup.indexOf('</script>', tagPattern.lastIndex);
+      if (closingTag >= 0) tagPattern.lastIndex = closingTag + '</script>'.length;
+    }
+  }
+  return tags;
+}
+const missingAssets = getMarkupAssetTags(html)
+  .filter((tag) => /\b(?:src|href)="(?:\/assets\/|https:\/\/fonts\.(?:googleapis|gstatic)\.com(?:\/[^"]*)?)"/i.test(tag));
 if (missingAssets.length)
   throw new Error(`External build assets remain; refusing an incomplete mobile package: ${missingAssets.join(', ')}`);
+for (const { placeholder, script } of inlineScripts) {
+  html = html.replace(placeholder, script.replace(/<\/script/gi, '<\\/script'));
+}
 html = html.replace('<head>', '<head><!--SNACK_LADDER_MOBILE_BOOTSTRAP-->');
 await mkdir(path.join(mobile, 'lib/generated'), { recursive: true });
 await writeFile(path.join(mobile, 'lib/generated/web-game.js'),

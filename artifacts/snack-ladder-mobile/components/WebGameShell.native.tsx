@@ -23,12 +23,14 @@ export default function WebGameShell() {
           <Pressable onPress={shell.retrySave}><Text style={styles.text}>Retry save</Text></Pressable>
         </View>}
         <WebView key={revision} testID="shared-web-game" style={styles.game}
-          source={{ html: shell.html, baseUrl: 'https://snack-ladder.local/' }}
-          originWhitelist={['https://snack-ladder.local', 'about:blank']}
+          source={{ html: shell.html, baseUrl: shell.apiOrigin ? `${shell.apiOrigin}/` : 'https://snack-ladder.local/' }}
+          originWhitelist={['https://snack-ladder.local', 'about:blank', ...(shell.apiOrigin ? [shell.apiOrigin] : [])]}
           javaScriptEnabled domStorageEnabled mediaPlaybackRequiresUserAction={false}
           allowsInlineMediaPlayback bounces={false} setSupportMultipleWindows={false}
           onShouldStartLoadWithRequest={(request) =>
-            request.url === 'about:blank' || request.url.startsWith('https://snack-ladder.local/')}
+            request.url === 'about:blank' ||
+            request.url.startsWith('https://snack-ladder.local/') ||
+            (!!shell.apiOrigin && (request.url === shell.apiOrigin || request.url.startsWith(`${shell.apiOrigin}/`)))}
           onMessage={(event) => {
             try { shell.persist(JSON.parse(event.nativeEvent.data)); }
             catch { /* Ignore non-storage messages from the embedded document. */ }

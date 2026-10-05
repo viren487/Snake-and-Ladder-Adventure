@@ -6,8 +6,9 @@ export default function WebGameShell() {
   const frame = useRef<HTMLIFrameElement>(null);
   useEffect(() => {
     const receive = (event: MessageEvent) => {
-      if (event.source === frame.current?.contentWindow && event.origin === window.location.origin)
-        shell.persist(event.data);
+      if (event.source !== frame.current?.contentWindow) return;
+      if (event.origin !== window.location.origin && event.origin !== 'null') return;
+      shell.persist(event.data);
     };
     window.addEventListener('message', receive);
     return () => window.removeEventListener('message', receive);

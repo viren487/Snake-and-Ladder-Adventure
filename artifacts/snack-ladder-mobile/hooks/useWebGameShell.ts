@@ -29,5 +29,5 @@ export function useWebGameShell() {
   const retrySave = () => {
     void writer.current.write().then(() => setSaveError(false)).catch(() => setSaveError(true));
   };
-  return { html, loadError, saveError, persist, retrySave, retryLoad: () => setAttempt((value) => value + 1) };
+  return { html, apiOrigin, loadError, saveError, persist, retrySave, retryLoad: () => setAttempt((value) => value + 1) };
 }

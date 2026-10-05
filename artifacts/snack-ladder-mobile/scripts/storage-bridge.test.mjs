@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { runInNewContext } from 'node:vm';
 import { BRIDGE_TYPE, GAME_STORAGE_KEYS, StorageWriter, createMobileHtml, parseStorageChange }
   from '../lib/storage-bridge.ts';
 
@@ -22,6 +23,38 @@ test('mobile HTML restores old rounds, persists current turns, and stays offline
   assert.match(createMobileHtml('<head><!--SNACK_LADDER_MOBILE_BOOTSTRAP--></head>', {}, 'https://api.example.com'),
     /"apiOrigin":"https:\/\/api\.example\.com"/);
   assert.throws(() => createMobileHtml('<head></head>', {}, null), /bootstrap/);
+});
+
+test('mobile HTML falls back to the parent storage bridge when browser storage is blocked', () => {
+  const key = GAME_STORAGE_KEYS[0];
+  const previous = '{"players":[{"position":12}]}';
+  const html = createMobileHtml('<head><!--SNACK_LADDER_MOBILE_BOOTSTRAP--></head>', { [key]: previous }, null);
+  const bootstrap = html.match(/<script>\s*([\s\S]*?)\s*<\/script>/)?.[1];
+  assert.ok(bootstrap);
+  const messages = [];
+  const window = {
+    location: { origin: 'null' },
+    parent: { postMessage: (message, target) => messages.push({ message, target }) },
+  };
+  const blockedStorage = {
+    length: 0,
+    getItem: () => null,
+    setItem() { throw new Error('storage disabled'); },
+    removeItem() { throw new Error('storage disabled'); },
+  };
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    get() { return blockedStorage; },
+  });
+  window.window = window;
+
+  runInNewContext(bootstrap, window);
+
+  assert.equal(window.localStorage.getItem(key), previous);
+  window.localStorage.setItem(key, '{"players":[{"position":18}]}');
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].target, '*');
+  assert.equal(parseStorageChange(messages[0].message)?.key, key);
 });
 
 test('failed round writes survive and retry saves the latest game state', async () => {

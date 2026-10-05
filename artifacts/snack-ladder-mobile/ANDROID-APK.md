@@ -20,8 +20,8 @@ the GitHub job; having this workflow does not guarantee a first build will succe
 3. Open the repository on GitHub, then **Actions → Build Android APK → Run workflow**.
    The workflow must be on the repository's default branch for this button to show.
 4. Select the branch. The optional **backend_url** has two modes:
-   - **Leave empty:** offline/local and Pass & Play. Online room creation is disabled
-     with an explanation. The game itself runs without an internet connection.
+    - **Leave empty:** local and Pass & Play work without an internet connection.
+      Online rooms need a backend origin, so configure one for an online-enabled build.
    - **Enter the published backend HTTPS origin:** for example the root URL of the
      published game/API, not an Expo QR URL, `/mobile`, `/api`, or a URL with a token.
      This bundles the domain into the APK; changing it requires another APK build.
@@ -44,6 +44,8 @@ a reachable API. GitHub Actions quotas/billing depend on your account.
 This is a release-mode bundle signed with the native template's **standard debug
 certificate**, suitable for personal/testing use, **not a secure Play Store release**.
 The workflow verifies the signature before uploading and supplies a SHA-256 checksum.
+Replit does not submit Android apps to Google Play. Play Store distribution needs
+separate release signing, a signed Android App Bundle, and a Play Console release.
 
 Keep `android.package` and the signing certificate stable between updates. If an
 update reports a signature mismatch, **do not uninstall** to get around it:

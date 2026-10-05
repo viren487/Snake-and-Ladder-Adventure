@@ -64,6 +64,7 @@ jobs:
       - name: Check APK configuration and mobile types
         run: |
           node --test artifacts/snack-ladder-mobile/scripts/android-build-config.test.mjs
+          pnpm --filter @workspace/snack-ladder-mobile run bundle:web
           pnpm run typecheck:libs
           pnpm --filter @workspace/snack-ladder-mobile run typecheck
 
