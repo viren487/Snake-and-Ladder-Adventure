@@ -1,13 +1,13 @@
 ---
-name: Website-only game direction
-description: The user wants game work to focus on the browser website and the separate mobile artifact removed.
+name: Play Store mobile direction
+description: The user reversed website-only scope and wants an Android app based on the browser game for Google Play.
 ---
 
-The user has changed scope to the website only. Do not build or maintain the native/mobile version unless the user explicitly reverses this direction.
+The user reversed the previous website-only direction on October 5, 2026. They now want the same game as an Android app suitable for Google Play. Keep the web game intact and resume mobile work; do not remove the mobile artifact.
 
-**Why:** The user explicitly said future work should be for the website, not mobile, and asked to delete the mobile version because the website still needs work.
+**Why:** The user explicitly requested turning the same game into a mobile game that can be published in the Play Store.
 
-**How to apply:** Make requested game changes in the browser artifact only. The registered mobile artifact is Library-managed: stop its Expo workflow, but do not claim it is deleted until it disappears from the artifact list after the user deletes it in the Replit Library.
+**How to apply:** Treat the browser game as the source of truth for visuals and rules. Confirm whether mobile must also match its online multiplayer modes when that affects implementation; preserve the website while building the mobile app.
 
 ## Sound scope
 
