@@ -17,13 +17,15 @@ export interface OnlinePanelProps {
   onRetry: () => void;
   resumeCode?: string;
   pendingAdmission?: boolean;
+  initiallyOpen?: boolean;
+  initialName?: string;
 }
 
-export function OnlinePanel({ room, session, busy, connected, error, onCreate, onJoin, onLeave, onRematch, onRetry, resumeCode, pendingAdmission }: OnlinePanelProps) {
-  const [open, setOpen] = useState(false);
+export function OnlinePanel({ room, session, busy, connected, error, onCreate, onJoin, onLeave, onRematch, onRetry, resumeCode, pendingAdmission, initiallyOpen, initialName }: OnlinePanelProps) {
+  const [open, setOpen] = useState(initiallyOpen ?? false);
   const [roomOpen, setRoomOpen] = useState(false);
   const [commsOpen, setCommsOpen] = useState(false);
-  const [name, setName] = useState('');
+  const [name, setName] = useState(initialName ?? '');
   const [code, setCode] = useState('');
   const [maxPlayers, setMaxPlayers] = useState(2);
   const [copied, setCopied] = useState(false);

@@ -1,4 +1,4 @@
-- [Play Store mobile direction](mobile-game-direction.md) — The user reversed website-only scope and now wants an Android app based on the browser game.
+- [Play Store mobile direction](mobile-game-direction.md) — Build the native Expo game from the browser game; a browser mobile layout is not the app.
 - [Torch and crown quest](crown-quest.md) — First arrival at 100 grants a torch and returns the player Home; keys exist only in black rooms 17, 44 and 67.
 - [Extra rolls and mystery powers](mystery-powers.md) — A valid six earns another chance; mystery powers are chosen by players and used through explicit actions.
 - [Online multiplayer scope](online-multiplayer.md) — 2–4 people on separate devices; N−1 finishers win, last loses; preserve local saves and original seats.

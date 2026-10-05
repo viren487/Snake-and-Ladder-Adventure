@@ -53,6 +53,7 @@ const LEGACY_STORAGE_KEY = 'snack-ladder-adventure-v2';
 const OLDEST_STORAGE_KEY = 'snack-ladder-adventure-v1';
 const BOT_STORAGE_KEY = 'snack-ladder-adventure-bot-v1';
 const LOCAL_MODE_STORAGE_KEY = 'snack-ladder-local-mode-v1';
+const MOBILE_PROFILE_STORAGE_KEY = 'snack-ladder-mobile-profile-v1';
 const MOVEMENT_STEP_DELAY_MS = 240;
 const SPECIAL_MOVE_DURATION_MS = { ladder: 2200, snake: 2000, boom: 700, web: 1450, knife: 1250 } as const;
 const SPECIAL_MOVE_STYLE = {
@@ -74,8 +75,34 @@ type PickupNotice = PickupCelebration & { id: number };
 
 const SNAKE_ART = new URL('./realistic-snake-red.png', import.meta.url).href;
 
+type MobileLaunchProfile = { name: string; playMode: 'bot' | 'pass' | 'online' };
+
+function readMobileLaunchProfile(): MobileLaunchProfile | null {
+  try {
+    if (!Reflect.get(window, '__SNACK_LADDER_MOBILE__')) return null;
+    const saved = localStorage.getItem(MOBILE_PROFILE_STORAGE_KEY);
+    if (!saved) return null;
+    const value: unknown = JSON.parse(saved);
+    if (!value || typeof value !== 'object') return null;
+    const profile = value as Partial<MobileLaunchProfile>;
+    const name = typeof profile.name === 'string' ? profile.name.trim().slice(0, 24) : '';
+    if (!name || (profile.playMode !== 'bot' && profile.playMode !== 'pass' && profile.playMode !== 'online')) return null;
+    return { name, playMode: profile.playMode };
+  } catch {
+    return null;
+  }
+}
+
+function applyMobilePlayerName(game: GameState) {
+  const profile = readMobileLaunchProfile();
+  if (profile && game.players[0]) game.players[0].name = profile.name;
+  return game;
+}
+
 function readLocalPlayMode(): LocalPlayMode {
   try {
+    const profile = readMobileLaunchProfile();
+    if (profile) return profile.playMode === 'bot' ? 'bot' : 'pass';
     return localStorage.getItem(LOCAL_MODE_STORAGE_KEY) === 'bot' ? 'bot' : 'pass';
   } catch {
     return 'pass';
@@ -83,7 +110,7 @@ function readLocalPlayMode(): LocalPlayMode {
 }
 
 function createLocalGame(mode: LocalPlayMode): GameState {
-  const game = createGame();
+  const game = applyMobilePlayerName(createGame());
   if (mode === 'bot') {
     game.players[1].name = 'Mr.Bot';
     game.message = 'Player 1 is ready to face Mr.Bot. First reach 100 for a torch; the crown stays locked until you collect a black-room key and return to 100.';
@@ -105,7 +132,7 @@ function readGame(mode: LocalPlayMode = 'pass'): { game: GameState; error: strin
       if (!saved) continue;
       const value: unknown = JSON.parse(saved);
       if (!isSavedGame(value)) throw new Error('Invalid saved round');
-      const game = repairLegacyGame(value);
+      const game = applyMobilePlayerName(repairLegacyGame(value));
       if (mode === 'bot') game.players[1].name = 'Mr.Bot';
       return { game, error: null, blocked: false };
     }
@@ -602,7 +629,9 @@ function Board({
 }
 
 function GameScreen() {
-  const [playMode, setPlayMode] = useState<LocalPlayMode>(readLocalPlayMode);
+  const [mobileProfile] = useState(readMobileLaunchProfile);
+  const [playMode, setPlayMode] = useState<LocalPlayMode>(() =>
+    mobileProfile ? (mobileProfile.playMode === 'bot' ? 'bot' : 'pass') : readLocalPlayMode());
   const [initialSave] = useState(() => readGame(playMode));
   const [game, setGame] = useState<GameState>(initialSave.game);
   const [saveBlocked, setSaveBlocked] = useState(initialSave.blocked);
@@ -1071,6 +1100,7 @@ function GameScreen() {
           </div>
         </header>
         <OnlinePanel room={online.room} session={online.session} pendingAdmission={!!online.pendingAdmission} resumeCode={online.session?.code ?? (online.pendingAdmission ? online.pendingAdmission.code ?? "Creating room" : undefined)}
+          initiallyOpen={mobileProfile?.playMode === 'online'} initialName={mobileProfile?.name}
           busy={online.busy || rolling || firing || online.loadingSession} connected={online.connected}
           error={online.error} onCreate={online.create} onJoin={online.join}
           onLeave={leaveOnline} onRematch={() => { void online.action({ type: 'rematch' }); }}

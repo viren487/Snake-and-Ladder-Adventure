@@ -3,13 +3,31 @@ import assert from 'node:assert/strict';
 import { runInNewContext } from 'node:vm';
 import { BRIDGE_TYPE, GAME_STORAGE_KEYS, StorageWriter, createMobileHtml, parseStorageChange }
   from '../lib/storage-bridge.ts';
+import { parseMobileProfile } from '../lib/mobile-profile.ts';
 
 test('storage messages may change only the game and recoverable room keys', () => {
   const item = { type: BRIDGE_TYPE, key: GAME_STORAGE_KEYS[0], value: '{"players":[]}' };
   assert.deepEqual(parseStorageChange(item), item);
+  for (const key of [
+    'snack-ladder-adventure-bot-v1',
+    'snack-ladder-local-mode-v1',
+    'snack-ladder-mobile-profile-v1',
+  ]) {
+    const accepted = { ...item, key };
+    assert.deepEqual(parseStorageChange(accepted), accepted);
+  }
   assert.equal(parseStorageChange({ ...item, key: 'settings' }), null);
   assert.equal(parseStorageChange({ ...item, value: { players: [] } }), null);
   assert.equal(parseStorageChange({ ...item, value: 'x'.repeat(2_000_001) }), null);
+});
+
+test('mobile profiles preserve a normalized player name and one supported launch mode', () => {
+  assert.deepEqual(parseMobileProfile('{"name":"  Mira  ","playMode":"online"}'), {
+    name: 'Mira',
+    playMode: 'online',
+  });
+  assert.equal(parseMobileProfile('{"name":" ","playMode":"bot"}'), null);
+  assert.equal(parseMobileProfile('{"name":"Mira","playMode":"unknown"}'), null);
 });
 
 test('mobile HTML restores old rounds, persists current turns, and stays offline-safe', () => {

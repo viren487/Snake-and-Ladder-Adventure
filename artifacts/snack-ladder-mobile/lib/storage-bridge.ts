@@ -2,7 +2,8 @@ export const GAME_STORAGE_KEYS = [
   'snack-ladder-adventure-v5', 'snack-ladder-adventure-v4',
   'snack-ladder-adventure-v3', 'snack-ladder-adventure-v2',
   'snack-ladder-adventure-v1', 'snake-ladder-online-seat-v1',
-  'snake-ladder-online-pending-v1',
+  'snake-ladder-online-pending-v1', 'snack-ladder-adventure-bot-v1',
+  'snack-ladder-local-mode-v1', 'snack-ladder-mobile-profile-v1',
 ] as const;
 export const BRIDGE_TYPE = 'snack-ladder-mobile-storage-v1';
 export type StorageChange = { type: typeof BRIDGE_TYPE; key: string; value: string | null };

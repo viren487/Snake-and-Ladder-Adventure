@@ -9,6 +9,14 @@ The user reversed the previous website-only direction on October 5, 2026. They n
 
 **How to apply:** Treat the browser game as the source of truth for visuals and rules. Confirm whether mobile must also match its online multiplayer modes when that affects implementation; preserve the website while building the mobile app.
 
+## Native mobile preview
+
+A mobile website route is not a substitute for the native Expo app. The expected launch flow is loading, player-name setup, play-mode selection, then the playable game. An installable Android package is separate work and should only be built when explicitly requested.
+
+**Why:** The user corrected an earlier mobile web route and asked for a functioning native preview instead of an APK for that request.
+
+**How to apply:** Continue mobile work in the Expo artifact, keep the browser game intact, and use its rules and game engine inside the native experience.
+
 ## Sound scope
 
 Use short action sound effects for dice, panda movement, ladder climbing, snake bites, bullet collection and key collection. Give bullet and key pickups distinct sounds. Do not add background music during active gameplay. Post-match winner dance music is now explicitly requested.

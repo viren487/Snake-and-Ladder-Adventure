@@ -14,7 +14,7 @@
       "package": "com.snackladder.mobile",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#131a25"
+        "backgroundColor": "#131726"
       }
     },
     "web": {
@@ -28,7 +28,7 @@
           "image": "./assets/images/icon.png",
           "imageWidth": 180,
           "resizeMode": "contain",
-          "backgroundColor": "#131a25"
+          "backgroundColor": "#131726"
         }
       ],
       [
