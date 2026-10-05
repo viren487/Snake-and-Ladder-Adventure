@@ -442,3 +442,22 @@
   0%,100% { transform:rotate(-5deg); }
   50% { transform:rotate(5deg); }
 }
+
+.mobile-v2-preview {
+  min-height: 100dvh;
+  background: #171b2c;
+}
+.mobile-v2-preview__label {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 10px;
+  border-bottom: 1px solid rgba(248, 203, 84, .18);
+  background: #121827;
+  color: #ffe6a7;
+  font: 500 9px/1.3 'DM Mono', monospace;
+  letter-spacing: .12em;
+  text-align: center;
+  text-transform: uppercase;
+}

@@ -14,3 +14,9 @@ For hands-on Android testing, open the fresh **Preview on your phone** QR in Exp
 **Why:** A user repeatedly reached an insecure/fallback browser page from the old temporary tunnel even though the current Expo preview was running.
 
 **How to apply:** Restart the managed Expo workflow if the QR is stale, confirm Metro is running, and direct the user to Replit's phone preview/QR rather than presenting the tunnel as a permanent browser URL.
+
+For this project, keep a direct Chrome-accessible route for the mobile game as well as the Expo Go path; do not use the Expo tunnel as the Chrome handoff.
+
+**Why:** The Expo tunnel repeatedly opened Replit's fallback page on the phone even while Metro and the internal preview were working.
+
+**How to apply:** Share the mobile preview through the workspace's secure browser host, label it as the mobile version, and keep the native Expo path separate.

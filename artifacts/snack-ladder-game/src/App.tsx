@@ -42,6 +42,9 @@ import BambooReturnArt from './BambooReturnArt';
 import { useOnlineGame, type PickupCelebration } from './use-online-game';
 import type { OnlineAction } from '@workspace/api-client-react';
 import { getMrBotAction, type MrBotAction } from './mr-bot';
+import { Route, Switch } from 'wouter';
+import MobileV2Page from './pages/mobile-v2';
+import NotFound from './pages/not-found';
 
 const STORAGE_KEY = 'snack-ladder-adventure-v5';
 const QUEST_STORAGE_KEY = 'snack-ladder-adventure-v4';
@@ -598,7 +601,7 @@ function Board({
   );
 }
 
-function App() {
+function GameScreen() {
   const [playMode, setPlayMode] = useState<LocalPlayMode>(readLocalPlayMode);
   const [initialSave] = useState(() => readGame(playMode));
   const [game, setGame] = useState<GameState>(initialSave.game);
@@ -1252,6 +1255,24 @@ function App() {
         </div>
       </div>
     </main>
+  );
+}
+
+function MobileV2Route() {
+  return (
+    <MobileV2Page>
+      <GameScreen />
+    </MobileV2Page>
+  );
+}
+
+function App() {
+  return (
+    <Switch>
+      <Route path="/" component={GameScreen} />
+      <Route path="/mobile-v2" component={MobileV2Route} />
+      <Route component={NotFound} />
+    </Switch>
   );
 }
 
