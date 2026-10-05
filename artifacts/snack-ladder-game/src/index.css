@@ -122,12 +122,28 @@
 .bullet-glyph { position:absolute; width:43%; height:43%; right:5%; bottom:5%; filter:drop-shadow(0 1px 1px #fff7); }
 .mystery-box-glyph { position:absolute; width:57%; height:57%; right:1%; bottom:1%; filter:drop-shadow(0 2px 1px #22132c99); }
 .gun-glyph { position:absolute; width:66%; height:56%; right:1%; bottom:2%; transform:scaleX(-1); filter:drop-shadow(0 1px 1px #17120c99); }
+.gun-glyph .gun-frame { fill:#727b80; stroke:#242a2d; stroke-width:1.25; stroke-linejoin:round; }
+.gun-glyph .gun-grip { fill:#342d29; stroke:#1f1c1a; stroke-width:1; stroke-linejoin:round; }
+.gun-glyph .gun-grip-panel { fill:#59483b; stroke:#211c19; stroke-width:.8; stroke-linejoin:round; }
+.gun-glyph .gun-slide { fill:#414c55; stroke:#1f262b; stroke-width:1.35; stroke-linejoin:round; }
+.gun-glyph .gun-slide-highlight { fill:#aab4b8; opacity:.65; }
+.gun-glyph .gun-ejection-port { fill:#20272a; stroke:#9ca6a8; stroke-width:.65; }
+.gun-glyph .gun-muzzle { fill:#22292d; stroke:#a3aaab; stroke-width:.8; }
+.gun-glyph .gun-sights,.gun-glyph .gun-serrations,.gun-glyph .gun-frame-highlight { fill:none; stroke:#c2c8c6; stroke-width:.8; stroke-linecap:round; stroke-linejoin:round; opacity:.85; }
+.gun-glyph .gun-serrations { stroke:#a4adb0; stroke-width:.7; opacity:.7; }
+.gun-glyph .gun-trigger-guard { fill:none; stroke:#d1c8a9; stroke-width:1.25; stroke-linecap:round; stroke-linejoin:round; }
+.gun-glyph .gun-trigger { fill:none; stroke:#dfd0a9; stroke-width:1; stroke-linecap:round; }
+.gun-glyph .gun-pin { fill:#d4b76f; stroke:#4b402a; stroke-width:.7; }
 .boom-glyph { position:absolute; width:62%; height:62%; right:1%; bottom:1%; filter:drop-shadow(0 2px 1px #2a170f99); }
 .locked-glyph { color:#ffc745; position:absolute; width:42%; height:42%; left:29%; top:34%; filter:drop-shadow(0 0 4px #f5a827); }
 .gate-open-glyph { color:#8ce2a5; filter:drop-shadow(0 0 4px #5de989); }
 .lock-caption { position:absolute; left:0; right:0; top:12%; text-align:center; font:700 clamp(3px,.48vw,6px)/1.1 'DM Mono',monospace; letter-spacing:.2px; color:#ffe6a7; }
 .board-svg { position:absolute; inset:0; width:100%; height:100%; z-index:3; overflow:visible; pointer-events:none; }
-.snake-photo { filter:brightness(.9) saturate(1.5) contrast(1.12) drop-shadow(0 3px 2px #17120cbb); opacity:1; }
+.snake-photo { filter:brightness(.96) saturate(1.55) contrast(1.12) drop-shadow(0 3px 2px #17120cbb); opacity:1; }
+.snake-photo-green { filter:hue-rotate(112deg) brightness(.88) saturate(1.42) contrast(1.1) drop-shadow(0 3px 2px #17120cbb); }
+.snake-photo-blue { filter:hue-rotate(196deg) brightness(.86) saturate(1.5) contrast(1.12) drop-shadow(0 3px 2px #17120cbb); }
+.snake-photo-violet { filter:hue-rotate(268deg) brightness(.84) saturate(1.25) contrast(1.08) drop-shadow(0 3px 2px #17120cbb); }
+.snake-photo-orange { filter:hue-rotate(20deg) brightness(1.02) saturate(1.42) contrast(1.1) drop-shadow(0 3px 2px #17120cbb); }
 .snake-sway { transform-box:fill-box; transform-origin:50% 0%; animation:snake-sway 4.1s ease-in-out infinite; }
 .snake-art-stunned .snake-sway { animation-play-state:paused; }
 @keyframes snake-sway { 0%,100% { transform:rotate(-.55deg); } 50% { transform:rotate(.55deg); } }
@@ -172,8 +188,11 @@
 .crown-tile svg { width:48%; height:48%; margin-bottom:-2px; }
 .crown-tile span { font:700 clamp(9px,1.1vw,15px)/1 'Fredoka',sans-serif; color:#fff8d4; text-shadow:0 1px 2px #8a3514; }
 .crown-tile.crown-locked { background:linear-gradient(145deg,#6c6259,#38343a); border-color:#c9ae7d; }
-.crown-locked .goal-crown-icon { opacity:.4; }
+.crown-locked .goal-crown-icon { opacity:.4; transform-origin:50% 55%; animation:locked-crown-glow 2.8s ease-in-out infinite; }
 .crown-tile .goal-lock-icon { position:absolute; width:29%;height:29%;right:8%;top:9%;color:#ffdf80; }
+.crown-locked .goal-lock-icon { transform-origin:50% 42%; filter:drop-shadow(0 0 2px #ffe18a); animation:locked-crown-rattle 3.2s ease-in-out infinite; }
+@keyframes locked-crown-glow { 0%,100% { opacity:.32; transform:scale(.94); filter:drop-shadow(0 0 1px #ffd45b); } 50% { opacity:.64; transform:scale(1.08); filter:drop-shadow(0 0 7px #ffd45b); } }
+@keyframes locked-crown-rattle { 0%,75%,100% { transform:rotate(0); } 79% { transform:rotate(-9deg); } 83% { transform:rotate(7deg); } 87% { transform:rotate(-4deg); } 91% { transform:rotate(0); } }
 .board-cell.key-room-dark { background:#020307; border-color:#090a0e; box-shadow:inset 0 0 0 1px #111319,inset 0 0 18px #000; }
 .board-cell.key-room-dark > * { opacity:0; }
 .board-cell.key-room-lit { background:radial-gradient(ellipse at 50% 58%,#fff0a5 0%,#f5c14b 20%,#aa641f 48%,#33211e 100%);box-shadow:inset 0 0 0 2px #ffe682,inset 0 0 18px #fff2a0; }
@@ -249,11 +268,11 @@
 .fire-choice-title { display:flex; align-items:center; gap:8px; color:#ffe6a7; font:600 17px/1.15 'Fredoka',sans-serif; }
 .fire-gun-icon { position:relative; display:grid; width:23px; height:18px; flex:0 0 auto; place-items:center; }
 .fire-choice-card .gun-glyph { position:relative; right:auto; bottom:auto; width:23px; height:18px; transform:scaleX(-1); }
-.mobile-gun-status .gun-glyph path:first-of-type,.fire-gun-icon .gun-glyph path:first-of-type { fill:#687786; stroke:#f1d89a; }
-.mobile-gun-status .gun-glyph path:nth-of-type(2),.fire-gun-icon .gun-glyph path:nth-of-type(2) { fill:#f0c458; stroke:#624820; }
-.mobile-gun-status .gun-glyph path:nth-of-type(3),.fire-gun-icon .gun-glyph path:nth-of-type(3) { fill:#a9643a; stroke:#f0d3a6; }
-.mobile-gun-status .gun-glyph path:nth-of-type(4),.fire-gun-icon .gun-glyph path:nth-of-type(4) { stroke:#fff0c3; }
-.mobile-gun-status .gun-glyph circle,.fire-gun-icon .gun-glyph circle { fill:#fff1bd; }
+.mobile-gun-status .gun-glyph .gun-frame,.fire-gun-icon .gun-glyph .gun-frame { fill:#8797a4; stroke:#e1d0a3; }
+.mobile-gun-status .gun-glyph .gun-slide,.fire-gun-icon .gun-glyph .gun-slide { fill:#647786; stroke:#f1d89a; }
+.mobile-gun-status .gun-glyph .gun-grip-panel,.fire-gun-icon .gun-glyph .gun-grip-panel { fill:#a9643a; stroke:#f0d3a6; }
+.mobile-gun-status .gun-glyph .gun-pin,.fire-gun-icon .gun-glyph .gun-pin { fill:#fff1bd; }
+.mobile-gun-status .gun-glyph .gun-ejection-port,.fire-gun-icon .gun-glyph .gun-ejection-port { fill:#34414a; stroke:#fff0c3; }
 .fire-ammo-count { display:inline-flex; align-items:center; gap:3px; margin-left:auto; padding:3px 6px; border:1px solid #647b89; border-radius:8px; background:#172735; color:#d5f0f3; font:600 9px 'DM Mono',monospace; white-space:nowrap; }
 .fire-choice-copy { color:#c5c7d0; font-size:11px; line-height:1.4; }
 .mobile-gun-status { display:none; }

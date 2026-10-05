@@ -69,13 +69,7 @@ type WalkingPiece = {
 type Shot = { from: number; targets: ShootableSnakeSquare[] };
 type PickupNotice = PickupCelebration & { id: number };
 
-const SNAKE_ART: Record<string, string> = {
-  violet: new URL('./realistic-snake-violet.png', import.meta.url).href,
-  green: new URL('./realistic-snake-green.png', import.meta.url).href,
-  red: new URL('./realistic-snake-red.png', import.meta.url).href,
-  blue: new URL('./realistic-snake-blue.png', import.meta.url).href,
-  orange: new URL('./realistic-snake-orange.png', import.meta.url).href,
-};
+const SNAKE_ART = new URL('./realistic-snake-red.png', import.meta.url).href;
 
 function readLocalPlayMode(): LocalPlayMode {
   try {
@@ -215,11 +209,19 @@ function MysteryBoxIcon({ square }: { square: number }) {
 function GunIcon() {
   return (
     <svg viewBox="0 0 64 48" aria-hidden="true" className="gun-glyph">
-      <path d="M7 14q0-4 4-4h29l19 5v10H37l-5 5h-3l-5 12H12l4-15-7-3q-2-1-2-4Z" fill="#3d4550" stroke="#24232a" strokeWidth="2.5" strokeLinejoin="round" />
-      <path d="M13 13h27l13 4H17Z" fill="#d5aa4b" stroke="#63451f" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M27 29h10l-5 10h-9Z" fill="#9a5b32" stroke="#50351f" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M29 25v3q0 5 6 4" fill="none" stroke="#e8d6a5" strokeWidth="1.8" strokeLinecap="round" />
-      <circle cx="13" cy="18" r="1.5" fill="#f4cc69" />
+      <path className="gun-frame" d="M8 22.5h34l-4.4 5.1h-5.2L29.5 41q-.5 2-2.6 2h-8.2l2.6-13.1-8-2.5H9.8q-2.2 0-2.7-2.4Z" />
+      <path className="gun-grip" d="m21.3 29.2 9.4.2-2.7 10.8q-.4 1.8-2.4 1.8h-7.2Z" />
+      <path className="gun-grip-panel" d="m22.5 31 5.7.1-2.1 8.4h-5.3Z" />
+      <path className="gun-slide" d="M5.5 12.3q0-3.5 3.7-3.5h32.5l15 4.7 4.3 2.7v7.1H39.8l-3.5 4H10.5q-3.1 0-3.7-3Z" />
+      <path className="gun-slide-highlight" d="M9.5 11.3h30.8l12.4 3.8H13.1q-2.4 0-3.6 1.2Z" />
+      <path className="gun-ejection-port" d="M30.1 14h7.2v5.2h-7.2z" />
+      <path className="gun-muzzle" d="M57.2 13.5 61 16v7.3h-3.8Z" />
+      <path className="gun-sights" d="M14 8.7V6.8h4.8v1.9m23.6.3V7.1h4.1v3.1" />
+      <path className="gun-serrations" d="M11.5 13.1v9m3-8.7v9m3-8.7v9" />
+      <path className="gun-trigger-guard" d="M32.7 28.6h7.2q4.3 0 3.5 4l-1.6 4.1h-3" />
+      <path className="gun-trigger" d="m37.5 29.7-1 4.4" />
+      <path className="gun-frame-highlight" d="M10 25.2h26.8M21 30.6l-1.6 8.1" />
+      <circle className="gun-pin" cx="14.1" cy="26.2" r="1.5" />
     </svg>
   );
 }
@@ -289,8 +291,8 @@ function SnakeArt({ from, to, color, sleeping }: { from: number; to: number; col
     <g className={sleeping ? 'snake-art-stunned' : ''} data-testid={`snake-art-${from}-${to}`} transform={`translate(${a.x} ${a.y}) rotate(${rotation})`}>
       <g className="snake-sway" style={{ animationDelay: `${-((from * 173) % 4100)}ms` }}>
         <image
-          className="snake-photo"
-          href={SNAKE_ART[color] || SNAKE_ART.violet}
+          className={`snake-photo snake-photo-${color}`}
+          href={SNAKE_ART}
           x={-width / 2}
           y="0"
           width={width}
