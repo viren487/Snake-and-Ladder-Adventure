@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/snack-ladder-mobile/"
+title = "Snake & Ladder Adventure — Mobile"
+description = "A native mobile companion to the existing Snake & Ladder Adventure, reusing its board, crown-quest rules, powers, and online room rules."
+version = "1.0.0"
+id = "artifacts/snack-ladder-mobile"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/snack-ladder-mobile/" ]
+localPort = 20644
+
+[services.development]
+run = "pnpm --filter @workspace/snack-ladder-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/snack-ladder-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/snack-ladder-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "20644"
+BASE_PATH = "/snack-ladder-mobile/"

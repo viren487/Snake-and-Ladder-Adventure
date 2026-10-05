@@ -26,3 +26,9 @@ Rooms support a selected match size of 2, 3 or 4 players, and wait for that many
 **Why:** The user explicitly requested a maximum of four, three-player play as well, and gave the example that the first three finishers in a four-player match win while the remaining player loses. Selecting a room size preserves the existing automatic start for two-person rooms.
 
 **How to apply:** Keep finish order separate from match completion; do not stop a multiplayer match at the first crown. Finished spectators going offline must not pause remaining active players. Rematches keep the same seat count and require everyone’s vote.
+
+Turn ownership gates ordinary moves, but not every valid room action. The bomb owner may detonate on another player's turn when the room permits it, and any connected member may vote to rematch after the match ends.
+
+**Why:** Reusing the ordinary `canAct` gate made the visible detonate and rematch controls inert whenever their actor did not own the current turn.
+
+**How to apply:** For mobile and browser clients, authorize detonation and rematch through their dedicated room/ownership conditions rather than the current-turn permission.
