@@ -118,7 +118,7 @@ export default function MobileLaunchFlow({
         <View style={[styles.loadingMark, { borderColor: colors.border, backgroundColor: colors.card }]}>
           <Image source={require('../assets/images/icon.png')} style={styles.loadingImage} />
         </View>
-        <Text style={[styles.brand, { color: colors.foreground }]}>SNAKE & LADDER</Text>
+        <Text style={[styles.brand, { color: colors.foreground }]}>SNAKE LADDER WITH PANDA</Text>
         <Text style={[styles.loadingCaption, { color: colors.mutedForeground }]}>Setting up the board…</Text>
         <ActivityIndicator color={colors.primary} style={styles.loader} />
       </View>
@@ -163,8 +163,8 @@ export default function MobileLaunchFlow({
               <MaterialCommunityIcons name="ladder" size={20} color={colors.primary} />
             </View>
             <View>
-              <Text style={[styles.brand, { color: colors.foreground }]}>SNAKE & LADDER</Text>
-              <Text style={[styles.brandSub, { color: colors.mutedForeground }]}>ADVENTURE BOARD</Text>
+              <Text style={[styles.brand, { color: colors.foreground }]}>SNAKE LADDER</Text>
+              <Text style={[styles.brandSub, { color: colors.mutedForeground }]}>WITH PANDA</Text>
             </View>
           </View>
           <View style={[styles.stepPill, { backgroundColor: colors.muted, borderColor: colors.border }]}>

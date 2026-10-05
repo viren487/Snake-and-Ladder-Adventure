@@ -1,6 +1,6 @@
 kind = "mobile"
 previewPath = "/snack-ladder-mobile/"
-title = "Snake & Ladder Mobile"
+title = "Snake Ladder with Panda"
 description = "A native, pass-and-play snake-and-ladder game for two players on one phone, with animated panda tokens, dice turns, collectible keys, torch gates, and saved local progress."
 version = "1.0.0"
 id = "artifacts/snack-ladder-mobile"
