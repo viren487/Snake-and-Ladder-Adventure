@@ -63,12 +63,7 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, 'dist/public'),
     emptyOutDir: true,
-    // The mobile app embeds this build in an HTML string. Inline imported images,
-    // audio, and other assets so WebView never requests files from a missing server.
-    assetsInlineLimit:
-      process.env.SNACK_LADDER_MOBILE_EXPORT === '1'
-        ? Number.MAX_SAFE_INTEGER
-        : 4096,
+    assetsInlineLimit: 4096,
   },
   server: {
     port,

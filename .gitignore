@@ -11,16 +11,10 @@ out-tsc
 # dependencies
 node_modules
 
-# Local configuration and Android build/signing outputs
+# Local configuration
 .env
 .env.*
 !.env.example
-*.jks
-*.keystore
-.gradle/
-apk-output/
-/artifacts/snack-ladder-mobile/android/
-/artifacts/snack-ladder-mobile/ios/
 
 # IDEs and editors
 /.idea
