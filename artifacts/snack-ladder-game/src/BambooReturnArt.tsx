@@ -27,9 +27,9 @@ export default function BambooReturnArt({ active, torchVisible, collecting = fal
           <stop offset="0" stopColor="#5c4a1c" /><stop offset=".4" stopColor="#c2a64f" /><stop offset="1" stopColor="#4a3a14" />
         </linearGradient>
         <radialGradient id="bm-torch-aura">
-          <stop offset="0" stopColor="#fff7c2" stopOpacity=".78" />
-          <stop offset=".32" stopColor="#ffdf72" stopOpacity=".52" />
-          <stop offset=".7" stopColor="#ff9b36" stopOpacity=".2" />
+          <stop offset="0" stopColor="#fffbd0" stopOpacity=".94" />
+          <stop offset=".32" stopColor="#ffdf62" stopOpacity=".72" />
+          <stop offset=".7" stopColor="#ff972f" stopOpacity=".34" />
           <stop offset="1" stopColor="#ff8b24" stopOpacity="0" />
         </radialGradient>
         <linearGradient id="bm-leaf" x1="0" x2="1">
@@ -57,7 +57,7 @@ export default function BambooReturnArt({ active, torchVisible, collecting = fal
       </g>
       {torchVisible && (
         <g className="bamboo-hanging-torch" transform={`translate(${X + 15} ${TOP + 128})`} aria-label="Flashlight hanging from a red ribbon">
-          <circle className="bamboo-torch-glow" cx="0" cy="48" r="44" fill="url(#bm-torch-aura)" />
+          <circle className="bamboo-torch-glow" cx="0" cy="48" r="48" fill="url(#bm-torch-aura)" />
           <path d="M0 0c-10-12-25-7-21 3 3 7 14 4 21-3 7 7 18 10 21 3C25-7 10-12 0 0Z" fill="#c64035" stroke="#7e211e" strokeWidth="2" />
           <path d="M-8 7-13 24-6 20 0 11 6 20 13 24 8 7" fill="#e4513b" stroke="#7e211e" strokeWidth="1.5" strokeLinejoin="round" />
           <path d="M0 8v19" stroke="#f3c95f" strokeWidth="2" />
