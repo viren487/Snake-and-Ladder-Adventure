@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type GameSound = "dice" | "step" | "ladder" | "snake" | "bullet" | "key" | "happy";
+export type GameSound = "dice" | "step" | "ladder" | "snake" | "bullet" | "key" | "happy" | "bomb";
 type PickupState = { bullets: number; crownKeyRoom: number | null };
 
 const SOUND_FILES: Record<GameSound, string> = {
@@ -11,6 +11,7 @@ const SOUND_FILES: Record<GameSound, string> = {
   bullet: new URL("./sounds/bullet.wav", import.meta.url).href,
   key: new URL("./sounds/key.wav", import.meta.url).href,
   happy: new URL("./sounds/happy.wav", import.meta.url).href,
+  bomb: new URL("./sounds/bomb-blast.wav", import.meta.url).href,
 };
 
 /** One-shot gameplay effects; celebration music loops only after match finish. */
@@ -30,6 +31,7 @@ export function useGameSounds() {
       bullet: 0.55,
       key: 0.55,
       happy: 0.5,
+      bomb: 0.72,
     };
     const created = {} as Record<GameSound, HTMLAudioElement>;
     for (const sound of Object.keys(SOUND_FILES) as GameSound[]) {

@@ -5,5 +5,5 @@
 - [Browser room voice](voice-chat.md) — Keep voice audio direct between browsers; use the room server only for authenticated signaling and text.
 - [Snake-shot protection](snake-shot-protection.md) — A shot protects its shooter for three future dice rolls, not three global multiplayer turns.
 - [Multiplayer capacity audits](multiplayer-capacity-audits.md) — Typechecks can miss fixed-two-seat logic; verify web admission and multi-panda rendering.
-- [Stable multiplayer controls](online-room-ui.md) — Keep room actions in an overlay drawer, avoid turn-driven page scrolling, and aim directly at board snake heads.
+- [Stable multiplayer controls](online-room-ui.md) — Keep room actions compact; Fire stays in the dice slot while aiming, with selected heads marked red.
 - [Opaque-origin mobile preview](mobile-webview-storage.md) — For `srcDoc` saves, allow `null` origins only from the exact iframe and validate message keys.

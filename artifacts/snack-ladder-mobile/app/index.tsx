@@ -51,7 +51,7 @@ import {
 import type { RoomSnapshot } from '@workspace/game-core/online';
 import { getMrBotAction, type MrBotAction } from '@/lib/mr-bot';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
-import { GameBoard } from '@/components/GameBoard';
+import { GameBoard, type BoardBlast } from '@/components/GameBoard';
 import { useColors } from '@/hooks/useColors';
 import { useGameSounds } from '@/lib/game-sounds';
 
@@ -287,10 +287,13 @@ export default function IndexScreen() {
   const [rolling, setRolling] = useState(false);
   const [diceFace, setDiceFace] = useState<number | null>(null);
   const [selectedTargets, setSelectedTargets] = useState<ShootableSnakeSquare[]>([]);
+  const [bombBlast, setBombBlast] = useState<BoardBlast | null>(null);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const botTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMounted = useRef(true);
   const previousOnlineGame = useRef<GameState | null>(null);
+  const previousBlastGame = useRef<GameState | null>(null);
+  const blastSequence = useRef(0);
 
   const roomStorage = useMemo<RoomStorage>(() => ({
     async load() {
@@ -314,11 +317,13 @@ export default function IndexScreen() {
       const previous = previousOnlineGame.current;
       previousOnlineGame.current = room.game;
       if (!animate || !room.event || !previous) return;
+      const bombBlast = (room.event.kind === 'detonate' || room.event.effect === 'boom') &&
+        /(detonated the bomb|hit the boom)/i.test(room.game.message);
       for (const player of room.game.players) {
         const before = previous.players.find((item) => item.id === player.id);
         if (!before) continue;
         sounds.playPickups(before, player);
-        if (before.position !== player.position) sounds.play('step');
+        if (before.position !== player.position && !bombBlast) sounds.play('step');
       }
       if (room.event.kind === 'roll') sounds.play('dice');
       if (room.event.effect === 'snake' || room.event.effect === 'ladder') sounds.play(room.event.effect);
@@ -404,6 +409,32 @@ export default function IndexScreen() {
   const showGame = screen === 'game' || (!!online.session && !!online.room);
   const game = online.session ? online.room?.game ?? null : localGame;
   const currentPlayer = game?.players[game.currentPlayerIndex] ?? null;
+  useEffect(() => {
+    if (!game) {
+      previousBlastGame.current = null;
+      return;
+    }
+    const previous = previousBlastGame.current;
+    previousBlastGame.current = game;
+    const blastLocation = game.message.match(/(?:house|square)\s+(\d+)/i);
+    if (!previous || previous.message === game.message || !/(detonated the bomb|hit the boom)/i.test(game.message)) return;
+    const sourceSquare = blastLocation ? Number(blastLocation[1]) : undefined;
+    const victims = game.players.flatMap((player) => {
+      const before = previous.players.find((item) => item.id === player.id);
+      return before && before.position > 0 && player.position === 0
+        ? [{ playerId: player.id, fromSquare: sourceSquare ?? before.position }]
+        : [];
+    });
+    if (victims.length === 0) return;
+    blastSequence.current += 1;
+    setBombBlast({ id: blastSequence.current, sourceSquare: victims[0].fromSquare, victims });
+    sounds.play('bomb');
+  }, [game, sounds.play]);
+  useEffect(() => {
+    if (!bombBlast) return;
+    const timeout = setTimeout(() => setBombBlast(null), 2750);
+    return () => clearTimeout(timeout);
+  }, [bombBlast?.id]);
   const botId = game?.players[1]?.id;
   const botTurn = !online.session && localMode === 'bot' && !!game && game.players[game.currentPlayerIndex]?.id === botId;
   const currentPlayerIsHuman = !!currentPlayer && (!botTurn || !!online.session);
@@ -411,9 +442,6 @@ export default function IndexScreen() {
   const actionDisabled = rolling || online.busy || !!online.pendingAdmission ||
     (!!online.session && (!online.canAct || !online.connected)) ||
     (!!botTurn && !online.session);
-  const availableTargets = game && currentPlayer
-    ? SHOOTABLE_SNAKE_SQUARES.filter((square) => currentPlayer.snakeStuns[square] === 0)
-    : [];
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
 
@@ -424,7 +452,8 @@ export default function IndexScreen() {
       const nextPlayer = next.players.find((item) => item.id === currentPlayer.id);
       if (nextPlayer) {
         sounds.playPickups(currentPlayer, nextPlayer);
-        if (nextPlayer.position !== currentPlayer.position) {
+        const isBlast = /(detonated the bomb|hit the boom)/i.test(next.message);
+        if (nextPlayer.position !== currentPlayer.position && !isBlast) {
           sounds.play('step');
           void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
         }
@@ -1002,6 +1031,7 @@ export default function IndexScreen() {
       <GameBoard
         game={game}
         selectedTargets={selectedTargets}
+        bombBlast={bombBlast}
         onSelectTarget={(square) => {
           if (currentPlayerIsHuman && waitingForShot && !turnLocked) shoot(square);
         }}
@@ -1027,17 +1057,30 @@ export default function IndexScreen() {
       <View style={[styles.actionPanel, { backgroundColor: colors.card, borderColor: colors.border }]} testID="game-controls">
         <View style={styles.actionTopRow}>
           <View>
-            <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>LAST ROLL</Text>
-            <Text style={[styles.diceResult, { color: colors.foreground }]}>{diceFace ?? game.lastRoll ?? '—'}</Text>
+            <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>{waitingForShot ? 'AIMED TARGETS' : 'LAST ROLL'}</Text>
+            <Text style={[styles.diceResult, { color: colors.foreground }]}>
+              {waitingForShot ? `${selectedTargets.length}/${Math.min(currentPlayer.bullets, 2)}` : diceFace ?? game.lastRoll ?? '—'}
+            </Text>
           </View>
-          <SolidButton
-            label={rolling ? 'Rolling…' : onlineMode && !online.canAct ? 'Waiting for turn' : 'Roll dice'}
-            icon={<MaterialCommunityIcons name="dice-6" size={20} color={colors.primaryForeground} />}
-            onPress={() => void applyRoll()}
-            colors={colors}
-            disabled={turnLocked || !!game.winnerId || !!game.pendingChoice || !!game.pendingFireForPlayerId || (onlineMode && roomStatus?.status !== 'playing')}
-            testID="roll-dice"
-          />
+          {waitingForShot ? (
+            <SolidButton
+              label={onlineMode && !online.canAct ? 'Waiting for aim' : selectedTargets.length === 2 ? 'Fire both' : 'Fire'}
+              icon={<Feather name="crosshair" size={17} color={colors.primaryForeground} />}
+              onPress={fireSelected}
+              colors={colors}
+              disabled={turnLocked || selectedTargets.length === 0 || selectedTargets.length > currentPlayer.bullets}
+              testID="fire-shot"
+            />
+          ) : (
+            <SolidButton
+              label={rolling ? 'Rolling…' : onlineMode && !online.canAct ? 'Waiting for turn' : 'Roll dice'}
+              icon={<MaterialCommunityIcons name="dice-6" size={20} color={colors.primaryForeground} />}
+              onPress={() => void applyRoll()}
+              colors={colors}
+              disabled={turnLocked || !!game.winnerId || !!game.pendingChoice || !!game.pendingFireForPlayerId || (onlineMode && roomStatus?.status !== 'playing')}
+              testID="roll-dice"
+            />
+          )}
         </View>
         <Text style={[styles.gameMessage, { color: colors.foreground }]} accessibilityLiveRegion="polite" testID="game-message">{game.message}</Text>
 
@@ -1099,23 +1142,11 @@ export default function IndexScreen() {
         {waitingForShot && (
           <View style={styles.choiceBlock}>
             <Text style={[styles.sectionLabel, { color: colors.foreground }]}>
-              Choose a snake head on the board · one bullet per target
+              {selectedTargets.length
+                ? `Aiming at ${selectedTargets.map((square) => `Snake ${square}`).join(' and ')} · red circles mark your targets.`
+                : 'Tap one or both snake heads on the board · one bullet per target.'}
             </Text>
             <View style={styles.wrapRow}>
-              {availableTargets.map((square) => (
-                <Pressable
-                  key={square}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: selectedTargets.includes(square) }}
-                  testID={`aim-snake-${square}`}
-                  onPress={() => shoot(square)}
-                  disabled={turnLocked}
-                  style={[styles.countChip, { backgroundColor: selectedTargets.includes(square) ? colors.primary : colors.secondary }]}
-                >
-                  <Text style={[styles.countChipText, { color: selectedTargets.includes(square) ? colors.primaryForeground : colors.secondaryForeground }]}>Snake {square}</Text>
-                </Pressable>
-              ))}
-              <SolidButton label={`Fire (${selectedTargets.length})`} onPress={fireSelected} colors={colors} disabled={turnLocked || selectedTargets.length === 0 || selectedTargets.length > currentPlayer.bullets} compact testID="fire-shot" />
               <SolidButton
                 label="Pass shot"
                 onPress={() => {

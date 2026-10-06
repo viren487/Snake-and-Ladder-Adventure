@@ -5,7 +5,7 @@ import type { GameState, ShootableSnakeSquare } from "./game-engine";
 import type { RoomSnapshot } from "@workspace/game-core/online";
 import type { useGameSounds } from "./use-game-sounds";
 
-type Walking = { playerId: string; position: number; effect: "step" | "ladder" | "snake" | "boom" | "torch" | "return" | "bamboo" | "web" | "knife"; sourcePosition?: number };
+type Walking = { playerId: string; playerIds?: string[]; position: number; effect: "step" | "ladder" | "snake" | "boom" | "torch" | "return" | "bamboo" | "web" | "knife"; sourcePosition?: number };
 type Shot = { from: number; targets: ShootableSnakeSquare[] };
 export type PickupCelebration =
   | { kind: "torch"; playerName: string }
@@ -56,7 +56,7 @@ export function useOnlineGame(bindings: Bindings) {
     const generation = ++epoch.current;
     const event = snapshot.event;
     const visual = animate && document.visibilityState === "visible" && event &&
-      (event.kind === "roll" || event.effect || event.kind === "shoot");
+      (event.kind === "roll" || event.effect || event.kind === "shoot" || event.kind === "detonate");
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const wait = async (ms: number) => { await new Promise((resolve) => setTimeout(resolve, ms)); return generation === epoch.current; };
     b.setSelectedTargets([]);
@@ -85,7 +85,22 @@ export function useOnlineGame(bindings: Bindings) {
           if (!await wait(reduced ? 150 : 950)) return;
         }
         const moved = snapshot.game.players.find((player) => player.id === event.playerId)!;
-        if (event.effect === "web" || event.effect === "knife") {
+        if (event.kind === "detonate") {
+          const victims = before.players
+            .map((player) => ({ before: player, after: snapshot.game.players.find((next) => next.id === player.id) }))
+            .filter((entry) => entry.after && entry.before.position > 0 && entry.after.position === 0);
+          if (victims.length > 0 && /detonated the bomb/i.test(snapshot.game.message)) {
+            b.sounds.play("bomb");
+            b.setWalking({
+              playerId: victims[0].before.id,
+              playerIds: victims.map((victim) => victim.before.id),
+              position: 0,
+              effect: "boom",
+              sourcePosition: victims[0].before.position,
+            });
+            if (!await wait(reduced ? 45 : 2430)) return;
+          }
+        } else if (event.effect === "web" || event.effect === "knife") {
           const sourcePosition = event.sourcePosition
             ?? (event.sourcePlayerId ? snapshot.game.players.find((player) => player.id === event.sourcePlayerId)?.position : undefined)
             ?? event.from;
@@ -106,8 +121,17 @@ export function useOnlineGame(bindings: Bindings) {
           if (!await wait(reduced ? 45 : 300)) return;
         } else if (event.effect) {
           if (event.effect === "snake" || event.effect === "ladder") b.sounds.play(event.effect);
-          b.setWalking({ playerId: moved.id, position: moved.position, effect: event.effect });
-          if (!await wait(reduced ? 45 : event.effect === "ladder" ? 2280 : event.effect === "snake" ? 2080 : 780)) return;
+          if (event.effect === "boom") b.sounds.play("bomb");
+          const sourcePosition = event.effect === "boom"
+            ? event.sourcePosition ?? event.path.at(-1) ?? event.from
+            : undefined;
+          b.setWalking({
+            playerId: moved.id,
+            position: moved.position,
+            effect: event.effect,
+            ...(sourcePosition === undefined ? {} : { sourcePosition }),
+          });
+          if (!await wait(reduced ? 45 : event.effect === "ladder" ? 2280 : event.effect === "snake" ? 2080 : event.effect === "boom" ? 2350 : 780)) return;
         }
       }
       if (generation !== epoch.current) return;

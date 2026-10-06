@@ -55,10 +55,11 @@ const BOT_STORAGE_KEY = 'snack-ladder-adventure-bot-v1';
 const LOCAL_MODE_STORAGE_KEY = 'snack-ladder-local-mode-v1';
 const MOBILE_PROFILE_STORAGE_KEY = 'snack-ladder-mobile-profile-v1';
 const MOVEMENT_STEP_DELAY_MS = 240;
-const SPECIAL_MOVE_DURATION_MS = { ladder: 2200, snake: 2000, boom: 700, web: 1450, knife: 1250 } as const;
+const SPECIAL_MOVE_DURATION_MS = { ladder: 2200, snake: 2000, boom: 2350, web: 1450, knife: 1250 } as const;
 const SPECIAL_MOVE_STYLE = {
   '--ladder-move-duration': `${SPECIAL_MOVE_DURATION_MS.ladder}ms`,
   '--snake-move-duration': `${SPECIAL_MOVE_DURATION_MS.snake}ms`,
+  '--boom-move-duration': `${SPECIAL_MOVE_DURATION_MS.boom}ms`,
   '--bamboo-move-duration': '2600ms',
   '--web-move-duration': `${SPECIAL_MOVE_DURATION_MS.web}ms`,
   '--knife-move-duration': `${SPECIAL_MOVE_DURATION_MS.knife}ms`,
@@ -66,6 +67,7 @@ const SPECIAL_MOVE_STYLE = {
 type LocalPlayMode = 'pass' | 'bot';
 type WalkingPiece = {
   playerId: string;
+  playerIds?: string[];
   position: number;
   effect: 'step' | 'ladder' | 'snake' | 'boom' | 'torch' | 'return' | 'bamboo' | 'web' | 'knife';
   sourcePosition?: number;
@@ -335,8 +337,33 @@ function SnakeArt({ from, to, color, sleeping }: { from: number; to: number; col
 }
 
 function PowerAnimation({ walking }: { walking: WalkingPiece | null }) {
-  if (!walking || walking.sourcePosition === undefined) return null;
-  const source = centerOf(walking.sourcePosition);
+  if (!walking) return null;
+  const source = walking.sourcePosition === undefined ? null : centerOf(walking.sourcePosition);
+  if (walking.effect === 'boom' && source) {
+    const rays = Array.from({ length: 14 }, (_, index) => {
+      const angle = (Math.PI * 2 * index) / 14;
+      const tangentX = -Math.sin(angle) * 11;
+      const tangentY = Math.cos(angle) * 11;
+      const innerX = Math.cos(angle) * 40;
+      const innerY = Math.sin(angle) * 40;
+      const outerX = Math.cos(angle) * (index % 2 === 0 ? 152 : 125);
+      const outerY = Math.sin(angle) * (index % 2 === 0 ? 152 : 125);
+      return `M${innerX - tangentX} ${innerY - tangentY} L${outerX} ${outerY} L${innerX + tangentX} ${innerY + tangentY} Z`;
+    });
+    return (
+      <svg className="power-animation-layer bomb-blast-layer" viewBox="0 0 1000 1000" aria-hidden="true">
+        <g transform={`translate(${source.x} ${source.y})`} className="bomb-blast-flash">
+          <circle r="188" className="bomb-blast-wave bomb-blast-wave-one" />
+          <circle r="145" className="bomb-blast-wave bomb-blast-wave-two" />
+          {rays.map((path, index) => <path d={path} key={`blast-ray-${index}`} className="bomb-blast-ray" />)}
+          <circle r="49" className="bomb-blast-core" />
+          <circle r="25" className="bomb-blast-center" />
+          <text x="0" y="8" className="bomb-blast-label">BOOM</text>
+        </g>
+      </svg>
+    );
+  }
+  if (!source) return null;
   if (walking.effect === 'web') {
     const target = centerOf(walking.position);
     const controlX = (source.x + target.x) / 2;
@@ -491,7 +518,7 @@ function Board({
   };
   return (
     <div className="board-wrap" data-testid="game-board">
-      <div className="board-inner">
+      <div className={`board-inner ${walking?.effect === 'boom' ? 'board-inner-blast' : ''}`}>
         <div className="board-grid">{cells}</div>
         <svg className="board-svg" viewBox="0 0 1000 1000" aria-label="Photorealistic snakes and ladders">
           {SNAKES.map(snake => (
@@ -590,9 +617,10 @@ function Board({
           square={game.pendingChoice.square} canChoose={choicesEnabled} busy={choiceBusy}
           onChoose={onChoosePower} />}
         {game.players.map((player, index) => {
-          const position = walking?.playerId === player.id ? walking.position : player.position;
+          const isWalking = walking?.playerId === player.id || walking?.playerIds?.includes(player.id);
+          const position = isWalking && walking ? walking.position : player.position;
           const stacked = game.players.some((other, otherIndex) => otherIndex !== index && other.position === position);
-          const movement = walking?.playerId === player.id ? walking.effect : null;
+          const movement = isWalking && walking ? walking.effect : null;
           const hopping = movement !== null;
           return (
             <div
@@ -801,10 +829,22 @@ function GameScreen() {
           setWalking({ playerId: id, position: 0, effect: 'step' });
           await new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 45 : 300));
         } else {
+          if (effect === 'boom') sounds.play('bomb');
           if (effect === 'snake' || effect === 'ladder') sounds.play(effect);
+          const sourcePosition = resolution.sourcePosition
+            ?? (effect === 'boom'
+              ? resolution.path.at(-1) ?? before.players.find((player) => player.id === id)?.position
+              : undefined);
+          const playerIds = effect === 'boom'
+            ? before.players.flatMap((player) => {
+              const after = resolution.state.players.find((item) => item.id === player.id);
+              return player.position > 0 && after?.position === 0 ? [player.id] : [];
+            })
+            : undefined;
           setWalking({
             playerId: id, position: moved.position, effect,
-            ...(resolution.sourcePosition === undefined ? {} : { sourcePosition: resolution.sourcePosition }),
+            ...(playerIds ? { playerIds } : {}),
+            ...(sourcePosition === undefined ? {} : { sourcePosition }),
           });
           await new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 45 : SPECIAL_MOVE_DURATION_MS[effect] + 80));
         }
@@ -941,7 +981,13 @@ function GameScreen() {
         if (!screenMounted.current) return;
       } else if (resolvedPlayer && (effect === 'ladder' || effect === 'snake' || effect === 'boom')) {
         if (effect === 'ladder' || effect === 'snake') sounds.play(effect);
-        setWalking({ playerId: player.id, position: resolvedPlayer.position, effect });
+        if (effect === 'boom') sounds.play('bomb');
+        setWalking({
+          playerId: player.id,
+          position: resolvedPlayer.position,
+          effect,
+          ...(effect === 'boom' ? { sourcePosition: resolution.path.at(-1) ?? player.position } : {}),
+        });
         await new Promise<void>(resolve => window.setTimeout(resolve,
           reducedMotion ? 45 : SPECIAL_MOVE_DURATION_MS[effect] + 80,
         ));
@@ -1170,7 +1216,7 @@ function GameScreen() {
               })}
             </div>
 
-            <div className="play-control-dock" data-testid="play-control-dock">
+            <div className={`play-control-dock ${waitingToFire ? 'play-control-dock-aiming' : ''}`} data-testid="play-control-dock">
             <PowerControls
               position={currentPlayer.position}
               detonationDisabled={rolling || firing || online.loadingSession || online.busy || !!online.pendingAdmission ||
@@ -1215,41 +1261,67 @@ function GameScreen() {
 
             {winner ? (
               <div className="win-banner" data-testid="winner-banner"><Trophy size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} /> Crown claimed!</div>
-            ) : waitingToFire ? (
-              <div className="fire-choice-card" data-testid="fire-choice">
-                <div className="fire-choice-title">
-                  <span className="fire-gun-icon"><GunIcon /></span>
-                  <span>Gun room · {currentPlayer.position}</span>
-                  <span className="fire-ammo-count" data-testid="fire-ammo-count"><CircleDot size={12} /> {currentPlayer.bullets}/{MAX_BULLETS}</span>
-                </div>
-                <div className="fire-choice-copy" data-testid="fire-target-instruction" aria-live="polite">
-                  {fireAimPrompt}
-                </div>
-                {currentPlayer.bullets === 1 && <div className="fire-choice-copy">Only one bullet: aim at 98 or 99, not both.</div>}
-                <div className="fire-choice-actions">
-                  <button
-                    className="primary-action"
-                    onClick={fireAt}
-                    disabled={remoteDisabled || rolling || firing || selectedTargets.length === 0}
-                    data-testid="button-fire"
-                  >
-                    <Crosshair size={16} /> {firing ? 'Firing…' : selectedTargets.length === 2 ? 'Fire both' : 'Fire'}
-                  </button>
-                  <button className="secondary-action" onClick={passShot} disabled={remoteDisabled || rolling || firing} data-testid="button-pass-fire">
-                    Pass this shot
-                  </button>
-                </div>
-              </div>
             ) : game.pendingChoice ? (
               <div className="mobile-choice-hint" role="status">Choose a power to continue.</div>
             ) : (
-              <div className="roll-area" data-testid="roll-area">
-                <button className="dice-button" onClick={rollDice} disabled={remoteDisabled || rolling || !!winner} aria-label={rolling ? 'Dice rolling' : 'Roll dice'} title="Tap to roll" data-testid="button-roll">
-                  <span className={`dice-face ${rolling ? 'rolling' : ''}`} data-testid="dice-result"
-                    role="img" aria-label={`Dice showing ${diceFace ?? 1}`}><DicePips value={diceFace ?? 1} /></span>
-                </button>
-                <div className="mobile-turn-indicator" aria-live="polite" data-testid="mobile-turn-indicator">{mobileTurnLabel}</div>
-              </div>
+              <>
+                <div className={`roll-area ${waitingToFire ? 'roll-area-aiming' : ''}`} data-testid="roll-area">
+                  {waitingToFire ? (
+                    <button
+                      className="dice-button fire-dice-button"
+                      onClick={() => void fireAt()}
+                      disabled={remoteDisabled || rolling || firing || selectedTargets.length === 0}
+                      aria-label={firing ? 'Firing at selected snakes' : selectedTargets.length ? `Fire at ${selectedTargets.length} selected snake${selectedTargets.length === 1 ? '' : 's'}` : 'Select a snake head to aim'}
+                      title={selectedTargets.length ? 'Fire at selected snake heads' : 'Select a snake head first'}
+                      data-testid="button-fire"
+                    >
+                      <Crosshair className="fire-slot-icon" size={24} />
+                      <span className="fire-slot-label">
+                        {remoteDisabled ? 'WAIT' : firing ? 'FIRING' : selectedTargets.length === 2 ? 'FIRE BOTH' : selectedTargets.length ? 'FIRE' : 'AIM'}
+                      </span>
+                    </button>
+                  ) : (
+                    <button className="dice-button" onClick={rollDice} disabled={remoteDisabled || rolling || !!winner} aria-label={rolling ? 'Dice rolling' : 'Roll dice'} title="Tap to roll" data-testid="button-roll">
+                      <span className={`dice-face ${rolling ? 'rolling' : ''}`} data-testid="dice-result"
+                        role="img" aria-label={`Dice showing ${diceFace ?? 1}`}><DicePips value={diceFace ?? 1} /></span>
+                    </button>
+                  )}
+                  <div className={`roll-area-copy ${waitingToFire ? 'roll-area-aim-copy' : 'roll-area-turn-copy'}`}>
+                    {waitingToFire ? (
+                      <>
+                        <strong>AIM AT THE HEADS</strong>
+                        <span aria-live="polite" data-testid="fire-slot-target-summary">
+                          {remoteDisabled
+                            ? fireAimPrompt
+                            : selectedTargets.length
+                              ? `Locked: ${selectedTargets.map((square) => `Snake ${square}`).join(' + ')}`
+                              : 'Tap one or both snake heads.'}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="mobile-turn-indicator" aria-live="polite" data-testid="mobile-turn-indicator">{mobileTurnLabel}</span>
+                    )}
+                  </div>
+                </div>
+                {waitingToFire && (
+                  <div className="fire-choice-card" data-testid="fire-choice">
+                    <div className="fire-choice-title">
+                      <span className="fire-gun-icon"><GunIcon /></span>
+                      <span>Gun room · {currentPlayer.position}</span>
+                      <span className="fire-ammo-count" data-testid="fire-ammo-count"><CircleDot size={12} /> {currentPlayer.bullets}/{MAX_BULLETS}</span>
+                    </div>
+                    <div className="fire-choice-copy" data-testid="fire-target-instruction" aria-live="polite">
+                      {fireAimPrompt}
+                    </div>
+                    {currentPlayer.bullets === 1 && <div className="fire-choice-copy">Only one bullet: aim at 98 or 99, not both.</div>}
+                    <div className="fire-choice-actions">
+                      <button className="secondary-action" onClick={passShot} disabled={remoteDisabled || rolling || firing} data-testid="button-pass-fire">
+                        Pass this shot
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
             </div>
 

@@ -110,6 +110,15 @@
 .board-wrap { width: 100%; max-width: 780px; margin: auto; position: relative; padding: clamp(10px,1.8vw,22px); border-radius: 25px; background: linear-gradient(135deg,#ffe89b 0%,#bf7622 8%,#754116 11%,#e9a33a 15%,#70401c 18%,#e7a039 50%,#a85d18 84%,#f2c05c 94%,#6d421e); box-shadow: 0 28px 58px #070a14a6, inset 0 2px 2px #fff6c7, inset 0 -5px 9px #49270c; }
 .board-wrap::before { content:''; position:absolute; inset:6px; border:1px solid #ffe596; border-radius:19px; pointer-events:none; opacity:.75; }
 .board-inner { position: relative; border: 3px solid #713d18; border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 2px #f6c55d, inset 0 0 16px #233922; }
+.board-inner-blast { animation:board-blast-shake .58s cubic-bezier(.25,.8,.25,1) both; }
+@keyframes board-blast-shake {
+  0%,100% { transform:translate3d(0,0,0); }
+  12% { transform:translate3d(-5px,2px,0) rotate(-.22deg); }
+  27% { transform:translate3d(6px,-2px,0) rotate(.24deg); }
+  43% { transform:translate3d(-4px,1px,0) rotate(-.15deg); }
+  60% { transform:translate3d(3px,-1px,0) rotate(.1deg); }
+  78% { transform:translate3d(-1px,0,0); }
+}
 .board-grid { display:grid; grid-template-columns:repeat(10,minmax(0,1fr)); aspect-ratio:1; position:relative; }
 .board-cell { position:relative; min-width:0; overflow:hidden; border: 1px solid rgba(46,72,45,.37); display:flex; justify-content:flex-start; align-items:flex-start; padding: 4px 0 0 5px; }
 .board-cell.green { background: linear-gradient(140deg,#a6f75d,#49d451 62%,#26b94f); }
@@ -153,7 +162,7 @@
 .aim-target:hover:not(:disabled),.aim-target:focus-visible { transform:translate(-50%,-50%) scale(1.12); background:#bd5429; outline:2px solid #fff; outline-offset:2px; }
 .aim-target span { font:700 clamp(7px,.7vw,9px)/1 'DM Mono',monospace; }
 .aim-target:disabled { border-color:#d1c6df; color:#e5d9f2; background:#55476abf; box-shadow:0 0 0 3px #111a; cursor:not-allowed; }
-.aim-target-selected { background:#f3c35b; color:#402b1d; border-color:#fff8d4; box-shadow:0 0 0 4px #ffdf6377,0 0 20px #ffe086; }
+.aim-target-selected { background:#dc3038; color:#fff; border-color:#fff4e8; box-shadow:0 0 0 4px #ff364fb0,0 0 0 9px #8d142b88,0 0 24px #ff4658; }
 .shot-animation-layer { position:absolute; inset:0; width:100%; height:100%; z-index:12; pointer-events:none; overflow:visible; }
 .shot-muzzle { fill:#fff0a1; stroke:#f09926; stroke-width:4; transform-box:fill-box; transform-origin:center; animation:shot-muzzle .4s ease-out both; }
 .shot-tracer { stroke:#ffe78b; stroke-width:5; stroke-linecap:round; filter:drop-shadow(0 0 6px #ffbc34); animation:shot-tracer .55s ease-out both; }
@@ -163,6 +172,26 @@
 .shot-impact path { fill:#ffca54; stroke:#8d3c20; stroke-width:3; }
 .shot-impact text { fill:#592e21; font:800 16px 'Fredoka',sans-serif; }
 .power-animation-layer { position:absolute;inset:0;width:100%;height:100%;z-index:13;pointer-events:none;overflow:visible; }
+.bomb-blast-layer { z-index:14; }
+.bomb-blast-flash { transform-box:fill-box;transform-origin:center;animation:bomb-blast-open 1.22s cubic-bezier(.13,.73,.2,1) both; }
+.bomb-blast-wave { fill:none;stroke-linecap:round;transform-box:fill-box;transform-origin:center; }
+.bomb-blast-wave-one { stroke:#fff4bb;stroke-width:15;animation:bomb-wave-expand 1.08s cubic-bezier(.12,.69,.19,1) both; }
+.bomb-blast-wave-two { stroke:#ff7e31;stroke-width:9;animation:bomb-wave-expand .94s .08s cubic-bezier(.12,.69,.19,1) both; }
+.bomb-blast-ray { fill:#ffd34f;stroke:#a92f27;stroke-width:4;stroke-linejoin:round;filter:drop-shadow(0 0 8px #ff6b26); }
+.bomb-blast-core { fill:#fff4c3;stroke:#ed5a2c;stroke-width:11;filter:drop-shadow(0 0 18px #ff541e); }
+.bomb-blast-center { fill:#e63338;stroke:#fff5d5;stroke-width:5; }
+.bomb-blast-label { fill:#fff8dc;stroke:#a92e25;stroke-width:7px;paint-order:stroke; font:900 32px 'Fredoka',sans-serif;letter-spacing:2px;text-anchor:middle;filter:drop-shadow(0 2px 3px #4b170e); }
+@keyframes bomb-blast-open {
+  0% { opacity:0;transform:scale(.12) rotate(-24deg); }
+  14% { opacity:1;transform:scale(1.08) rotate(4deg); }
+  35% { opacity:.97;transform:scale(.94) rotate(-3deg); }
+  100% { opacity:0;transform:scale(1.18) rotate(8deg); }
+}
+@keyframes bomb-wave-expand {
+  0% { opacity:0;transform:scale(.18); }
+  18% { opacity:.95; }
+  100% { opacity:0;transform:scale(1.08); }
+}
 .web-thread-glow,.web-thread { fill:none;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:1; }
 .web-thread-glow { stroke:#aaf8ff;stroke-width:11;filter:drop-shadow(0 0 12px #75edff);animation:web-thread-draw var(--web-move-duration) ease-out both; }
 .web-thread { stroke:#f3ffff;stroke-width:3.5;filter:drop-shadow(0 0 4px #68eaff);animation:web-thread-draw var(--web-move-duration) ease-out both; }
@@ -222,14 +251,22 @@
 .board-piece.stacked { z-index:8; }
 .board-piece-ladder { transition:left var(--ladder-move-duration) cubic-bezier(.35,.05,.3,1),top var(--ladder-move-duration) cubic-bezier(.35,.05,.3,1); }
 .board-piece-snake { transition:left var(--snake-move-duration) cubic-bezier(.4,.05,.55,1),top var(--snake-move-duration) cubic-bezier(.4,.05,.55,1); }
-.board-piece-boom { transition:left .66s cubic-bezier(.22,.78,.24,1),top .66s cubic-bezier(.22,.78,.24,1); }
+.board-piece-boom { transition:left var(--boom-move-duration) cubic-bezier(.18,.68,.18,1),top var(--boom-move-duration) cubic-bezier(.18,.68,.18,1); }
 .board-piece-web { transition:left var(--web-move-duration) cubic-bezier(.2,.76,.25,1),top var(--web-move-duration) cubic-bezier(.2,.76,.25,1); }
 .board-piece-knife { transition:left var(--knife-move-duration) cubic-bezier(.35,.02,.6,1),top var(--knife-move-duration) cubic-bezier(.35,.02,.6,1); }
 .panda-token { display:block; width:100%; height:100%; overflow:visible; filter:drop-shadow(0 2px 2px #21150dcc); }
 .panda-token-hopping { animation:panda-hop .22s cubic-bezier(.2,.8,.25,1) both; transform-origin:50% 82%; }
 .panda-token-hopping.panda-token-ladder { animation:panda-climb var(--ladder-move-duration) ease-in-out both; }
 .panda-token-hopping.panda-token-snake { animation:panda-slide var(--snake-move-duration) ease-in-out both; }
-.panda-token-hopping.panda-token-boom { animation:panda-boom .66s ease-out both; }
+.panda-token-hopping.panda-token-boom { animation:panda-boom-home var(--boom-move-duration) cubic-bezier(.18,.68,.18,1) both; }
+@keyframes panda-boom-home {
+  0% { transform:rotate(0) scale(1); filter:drop-shadow(0 2px 2px #21150dcc); }
+  17% { transform:rotate(180deg) scale(.9); }
+  38% { transform:rotate(430deg) scale(1.13); }
+  63% { transform:rotate(690deg) scale(1.02); }
+  84% { transform:rotate(900deg) scale(.9); filter:drop-shadow(0 0 7px #ffe074); }
+  100% { transform:rotate(1080deg) scale(.72); filter:drop-shadow(0 1px 2px #21150dcc); }
+}
 .panda-motion-sparkle { transform-box:fill-box; transform-origin:center; animation:panda-sparkle .8s ease-in-out infinite; }
 .move-caption { position:absolute; top:-8%; left:50%; padding:3px 7px; border:1px solid #ffe7a1; border-radius:10px; color:#5c3c21; background:#fff1bceF; box-shadow:0 2px 5px #20152c55; font:600 clamp(8px,.9vw,12px)/1.1 'Fredoka',sans-serif; white-space:nowrap; pointer-events:none; animation:move-caption var(--ladder-move-duration) ease-out both; }
 .move-caption-snake { color:#573b70; border-color:#e1cdf5; background:#eee1fff0; animation-duration:var(--snake-move-duration); }
@@ -252,7 +289,16 @@
 .stun-summary { margin-top:8px; padding:7px 9px; border:1px solid #5d4d70; border-radius:9px; color:#e3d3f4; background:#352b45; font-size:10px; line-height:1.35; }
 .play-control-dock { display:flex; flex-direction:column; gap:10px; min-width:0; }
 .roll-area { display:grid; grid-template-columns:78px 1fr; gap:12px; align-items:center; padding:15px; border-radius:17px; background:#21293a; border:1px solid #434c5e; }
+.roll-area-copy { min-width:0; display:grid; gap:4px; }
+.roll-area-turn-copy { display:none; }
+.roll-area-aim-copy strong { color:#ffe9ad; font:700 11px/1.2 'DM Mono',monospace; letter-spacing:1px; }
+.roll-area-aim-copy span { color:#d4d8e1; font-size:12px; line-height:1.4; }
 .dice-button { width:78px; aspect-ratio:1; border:1px solid #f3d478; border-radius:16px; display:grid; place-items:center; background:linear-gradient(145deg,#fff1c9,#e6b750); box-shadow:0 5px 0 #a9782a,0 7px 15px #070a15a0,inset 0 2px #fff; color:#633f1a; cursor:pointer; transition:transform .16s, filter .16s; }
+.fire-dice-button { grid-template-rows:1fr auto; gap:3px; padding:7px 5px; border-color:#ffb5a9; color:#fff5e8; background:linear-gradient(145deg,#f36a56,#b52535 72%,#801b30); box-shadow:0 5px 0 #71182a,0 7px 17px #070a15a0,inset 0 2px #ffd1b9; }
+.fire-dice-button:hover:not(:disabled) { filter:brightness(1.12); }
+.fire-dice-button:active:not(:disabled) { box-shadow:0 2px 0 #71182a; }
+.fire-slot-icon { align-self:end; filter:drop-shadow(0 1px 2px #681829); }
+.fire-slot-label { align-self:start; font:900 9px/1 'DM Mono',monospace; letter-spacing:.65px; }
 .dice-button:hover:not(:disabled) { transform:translateY(-2px); filter:brightness(1.06); }
 .dice-button:active:not(:disabled) { transform:translateY(3px); box-shadow:0 2px 0 #a9782a; }
 .dice-button:disabled { opacity:.58; cursor:not-allowed; }
@@ -276,7 +322,8 @@
 .fire-ammo-count { display:inline-flex; align-items:center; gap:3px; margin-left:auto; padding:3px 6px; border:1px solid #647b89; border-radius:8px; background:#172735; color:#d5f0f3; font:600 9px 'DM Mono',monospace; white-space:nowrap; }
 .fire-choice-copy { color:#c5c7d0; font-size:11px; line-height:1.4; }
 .mobile-gun-status { display:none; }
-.fire-choice-actions { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+.fire-choice-actions { display:grid; grid-template-columns:1fr; gap:9px; }
+.fire-choice-actions .secondary-action { grid-column:1/-1; }
 .primary-action:disabled { opacity:.55; cursor:not-allowed; transform:none; }
 @media (prefers-reduced-motion:reduce) { .shot-muzzle,.shot-tracer,.shot-impact { animation:none; } .shot-impact { opacity:1; } }
 .secondary-action { display:flex; align-items:center; justify-content:center; width:100%; min-height:43px; padding:9px 12px; border:1px solid #596175; border-radius:12px; color:#e5e7eb; background:#30384a; font:600 13px 'Fredoka',sans-serif; cursor:pointer; transition:background .15s,transform .15s; }
@@ -399,11 +446,18 @@
   .mobile-gun-status > span { font:700 8px/1 'DM Mono',monospace; letter-spacing:-.2px; }
   .play-control-dock .roll-area { position:absolute; z-index:2; top:0; left:50%; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:5px; width:max-content; padding:0; border:0; border-radius:0; background:transparent; transform:translateX(-50%); }
   .play-control-dock .dice-button { width:clamp(54px,16vw,64px); min-width:54px; padding:3px; border-radius:15px; touch-action:manipulation; }
+  .play-control-dock .fire-dice-button { grid-template-rows:1fr auto; gap:1px; padding:4px 2px; }
+  .play-control-dock .fire-slot-icon { width:22px; height:22px; }
+  .play-control-dock .fire-slot-label { font-size:8px; }
   .play-control-dock .dice-face { display:grid; width:100%; height:100%; place-items:center; }
   .play-control-dock .dice-pips { width:100%; height:100%; }
   .mobile-turn-indicator { display:block; min-height:12px; max-width:112px; color:#f6e5b8; font:600 9px/1.2 'DM Mono',monospace; letter-spacing:.7px; text-align:center; text-transform:uppercase; }
+  .play-control-dock .roll-area-aim-copy { width:min(118px,28vw); margin-top:1px; text-align:center; }
+  .play-control-dock .roll-area-aim-copy strong { font-size:8px; }
+  .play-control-dock .roll-area-aim-copy span { display:-webkit-box; overflow:hidden; -webkit-box-orient:vertical; -webkit-line-clamp:2; font-size:8px; line-height:1.15; }
   .mobile-choice-hint { padding:5px 8px; }
   .play-control-dock > .fire-choice-card { align-self:flex-start; width:min(242px,68%); padding:9px; gap:7px; }
+  .play-control-dock.play-control-dock-aiming > .fire-choice-card { align-self:stretch; width:100%; }
   .fire-choice-title { flex-wrap:wrap; gap:4px; font-size:13px; }
   .fire-gun-icon { width:20px; height:16px; }
   .fire-choice-card .gun-glyph { width:20px; height:16px; }
@@ -420,6 +474,11 @@
 @media (max-width: 360px) {
   .turn-card .player-name-full { display:none; }
   .turn-card .player-name-compact { display:inline; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .board-inner-blast { animation:none; }
+  .board-piece-boom { transition-duration:.01ms; }
+  .panda-token-hopping.panda-token-boom,.bomb-blast-flash,.bomb-blast-wave-one,.bomb-blast-wave-two { animation-duration:.01ms; }
 }
 @media (prefers-reduced-motion: reduce) {
   *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; }

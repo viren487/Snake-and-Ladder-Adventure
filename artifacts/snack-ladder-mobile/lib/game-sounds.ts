@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 
-export type GameSound = 'dice' | 'step' | 'ladder' | 'snake' | 'bullet' | 'key' | 'happy';
+export type GameSound = 'dice' | 'step' | 'ladder' | 'snake' | 'bullet' | 'key' | 'happy' | 'bomb';
 type PickupState = { bullets: number; crownKeyRoom: number | null };
 
 export function useGameSounds() {
@@ -13,7 +13,8 @@ export function useGameSounds() {
   const bullet = useAudioPlayer(require('../assets/audio/bullet.wav'));
   const key = useAudioPlayer(require('../assets/audio/key.wav'));
   const happy = useAudioPlayer(require('../assets/audio/happy.wav'));
-  const players = { dice, step, ladder, snake, bullet, key, happy };
+  const bomb = useAudioPlayer(require('../assets/audio/bomb-blast.wav'));
+  const players = { dice, step, ladder, snake, bullet, key, happy, bomb };
   const playersRef = useRef(players);
   playersRef.current = players;
   const mutedRef = useRef(false);
@@ -46,6 +47,8 @@ export function useGameSounds() {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
     } else if (sound === 'snake') {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => undefined);
+    } else if (sound === 'bomb') {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => undefined);
     }
   }, []);
 

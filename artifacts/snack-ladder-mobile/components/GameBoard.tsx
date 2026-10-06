@@ -1,14 +1,31 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
+import Animated, {
+  Easing,
+  interpolate,
+  type SharedValue,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import type { GameState, ShootableSnakeSquare } from '@workspace/game-core';
 import { BOOM_SQUARE, BULLET_PICKUP_SQUARES, GUN_SQUARES, KEY_SQUARES, LADDERS, MYSTERY_BOX_SQUARES, SNAKES, SHOOTABLE_SNAKE_SQUARES, squareAt } from '@workspace/game-core';
 import { useColors } from '@/hooks/useColors';
+
+export type BoardBlast = {
+  id: number;
+  sourceSquare: number;
+  victims: { playerId: string; fromSquare: number }[];
+};
 
 type Props = {
   game: GameState;
   selectedTargets?: readonly ShootableSnakeSquare[];
   onSelectTarget?: (square: ShootableSnakeSquare) => void;
+  bombBlast?: BoardBlast | null;
 };
 
 function centerForSquare(square: number) {
@@ -57,8 +74,132 @@ function PandaToken({ color }: { color: string }) {
   );
 }
 
-export function GameBoard({ game, selectedTargets = [], onSelectTarget }: Props) {
+function HomecomingPanda({
+  color,
+  fromSquare,
+  boardSize,
+  delay,
+  animationId,
+}: {
+  color: string;
+  fromSquare: number;
+  boardSize: number;
+  delay: number;
+  animationId: number;
+}) {
+  const progress = useSharedValue(0);
+  const from = centerForSquare(fromSquare);
+  const home = { x: 70, y: 948 };
+
+  React.useEffect(() => {
+    if (boardSize <= 0) return;
+    progress.value = 0;
+    progress.value = withDelay(delay, withTiming(1, {
+      duration: 2350,
+      easing: Easing.out(Easing.cubic),
+    }));
+  }, [animationId, boardSize, delay, progress]);
+
+  const motionStyle = useAnimatedStyle(() => {
+    const amount = progress.value;
+    const sway = Math.sin(amount * Math.PI * 3) * boardSize * 0.018;
+    return {
+      opacity: interpolate(amount, [0, 0.8, 1], [1, 1, 0]),
+      transform: [
+        { translateX: ((from.x + (home.x - from.x) * amount) / 1000) * boardSize - 12 + sway },
+        { translateY: ((from.y + (home.y - from.y) * amount) / 1000) * boardSize - 14 + sway * 0.55 },
+        { rotate: `${amount * 1080}deg` },
+        { scale: interpolate(amount, [0, 0.36, 0.76, 1], [1, 1.18, 1.04, 0.72]) },
+      ],
+    };
+  });
+
+  return (
+    <Animated.View pointerEvents="none" style={[styles.homecomingPanda, motionStyle]}>
+      <PandaToken color={color} />
+    </Animated.View>
+  );
+}
+
+function BlastRing({
+  progress,
+  delay,
+  color,
+}: {
+  progress: SharedValue<number>;
+  delay: number;
+  color: string;
+}) {
+  const ringStyle = useAnimatedStyle(() => {
+    const amount = Math.max(0, Math.min(1, (progress.value - delay) / (1 - delay)));
+    return {
+      opacity: interpolate(amount, [0, 0.12, 0.72, 1], [0, 0.9, 0.42, 0]),
+      transform: [{ scale: interpolate(amount, [0, 1], [0.25, 3.7]) }],
+    };
+  });
+
+  return <Animated.View pointerEvents="none" style={[styles.blastRing, { borderColor: color }, ringStyle]} />;
+}
+
+function BombBlastVisual({ blast }: { blast: BoardBlast }) {
   const colors = useColors();
+  const progress = useSharedValue(0);
+  const source = centerForSquare(blast.sourceSquare);
+  const row = Math.floor(source.y / 100);
+  const column = Math.floor(source.x / 100);
+  const flashStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.08, 0.2, 0.38, 1], [0, 0.48, 0.18, 0, 0]),
+  }));
+  const coreStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.12, 0.42, 0.8, 1], [0, 0.95, 0.55, 0.16, 0]),
+    transform: [{ scale: interpolate(progress.value, [0, 0.16, 0.48, 1], [0.25, 1.2, 1.8, 2.6]) }],
+  }));
+
+  React.useEffect(() => {
+    progress.value = 0;
+    progress.value = withTiming(1, { duration: 1250, easing: Easing.out(Easing.cubic) });
+  }, [blast.id, progress]);
+
+  return (
+    <>
+      <Animated.View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { backgroundColor: colors.destructive }, flashStyle]}
+      />
+      <View
+        pointerEvents="none"
+        style={[
+          styles.blastCell,
+          { left: `${column * 10}%`, top: `${row * 10}%` },
+        ]}
+      >
+        <BlastRing progress={progress} delay={0} color={colors.destructive} />
+        <BlastRing progress={progress} delay={0.16} color={colors.primary} />
+        <BlastRing progress={progress} delay={0.31} color={colors.foreground} />
+        <Animated.View style={[styles.blastCore, { backgroundColor: colors.destructive }, coreStyle]} />
+      </View>
+    </>
+  );
+}
+
+export function GameBoard({ game, selectedTargets = [], onSelectTarget, bombBlast = null }: Props) {
+  const colors = useColors();
+  const [boardSize, setBoardSize] = React.useState(0);
+  const shake = useSharedValue(0);
+  const shakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shake.value }],
+  }));
+  React.useEffect(() => {
+    if (!bombBlast) return;
+    shake.value = 0;
+    shake.value = withSequence(
+      withTiming(-6, { duration: 45 }),
+      withTiming(7, { duration: 55 }),
+      withTiming(-5, { duration: 55 }),
+      withTiming(3, { duration: 65 }),
+      withTiming(0, { duration: 110 }),
+    );
+  }, [bombBlast?.id, shake]);
   const cells = Array.from({ length: 100 }, (_, index) => {
     const row = Math.floor(index / 10);
     const column = index % 10;
@@ -106,7 +247,13 @@ export function GameBoard({ game, selectedTargets = [], onSelectTarget }: Props)
       accessibilityLabel="Snake and ladder game board"
       testID="game-board"
     >
-      <View style={[styles.inner, { borderColor: colors.boardFrameLight, backgroundColor: colors.boardGreen }]}>
+      <Animated.View
+        onLayout={(event) => {
+          const size = Math.min(event.nativeEvent.layout.width, event.nativeEvent.layout.height);
+          setBoardSize((previous) => previous === size ? previous : size);
+        }}
+        style={[styles.inner, { borderColor: colors.boardFrameLight, backgroundColor: colors.boardGreen }, shakeStyle]}
+      >
         <View style={styles.grid}>
           {cells.map(({ row, column, square }) => {
             const locked = (KEY_SQUARES as readonly number[]).includes(square);
@@ -126,14 +273,14 @@ export function GameBoard({ game, selectedTargets = [], onSelectTarget }: Props)
               <Pressable
                 key={square}
                 accessibilityRole={targetAvailable ? 'button' : undefined}
-                accessibilityLabel={targetAvailable ? `Aim at snake ${square}` : `Square ${square}${locked ? ', black key room' : ''}`}
+                accessibilityLabel={targetAvailable ? `Aim at snake ${square}${selected ? ', selected' : ''}` : `Square ${square}${locked ? ', black key room' : ''}`}
+                accessibilityState={targetAvailable ? { selected } : undefined}
                 disabled={!targetAvailable || !onSelectTarget}
                 onPress={() => onSelectTarget?.(square as ShootableSnakeSquare)}
                 style={[
                   styles.cell,
                   { backgroundColor, borderColor: locked ? colors.boardFrameLight : colors.transparentBorder },
                   targetAvailable && styles.targetCell,
-                  selected && { borderColor: colors.primary, borderWidth: 2 },
                 ]}
               >
                 <Text style={[styles.squareNumber, { color: locked ? colors.foreground : colors.boardInk }]}>
@@ -170,6 +317,12 @@ export function GameBoard({ game, selectedTargets = [], onSelectTarget }: Props)
               <Circle cx={snake.start.x} cy={snake.start.y} r={15} fill={colors.snakeInk} />
               <Circle cx={snake.start.x - 5} cy={snake.start.y - 3} r={2.5} fill={colors.foreground} />
               <Circle cx={snake.start.x + 5} cy={snake.start.y - 3} r={2.5} fill={colors.foreground} />
+              {selectedTargets.includes(snake.from as ShootableSnakeSquare) && (
+                <>
+                  <Circle cx={snake.start.x} cy={snake.start.y} r={28} fill="none" stroke={colors.boardDark} strokeWidth={11} />
+                  <Circle cx={snake.start.x} cy={snake.start.y} r={25} fill="none" stroke={colors.destructive} strokeWidth={8} />
+                </>
+              )}
             </React.Fragment>
           ))}
         </Svg>
@@ -197,7 +350,22 @@ export function GameBoard({ game, selectedTargets = [], onSelectTarget }: Props)
             </View>
           );
         })}
-      </View>
+        {bombBlast && <BombBlastVisual key={`blast-${bombBlast.id}`} blast={bombBlast} />}
+        {bombBlast?.victims.map((victim, index) => {
+          const player = game.players.find((item) => item.id === victim.playerId);
+          if (!player) return null;
+          return (
+            <HomecomingPanda
+              key={`homecoming-${bombBlast.id}-${victim.playerId}`}
+              animationId={bombBlast.id}
+              color={player.color}
+              fromSquare={victim.fromSquare}
+              boardSize={boardSize}
+              delay={index * 150}
+            />
+          );
+        })}
+      </Animated.View>
       <View style={styles.legend}>
         <Text style={[styles.legendText, { color: colors.secondaryForeground }]}>KEY · +1 ammo · ? mystery · GUN · ! boom</Text>
       </View>
@@ -263,6 +431,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 5,
+  },
+  homecomingPanda: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: 24,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 24,
+  },
+  blastCell: {
+    position: 'absolute',
+    width: '10%',
+    height: '10%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 18,
+  },
+  blastRing: {
+    position: 'absolute',
+    width: 22,
+    height: 22,
+    borderRadius: 20,
+    borderWidth: 2.5,
+  },
+  blastCore: {
+    width: 23,
+    height: 23,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#fff4d2',
   },
   token: {
     width: 17,
