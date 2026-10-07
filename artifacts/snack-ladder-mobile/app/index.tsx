@@ -287,6 +287,7 @@ export default function IndexScreen() {
   const [rolling, setRolling] = useState(false);
   const [diceFace, setDiceFace] = useState<number | null>(null);
   const [selectedTargets, setSelectedTargets] = useState<ShootableSnakeSquare[]>([]);
+  const [fireStage, setFireStage] = useState<'decision' | 'targets'>('decision');
   const [bombBlast, setBombBlast] = useState<BoardBlast | null>(null);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const botTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -294,6 +295,7 @@ export default function IndexScreen() {
   const previousOnlineGame = useRef<GameState | null>(null);
   const previousBlastGame = useRef<GameState | null>(null);
   const blastSequence = useRef(0);
+  const gameScrollRef = useRef<ScrollView | null>(null);
 
   const roomStorage = useMemo<RoomStorage>(() => ({
     async load() {
@@ -328,7 +330,10 @@ export default function IndexScreen() {
       if (room.event.kind === 'roll') sounds.play('dice');
       if (room.event.effect === 'snake' || room.event.effect === 'ladder') sounds.play(room.event.effect);
       if (room.event.effect === 'torch') sounds.play('happy');
-      if (room.event.kind === 'shoot') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+      if (room.event.kind === 'shoot') {
+        sounds.play('fire');
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+      }
     },
     onExit: () => {
       previousOnlineGame.current = null;
@@ -435,10 +440,19 @@ export default function IndexScreen() {
     const timeout = setTimeout(() => setBombBlast(null), 2750);
     return () => clearTimeout(timeout);
   }, [bombBlast?.id]);
+  useEffect(() => {
+    if (screen !== 'game' || game?.pendingChoice?.kind !== 'mystery') return;
+    const timeout = setTimeout(() => gameScrollRef.current?.scrollTo({ y: 0, animated: true }), 60);
+    return () => clearTimeout(timeout);
+  }, [screen, game?.pendingChoice?.kind, game?.pendingChoice?.square]);
   const botId = game?.players[1]?.id;
   const botTurn = !online.session && localMode === 'bot' && !!game && game.players[game.currentPlayerIndex]?.id === botId;
   const currentPlayerIsHuman = !!currentPlayer && (!botTurn || !!online.session);
   const waitingForShot = !!game && !!currentPlayer && game.pendingFireForPlayerId === currentPlayer.id;
+  useEffect(() => {
+    setFireStage('decision');
+    setSelectedTargets([]);
+  }, [game?.pendingFireForPlayerId]);
   const actionDisabled = rolling || online.busy || !!online.pendingAdmission ||
     (!!online.session && (!online.canAct || !online.connected)) ||
     (!!botTurn && !online.session);
@@ -544,14 +558,13 @@ export default function IndexScreen() {
     }
   }, [currentPlayer, game, online.session, remoteAction, rolling, saveLocalGame, sounds]);
 
-  const shoot = (target: ShootableSnakeSquare) => {
-    if (actionDisabled || !waitingForShot || !currentPlayer || !game) return;
-    const nextTargets = selectedTargets.includes(target)
-      ? selectedTargets.filter((item) => item !== target)
-      : currentPlayer.bullets === 1
-        ? [target]
-        : [...selectedTargets, target].slice(0, 2);
-    setSelectedTargets(nextTargets);
+  const chooseAimTargets = (choice: '98' | '99' | 'both') => {
+    if (actionDisabled || !waitingForShot || !currentPlayer) return;
+    const targets: ShootableSnakeSquare[] = choice === 'both' ? [98, 99] : [choice === '98' ? 98 : 99];
+    if (targets.length > currentPlayer.bullets || targets.some((target) => currentPlayer.snakeStuns[target] > 0)) return;
+    setSelectedTargets((current) =>
+      current.length === targets.length && current.every((target, index) => target === targets[index]) ? [] : targets,
+    );
   };
 
   const fireSelected = () => {
@@ -560,12 +573,21 @@ export default function IndexScreen() {
       remoteAction({ type: 'shoot', targets: selectedTargets });
     } else {
       try {
+        sounds.play('fire');
         saveLocalGame(shootSnakes(game, selectedTargets));
       } catch (reason) {
         setActionError(reason instanceof Error ? reason.message : 'The shot could not be fired.');
       }
     }
     setSelectedTargets([]);
+  };
+
+  const leaveShot = () => {
+    if (!game || !waitingForShot || actionDisabled) return;
+    if (online.session) remoteAction({ type: 'pass' });
+    else saveLocalGame(passFire(game));
+    setSelectedTargets([]);
+    setFireStage('decision');
   };
 
   const currentPowerAction = (onlineAction: OnlineAction, localRun: (state: GameState) => GameState | TurnResolution) => {
@@ -591,9 +613,9 @@ export default function IndexScreen() {
     ? game.players.filter((player) => player.id !== currentPlayer.id && !(game.winnerIds ?? []).includes(player.id))
     : [];
   const usableBomb = game?.bombs.find((bomb) =>
-    bomb.armed &&
     (!online.session || (bomb.ownerId === online.session.playerId && online.canDetonate)) &&
-    game.players.some((player) => player.id !== bomb.ownerId && player.position === bomb.square && !(game.winnerIds ?? []).includes(player.id)),
+    (game.players.find((player) => player.id === bomb.ownerId)?.position === bomb.square ||
+      (bomb.armed && game.players.some((player) => player.id !== bomb.ownerId && player.position === bomb.square && !(game.winnerIds ?? []).includes(player.id)))),
   );
   const readyToPlant = !!game && !!currentPlayer && currentPlayer.powers.bomb > 0 &&
     currentPlayer.position > 0 && !game.bombs.some((bomb) => bomb.square === currentPlayer.position);
@@ -615,7 +637,7 @@ export default function IndexScreen() {
           saveLocalGame(result.state);
           break;
         }
-        case 'shoot': saveLocalGame(shootSnakes(state, action.targets)); break;
+        case 'shoot': sounds.play('fire'); saveLocalGame(shootSnakes(state, action.targets)); break;
         case 'pass-shot': saveLocalGame(passFire(state)); break;
         case 'extra-dice': saveLocalGame(useExtraDice(state)); break;
         case 'web': saveLocalGame(useWebShooter(state, action.targetPlayerId).state); break;
@@ -957,6 +979,7 @@ export default function IndexScreen() {
 
   return (
     <ScrollView
+      ref={gameScrollRef}
       style={[styles.screen, { backgroundColor: colors.background }]}
       contentContainerStyle={[styles.gameContent, { paddingTop: topInset + 8, paddingBottom: bottomInset + 28 }]}
       keyboardShouldPersistTaps="handled"
@@ -1032,9 +1055,10 @@ export default function IndexScreen() {
         game={game}
         selectedTargets={selectedTargets}
         bombBlast={bombBlast}
-        onSelectTarget={(square) => {
-          if (currentPlayerIsHuman && waitingForShot && !turnLocked) shoot(square);
-        }}
+        mysterySquare={game.pendingChoice?.kind === 'mystery' ? game.pendingChoice.square : null}
+        mysteryCanChoose={currentPlayerIsHuman && !actionDisabled && (!onlineMode || online.canAct)}
+        mysteryBusy={actionDisabled}
+        onChooseMystery={(power) => currentPowerAction({ type: 'choose', power }, (state) => choosePower(state, power))}
       />
 
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -1055,23 +1079,101 @@ export default function IndexScreen() {
       </View>
 
       <View style={[styles.actionPanel, { backgroundColor: colors.card, borderColor: colors.border }]} testID="game-controls">
-        <View style={styles.actionTopRow}>
-          <View>
-            <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>{waitingForShot ? 'AIMED TARGETS' : 'LAST ROLL'}</Text>
-            <Text style={[styles.diceResult, { color: colors.foreground }]}>
-              {waitingForShot ? `${selectedTargets.length}/${Math.min(currentPlayer.bullets, 2)}` : diceFace ?? game.lastRoll ?? '—'}
-            </Text>
+        {waitingForShot ? (
+          <View style={[styles.aimFlow, { backgroundColor: colors.background, borderColor: colors.border }]} testID="fire-choice">
+            <View style={styles.aimHeader}>
+              <Text style={[styles.eyebrow, { color: colors.primary }]}>GUN ROOM · {currentPlayer.position}</Text>
+              <Text style={[styles.aimAmmo, { color: colors.mutedForeground }]}>{currentPlayer.bullets}/{5} bullets</Text>
+            </View>
+            {fireStage === 'decision' ? (
+              <View style={styles.aimDecisionRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Fire now and choose a target"
+                  onPress={() => setFireStage('targets')}
+                  disabled={actionDisabled || currentPlayer.bullets < 1 || currentPlayer.snakeStuns[98] > 0 && currentPlayer.snakeStuns[99] > 0}
+                  style={[styles.aimDecisionButton, { backgroundColor: colors.destructive, borderColor: colors.destructive, opacity: actionDisabled ? 0.55 : 1 }]}
+                  testID="button-fire-start"
+                >
+                  <Feather name="crosshair" size={16} color={colors.primaryForeground} />
+                  <Text style={[styles.aimDecisionLabel, { color: colors.primaryForeground }]}>Fire</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Leave this shot"
+                  onPress={leaveShot}
+                  disabled={actionDisabled}
+                  style={[styles.aimDecisionButton, { backgroundColor: colors.card, borderColor: colors.border, opacity: actionDisabled ? 0.55 : 1 }]}
+                  testID="button-pass-fire"
+                >
+                  <Text style={[styles.aimDecisionLabel, { color: colors.foreground }]}>Leave this time</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <>
+                <Text style={[styles.note, { color: colors.mutedForeground }]}>Choose a target. Red circles mark your aim.</Text>
+                <View style={styles.aimTargetRow} accessibilityRole="radiogroup">
+                  {([
+                    { choice: '98', label: '98', valid: currentPlayer.bullets > 0 && currentPlayer.snakeStuns[98] === 0 },
+                    { choice: '99', label: '99', valid: currentPlayer.bullets > 0 && currentPlayer.snakeStuns[99] === 0 },
+                    { choice: 'both', label: 'Both', valid: currentPlayer.bullets >= 2 && currentPlayer.snakeStuns[98] === 0 && currentPlayer.snakeStuns[99] === 0 },
+                  ] as const).map(({ choice, label, valid }) => {
+                    const selected = choice === 'both'
+                      ? selectedTargets.length === 2
+                      : selectedTargets.length === 1 && selectedTargets[0] === Number(choice);
+                    return (
+                      <Pressable
+                        key={choice}
+                        accessibilityRole="radio"
+                        accessibilityLabel={label === 'Both' ? 'Target both snakes using two bullets' : `Target snake ${label}`}
+                        accessibilityState={{ checked: selected, disabled: !valid || actionDisabled }}
+                        onPress={() => chooseAimTargets(choice)}
+                        disabled={!valid || actionDisabled}
+                        style={[
+                          styles.aimTargetOption,
+                          { backgroundColor: selected ? colors.destructive : colors.card, borderColor: selected ? colors.destructive : colors.border, opacity: valid ? 1 : 0.4 },
+                        ]}
+                        testID={`aim-choice-${choice}`}
+                      >
+                        <Text style={[styles.aimTargetOptionLabel, { color: selected ? colors.primaryForeground : colors.foreground }]}>{label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <View style={styles.aimSubmitRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={selectedTargets.length === 2 ? 'Fire at both snakes' : selectedTargets.length === 1 ? `Fire at snake ${selectedTargets[0]}` : 'Choose a target before firing'}
+                    onPress={fireSelected}
+                    disabled={actionDisabled || selectedTargets.length === 0 || selectedTargets.length > currentPlayer.bullets}
+                    style={[styles.aimFireSubmit, { backgroundColor: colors.destructive, opacity: actionDisabled || selectedTargets.length === 0 ? 0.48 : 1 }]}
+                    testID="fire-shot"
+                  >
+                    <Feather name="crosshair" size={16} color={colors.primaryForeground} />
+                    <Text style={[styles.aimDecisionLabel, { color: colors.primaryForeground }]}>
+                      {selectedTargets.length === 2 ? 'Fire both' : selectedTargets.length === 1 ? `Fire ${selectedTargets[0]}` : 'Fire'}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Leave this shot"
+                    onPress={leaveShot}
+                    disabled={actionDisabled}
+                    style={styles.aimLeaveLink}
+                    testID="button-pass-fire"
+                  >
+                    <Text style={[styles.aimLeaveLabel, { color: colors.mutedForeground }]}>Leave</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
           </View>
-          {waitingForShot ? (
-            <SolidButton
-              label={onlineMode && !online.canAct ? 'Waiting for aim' : selectedTargets.length === 2 ? 'Fire both' : 'Fire'}
-              icon={<Feather name="crosshair" size={17} color={colors.primaryForeground} />}
-              onPress={fireSelected}
-              colors={colors}
-              disabled={turnLocked || selectedTargets.length === 0 || selectedTargets.length > currentPlayer.bullets}
-              testID="fire-shot"
-            />
-          ) : (
+        ) : (
+          <View style={styles.actionTopRow}>
+            <View>
+              <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>LAST ROLL</Text>
+              <Text style={[styles.diceResult, { color: colors.foreground }]}>{diceFace ?? game.lastRoll ?? '—'}</Text>
+            </View>
             <SolidButton
               label={rolling ? 'Rolling…' : onlineMode && !online.canAct ? 'Waiting for turn' : 'Roll dice'}
               icon={<MaterialCommunityIcons name="dice-6" size={20} color={colors.primaryForeground} />}
@@ -1080,8 +1182,8 @@ export default function IndexScreen() {
               disabled={turnLocked || !!game.winnerId || !!game.pendingChoice || !!game.pendingFireForPlayerId || (onlineMode && roomStatus?.status !== 'playing')}
               testID="roll-dice"
             />
-          )}
-        </View>
+          </View>
+        )}
         <Text style={[styles.gameMessage, { color: colors.foreground }]} accessibilityLiveRegion="polite" testID="game-message">{game.message}</Text>
 
         {onlineMode && roomStatus?.status === 'waiting' && (
@@ -1090,26 +1192,7 @@ export default function IndexScreen() {
 
         {game.pendingChoice?.kind === 'mystery' && (
           <View style={styles.choiceBlock}>
-            <Text style={[styles.sectionLabel, { color: colors.foreground }]}>Choose one mystery power</Text>
-            <View style={styles.wrapRow}>
-              {([
-                ['bomb', 'Bomb'],
-                ['antiVenom', 'Anti-Venom'],
-                ['defuser', 'Defuser Kit'],
-                ['webShooter', 'Web Shooter'],
-                ['knife', 'Knife'],
-              ] as [MysteryPowerType, string][]).map(([power, label]) => (
-                <SolidButton
-                  key={power}
-                  label={label}
-                  onPress={() => currentPowerAction({ type: 'choose', power }, (state) => choosePower(state, power))}
-                  colors={colors}
-                  disabled={!currentPlayerIsHuman || actionDisabled || onlineMode && !online.canAct}
-                  compact
-                  testID={`choose-${power}`}
-                />
-              ))}
-            </View>
+            <Text style={[styles.sectionLabel, { color: colors.foreground }]}>Choose a power from the compact tray at the board’s bottom-right.</Text>
           </View>
         )}
 
@@ -1134,30 +1217,6 @@ export default function IndexScreen() {
                 secondary
                 disabled={!currentPlayerIsHuman || actionDisabled || onlineMode && !online.canAct}
                 compact
-              />
-            </View>
-          </View>
-        )}
-
-        {waitingForShot && (
-          <View style={styles.choiceBlock}>
-            <Text style={[styles.sectionLabel, { color: colors.foreground }]}>
-              {selectedTargets.length
-                ? `Aiming at ${selectedTargets.map((square) => `Snake ${square}`).join(' and ')} · red circles mark your targets.`
-                : 'Tap one or both snake heads on the board · one bullet per target.'}
-            </Text>
-            <View style={styles.wrapRow}>
-              <SolidButton
-                label="Pass shot"
-                onPress={() => {
-                  if (onlineMode) remoteAction({ type: 'pass' });
-                  else if (game) saveLocalGame(passFire(game));
-                }}
-                colors={colors}
-                secondary
-                disabled={turnLocked}
-                compact
-                testID="pass-shot"
               />
             </View>
           </View>
@@ -1277,6 +1336,19 @@ export default function IndexScreen() {
   questStepText: { fontFamily: 'Nunito_700Bold', fontSize: 11 },
   actionPanel: { padding: 15, borderRadius: 20, borderWidth: 1, gap: 11 },
   actionTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  aimFlow: { width: '100%', borderWidth: 1, borderRadius: 15, padding: 10, gap: 9 },
+  aimHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  aimAmmo: { fontFamily: 'Nunito_700Bold', fontSize: 10 },
+  aimDecisionRow: { flexDirection: 'row', gap: 8 },
+  aimDecisionButton: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 8, borderWidth: 1, borderRadius: 13 },
+  aimDecisionLabel: { fontFamily: 'Nunito_700Bold', fontSize: 13 },
+  aimTargetRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, paddingVertical: 2 },
+  aimTargetOption: { width: 50, height: 50, borderRadius: 25, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  aimTargetOptionLabel: { fontFamily: 'Fredoka_600SemiBold', fontSize: 15 },
+  aimSubmitRow: { alignItems: 'center', gap: 3 },
+  aimFireSubmit: { width: '68%', minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 13, paddingHorizontal: 12 },
+  aimLeaveLink: { minHeight: 26, justifyContent: 'center', paddingHorizontal: 12 },
+  aimLeaveLabel: { fontFamily: 'Nunito_700Bold', fontSize: 11 },
   diceResult: { fontFamily: 'Fredoka_600SemiBold', fontSize: 30, lineHeight: 34 },
   gameMessage: { fontFamily: 'Nunito_600SemiBold', fontSize: 13, lineHeight: 19 },
   choiceBlock: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.12)', paddingTop: 10, gap: 8 },

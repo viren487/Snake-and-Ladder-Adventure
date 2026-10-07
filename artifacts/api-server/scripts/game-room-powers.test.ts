@@ -17,7 +17,7 @@ test("server rejects planting outside the authenticated player current room", ()
   assert.equal(room.game.bombs[0].square,20); assert.equal(room.game.bombs[0].ownerId,room.members[0].id);
 });
 test("server accepts owner interrupt, rejects rival use and preserves idempotency", () => {
-  const room=fixture(); room.game=plantBomb(room.game,20); room.game.players[1].position=20;
+  const room=fixture(); room.game=plantBomb(room.game,20); room.game.players[0].position=19; room.game.players[1].position=20;
   room.game.currentPlayerIndex=1; room.game.bombs[0].armed=true;
   const id=room.game.bombs[0].id;
   assert.throws(() => applyRoomAction(room,room.members[1],{type:"detonate",bombId:id,expectedVersion:1,actionId:"wrong-owner"}));
@@ -27,6 +27,17 @@ test("server accepts owner interrupt, rejects rival use and preserves idempotenc
   assert.equal(room.game.players[1].position,0); assert.equal(room.game.currentPlayerIndex,1); assert.equal(room.game.bombs.length,0);
   assert.equal(room.transition?.playerId,room.members[1].id); assert.equal(room.transition?.effect,"boom"); assert.equal(room.version,2);
   applyRoomAction(room,room.members[0],command); assert.equal(room.version,2);
+});
+test("server permits immediate self-detonation and identifies the owner in the blast event", () => {
+  const room=fixture(); room.game=plantBomb(room.game,20);
+  const id=room.game.bombs[0].id;
+  applyRoomAction(room,room.members[0],{type:"detonate",bombId:id,expectedVersion:1,actionId:"self-blast"});
+  assert.equal(room.game.players[0].position,0);
+  assert.equal(room.game.bombs.length,0);
+  assert.equal(room.transition?.playerId,room.members[0].id);
+  assert.equal(room.transition?.from,20);
+  assert.equal(room.transition?.effect,"boom");
+  assert.equal(room.version,2);
 });
 test("a landing defense must resolve before an owner can blast", () => {
   const room=fixture(); room.game=plantBomb(room.game,20); room.game.players[1].position=20;

@@ -163,7 +163,7 @@ export function plantBomb(state: GameState, square: number): GameState {
   if (next.bombs.some((bomb) => bomb.square === square)) throw new Error("A bomb is already planted in that house.");
   player.powers.bomb -= 1;
   next.bombs.push({ id: `${player.id}-${next.turnNumber}-${square}`, square, ownerId: player.id, armed: false });
-  next.message = `${player.name} planted a bomb in house ${square}. Wait for the rival to stop there, then use your bomb.`;
+  next.message = `${player.name} planted a bomb in house ${square}. Detonate now to return Home, or wait for a rival to stop there.`;
   return next;
 }
 
@@ -173,16 +173,18 @@ export function detonateBomb(state: GameState, bombId: string, ownerId = state.p
   const owner = next.players.find((player) => player.id === ownerId);
   if (!owner || next.winnerIds.includes(ownerId)) throw new Error("Only an active player who planted this bomb can use it.");
   const bomb = next.bombs.find((item) => item.id === bombId && item.ownerId === owner.id);
+  if (!bomb) throw new Error("Only an active player who planted this bomb can use it.");
+  const selfDetonation = owner.position === bomb.square;
   const rivals = bomb ? next.players.filter((player) => player.id !== owner.id && player.position === bomb.square && !next.winnerIds.includes(player.id)) : [];
-  const rival = rivals[0];
-  if (!bomb || !rival || !bomb.armed || rival.position !== bomb.square) {
-    throw new Error("The rival must stop in your bomb's house after planting before you can detonate it.");
+  if (!selfDetonation && (!bomb.armed || rivals.length === 0)) {
+    throw new Error("Stay in your bomb's house to self-detonate, or wait for a rival to stop there.");
   }
-  rivals.forEach((player) => { player.position = 0; });
+  const victims = selfDetonation ? [owner, ...rivals] : rivals;
+  victims.forEach((player) => { player.position = 0; });
   next.bombs = next.bombs.filter((item) => item.id !== bomb.id);
   // A reset also disarms any other bomb whose victim is no longer on its house.
   next.bombs.forEach((item) => { if (item.ownerId === owner.id) item.armed = false; });
-  next.message = `${owner.name} detonated the bomb in house ${bomb.square}! ${rivals.map((p) => p.name).join(", ")} returned Home, keeping their torch, key and inventory.`;
+  next.message = `${owner.name} detonated the bomb in house ${bomb.square}! ${victims.map((p) => p.name).join(", ")} returned Home, keeping their torch, key and inventory.`;
   return next;
 }
 

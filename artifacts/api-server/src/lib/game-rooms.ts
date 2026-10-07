@@ -229,9 +229,13 @@ export function applyRoomAction(room: StoredRoom, member: Member, action: RoomAc
       case "plant": room.game = plantBomb(room.game, action.square!); break;
       case "detonate": {
         const bomb = room.game.bombs.find((b) => b.id === action.bombId);
+        const owner = room.game.players.find((item) => item.id === member.id);
         const rival = room.game.players.find((item) => item.id !== member.id && item.position === bomb?.square && !room.game.winnerIds?.includes(item.id));
-        if (!rival) throw new RoomError(400, "No rival is standing in that bomb room.");
-        event.playerId = rival.id; event.from = rival.position; event.effect = "boom";
+        const selfDetonation = !!bomb && owner?.position === bomb.square;
+        if (!selfDetonation && (!bomb?.armed || !rival)) throw new RoomError(400, "Stay in your bomb room to self-detonate, or wait for a rival to stop there.");
+        const victim = selfDetonation ? owner : rival;
+        if (victim) { event.playerId = victim.id; event.from = victim.position; }
+        event.effect = "boom";
         room.game = detonateBomb(room.game, action.bombId!, member.id); break;
       }
       case "extraDice": room.game = useExtraDice(room.game); break;

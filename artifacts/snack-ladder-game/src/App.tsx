@@ -463,7 +463,7 @@ function Board({
   selectedTargets: ShootableSnakeSquare[];
   shot: Shot | null;
   firing: boolean;
-  onAimTarget: (square: ShootableSnakeSquare) => void;
+  onAimTarget?: (square: ShootableSnakeSquare) => void;
 }) {
   const activePlayer = game.players[game.currentPlayerIndex];
   const activeStuns = activePlayer.snakeStuns ?? { 98: 0, 99: 0 };
@@ -599,7 +599,7 @@ function Board({
               className={`aim-target ${selectedTargets.includes(square) ? 'aim-target-selected' : ''}`}
               key={`aim-${square}`}
               style={{ left: `${point.x / 10}%`, top: `${point.y / 10}%` }}
-              onClick={() => onAimTarget(square)}
+              onClick={() => onAimTarget?.(square)}
               disabled={rounds > 0 || firing}
               aria-pressed={selectedTargets.includes(square)}
               aria-label={rounds > 0 ? `Snake at square ${square} is already stunned for ${rounds} rolls` : `Aim at snake at square ${square}`}
@@ -677,6 +677,7 @@ function GameScreen() {
     setPickupNotice({ ...pickup, id: pickupNoticeSequence.current });
   };
   const [selectedTargets, setSelectedTargets] = useState<ShootableSnakeSquare[]>([]);
+  const [fireStage, setFireStage] = useState<'decision' | 'targets'>('decision');
   const [shot, setShot] = useState<Shot | null>(null);
   const [firing, setFiring] = useState(false);
   const sounds = useGameSounds();
@@ -694,8 +695,11 @@ function GameScreen() {
   const mrBotIsActing = mrBotTurn || mrBotAction?.type === 'detonate';
   const humanPlayerId = game.players[0]?.id;
   const humanBombReady = playMode === 'bot' && !online.session && !!humanPlayerId && !!mrBotId &&
-    game.bombs.some((bomb) => bomb.ownerId === humanPlayerId && bomb.armed &&
-      game.players.some((player) => player.id === mrBotId && player.position === bomb.square && !game.winnerIds?.includes(player.id)));
+    game.bombs.some((bomb) => {
+      const owner = game.players.find((player) => player.id === humanPlayerId);
+      return bomb.ownerId === humanPlayerId && (owner?.position === bomb.square ||
+        (bomb.armed && game.players.some((player) => player.id === mrBotId && player.position === bomb.square && !game.winnerIds?.includes(player.id))));
+    });
   const remoteDisabled = online.loadingSession || online.busy || !!online.pendingAdmission ||
     (!!online.session && !online.canAct) || mrBotIsActing;
   useEffect(() => {
@@ -760,6 +764,10 @@ function GameScreen() {
   const keyEarned = currentPlayer.crownKeyRoom !== null || playerClaimedCrown;
   useEffect(() => { sounds.setCelebrating(!!game.winnerId); }, [game.winnerId, sounds.setCelebrating]);
   const waitingToFire = game.pendingFireForPlayerId === currentPlayer.id;
+  useEffect(() => {
+    setFireStage('decision');
+    setSelectedTargets([]);
+  }, [game.pendingFireForPlayerId]);
   const mobileTurnLabel = winner
     ? 'Match finished'
     : mrBotIsActing
@@ -772,15 +780,13 @@ function GameScreen() {
   );
   const fireAimPrompt = remoteDisabled
     ? `${currentPlayer.name} is choosing a target.`
-    : selectedTargets.length === 2
-      ? 'Both snakes selected; firing will use two bullets.'
-      : selectedTargets.length === 1
-        ? `Snake ${selectedTargets[0]} selected; firing will use one bullet.`
-        : availableTargets.length === 0
-          ? 'There are no active snakes to target.'
-          : currentPlayer.bullets === 1 || availableTargets.length === 1
-            ? `Tap snake ${availableTargets[0]} on the board to aim.`
-            : 'Tap one or both snake heads on the board. Targeting both uses two bullets.';
+    : availableTargets.length === 0
+      ? 'There are no active snakes to target.'
+      : currentPlayer.bullets < 1
+        ? 'No bullets left. Leave this shot.'
+      : currentPlayer.bullets === 1
+        ? 'Choose snake 98 or 99. Both targets cost two bullets.'
+        : 'Choose snake 98, snake 99, or both.';
   const applyPower = (command: (state: GameState) => GameState, action?: OnlineAction) => {
     if (online.session) { if (online.canAct && action) void online.action(action); return; }
     if (rollInFlight.current || fireInFlight.current) return;
@@ -872,11 +878,13 @@ function GameScreen() {
     }
   };
 
-  const selectTarget = (square: ShootableSnakeSquare) => {
-    if (remoteDisabled || firing || !waitingToFire || !availableTargets.includes(square)) return;
-    setSelectedTargets((targets) => targets.includes(square)
-      ? targets.filter((target) => target !== square)
-      : currentPlayer.bullets === 1 ? [square] : [...targets, square]);
+  const chooseAimTargets = (choice: '98' | '99' | 'both') => {
+    if (remoteDisabled || firing || !waitingToFire) return;
+    const targets: ShootableSnakeSquare[] = choice === 'both' ? [98, 99] : [choice === '98' ? 98 : 99];
+    if (targets.some((target) => !availableTargets.includes(target)) || targets.length > currentPlayer.bullets) return;
+    setSelectedTargets((current) =>
+      current.length === targets.length && current.every((target, index) => target === targets[index]) ? [] : targets,
+    );
   };
 
   const fireAtTargets = async (aimedTargets: ShootableSnakeSquare[] = selectedTargets) => {
@@ -894,6 +902,7 @@ function GameScreen() {
     fireInFlight.current = true;
     setFiring(true);
     try {
+      sounds.play('fire');
       if (mobile) {
         scrollToGameSection('[data-testid="game-board"]');
         await new Promise<void>((resolve) => window.setTimeout(resolve, reducedMotion ? 0 : 100));
@@ -1153,7 +1162,7 @@ function GameScreen() {
           onRetry={() => { void online.retry(); }} />
 
         <div className="game-columns">
-          <Board game={game} pickupNotice={pickupNotice} walking={walking} aiming={waitingToFire && !remoteDisabled} selectedTargets={selectedTargets} shot={shot} firing={firing} onAimTarget={selectTarget} choicesEnabled={!remoteDisabled} choiceBusy={rolling || firing}
+          <Board game={game} pickupNotice={pickupNotice} walking={walking} aiming={false} selectedTargets={selectedTargets} shot={shot} firing={firing} choicesEnabled={!remoteDisabled} choiceBusy={rolling || firing}
             onChoosePower={(power) => applyPower((state) => choosePower(state, power), {type: "choose", power})} />
             {!!game.winnerId && <MatchCelebration players={game.players} winnerIds={game.winnerIds ?? [game.winnerId]} loserId={game.loserId ?? game.players.find((p) => p.id !== game.winnerId)!.id} />}
             {!!game.winnerId && <button type="button" className="primary-action" data-testid="celebration-music" disabled={sounds.muted} onClick={() => sounds.setCelebrating(true)}>Play celebration music</button>}
@@ -1222,7 +1231,13 @@ function GameScreen() {
               detonationDisabled={rolling || firing || online.loadingSession || online.busy || !!online.pendingAdmission ||
                 !!winner || !!game.pendingChoice || !!waitingToFire || (!!online.session && !online.canDetonate) ||
                 (mrBotTurn && !humanBombReady) || mrBotAction?.type === 'detonate'}
-              detonationBombs={game.bombs.filter((bomb) => bomb.armed && game.players.some((player) => player.id !== bomb.ownerId && player.position === bomb.square && !game.winnerIds?.includes(player.id)) && (!online.session || bomb.ownerId === online.room?.yourPlayerId) && (playMode !== 'bot' || bomb.ownerId === humanPlayerId)).map((bomb) => ({...bomb, ownerName: game.players.find((player) => player.id === bomb.ownerId)!.name}))}
+              detonationBombs={game.bombs.filter((bomb) => {
+                const owner = game.players.find((player) => player.id === bomb.ownerId);
+                const selfDetonation = owner?.position === bomb.square;
+                const rivalWaiting = bomb.armed && game.players.some((player) => player.id !== bomb.ownerId && player.position === bomb.square && !game.winnerIds?.includes(player.id));
+                return (selfDetonation || rivalWaiting) && (!online.session || bomb.ownerId === online.room?.yourPlayerId) &&
+                  (playMode !== 'bot' || bomb.ownerId === humanPlayerId);
+              }).map((bomb) => ({...bomb, ownerName: game.players.find((player) => player.id === bomb.ownerId)!.name}))}
               playerName={currentPlayer.name}
               powers={currentPlayer.powers} pending={game.pendingChoice}
               extraRollCredits={currentPlayer.extraRollCredits}
@@ -1230,7 +1245,8 @@ function GameScreen() {
               bombs={game.bombs.map((bomb) => ({ ...bomb,
                 ownerName: game.players.find((player) => player.id === bomb.ownerId)!.name,
                 owned: bomb.ownerId === currentPlayer.id,
-                ready: bomb.armed && game.players.some((player) => player.id !== bomb.ownerId && player.position === bomb.square),
+                ready: game.players.find((player) => player.id === bomb.ownerId)?.position === bomb.square ||
+                  (bomb.armed && game.players.some((player) => player.id !== bomb.ownerId && player.position === bomb.square)),
               }))}
               onDefense={(use) => { void applyAnimatedPower((state) => resolveDefense(state, use), undefined, { type: 'defense', use }); }}
               onPlant={(square) => applyPower((state) => plantBomb(state, square), { type: 'plant', square })}
@@ -1246,11 +1262,17 @@ function GameScreen() {
                 (state) => useKnife(state, targetPlayerId), targetPlayerId,
                 { type: 'knife', targetPlayerId },
               ); }}
-              onDetonate={(id) => { void applyAnimatedPower(
-                (state) => ({ state: detonateBomb(state, id, state.bombs.find((bomb) => bomb.id === id)!.ownerId), path: [], effect: 'boom' }),
-                game.players.find((player) => player.id !== game.bombs.find((bomb) => bomb.id === id)!.ownerId && player.position === game.bombs.find((bomb) => bomb.id === id)!.square)!.id,
-                { type: 'detonate', bombId: id },
-              ); }}
+              onDetonate={(id) => {
+                const bomb = game.bombs.find((item) => item.id === id);
+                if (!bomb) return;
+                const victim = game.players.find((player) => player.id !== bomb.ownerId && player.position === bomb.square)
+                  ?? game.players.find((player) => player.id === bomb.ownerId && player.position === bomb.square);
+                void applyAnimatedPower(
+                  (state) => ({ state: detonateBomb(state, id, state.bombs.find((item) => item.id === id)!.ownerId), path: [], effect: 'boom' }),
+                  victim?.id,
+                  { type: 'detonate', bombId: id },
+                );
+              }}
             />
             {!game.pendingChoice && <div className="mobile-gun-status" data-testid="mobile-gun-status" role="img" aria-label={`Gun ammo: ${currentPlayer.bullets} of ${MAX_BULLETS} bullets`}>
               <GunIcon />
@@ -1267,60 +1289,78 @@ function GameScreen() {
               <>
                 <div className={`roll-area ${waitingToFire ? 'roll-area-aiming' : ''}`} data-testid="roll-area">
                   {waitingToFire ? (
-                    <button
-                      className="dice-button fire-dice-button"
-                      onClick={() => void fireAt()}
-                      disabled={remoteDisabled || rolling || firing || selectedTargets.length === 0}
-                      aria-label={firing ? 'Firing at selected snakes' : selectedTargets.length ? `Fire at ${selectedTargets.length} selected snake${selectedTargets.length === 1 ? '' : 's'}` : 'Select a snake head to aim'}
-                      title={selectedTargets.length ? 'Fire at selected snake heads' : 'Select a snake head first'}
-                      data-testid="button-fire"
-                    >
-                      <Crosshair className="fire-slot-icon" size={24} />
-                      <span className="fire-slot-label">
-                        {remoteDisabled ? 'WAIT' : firing ? 'FIRING' : selectedTargets.length === 2 ? 'FIRE BOTH' : selectedTargets.length ? 'FIRE' : 'AIM'}
-                      </span>
-                    </button>
-                  ) : (
-                    <button className="dice-button" onClick={rollDice} disabled={remoteDisabled || rolling || !!winner} aria-label={rolling ? 'Dice rolling' : 'Roll dice'} title="Tap to roll" data-testid="button-roll">
-                      <span className={`dice-face ${rolling ? 'rolling' : ''}`} data-testid="dice-result"
-                        role="img" aria-label={`Dice showing ${diceFace ?? 1}`}><DicePips value={diceFace ?? 1} /></span>
-                    </button>
-                  )}
-                  <div className={`roll-area-copy ${waitingToFire ? 'roll-area-aim-copy' : 'roll-area-turn-copy'}`}>
-                    {waitingToFire ? (
-                      <>
-                        <strong>AIM AT THE HEADS</strong>
-                        <span aria-live="polite" data-testid="fire-slot-target-summary">
-                          {remoteDisabled
-                            ? fireAimPrompt
-                            : selectedTargets.length
-                              ? `Locked: ${selectedTargets.map((square) => `Snake ${square}`).join(' + ')}`
-                              : 'Tap one or both snake heads.'}
+                    <div className="aim-flow" data-testid="fire-choice">
+                      <div className="aim-header">
+                        <strong>Gun room · {currentPlayer.position}</strong>
+                        <span className="fire-ammo-count" data-testid="fire-ammo-count">
+                          <CircleDot size={12} /> {currentPlayer.bullets}/{MAX_BULLETS}
                         </span>
-                      </>
-                    ) : (
-                      <span className="mobile-turn-indicator" aria-live="polite" data-testid="mobile-turn-indicator">{mobileTurnLabel}</span>
-                    )}
-                  </div>
-                </div>
-                {waitingToFire && (
-                  <div className="fire-choice-card" data-testid="fire-choice">
-                    <div className="fire-choice-title">
-                      <span className="fire-gun-icon"><GunIcon /></span>
-                      <span>Gun room · {currentPlayer.position}</span>
-                      <span className="fire-ammo-count" data-testid="fire-ammo-count"><CircleDot size={12} /> {currentPlayer.bullets}/{MAX_BULLETS}</span>
+                      </div>
+                      <div className="aim-instruction" aria-live="polite" data-testid="fire-target-instruction">
+                        {fireStage === 'decision'
+                          ? remoteDisabled ? `${currentPlayer.name} is choosing whether to fire.` : 'Fire now, or leave this shot.'
+                          : selectedTargets.length
+                            ? `Selected: ${selectedTargets.map((square) => `Snake ${square}`).join(' + ')}`
+                            : fireAimPrompt}
+                      </div>
+                      {fireStage === 'decision' ? (
+                        <div className="aim-decision-row">
+                          <button className="aim-action aim-fire-start" onClick={() => setFireStage('targets')}
+                            disabled={remoteDisabled || rolling || firing || availableTargets.length === 0 || currentPlayer.bullets < 1}
+                            data-testid="button-fire-start" aria-label="Choose a snake target">
+                            <Crosshair size={17} /> Fire
+                          </button>
+                          <button className="aim-action aim-leave" onClick={passShot}
+                            disabled={remoteDisabled || rolling || firing} data-testid="button-pass-fire">
+                            Leave this time
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="aim-target-options" role="group" aria-label="Choose snake targets">
+                            <button type="button" className={`aim-target-choice ${selectedTargets.length === 1 && selectedTargets[0] === 98 ? 'selected' : ''}`}
+                              onClick={() => chooseAimTargets('98')} disabled={remoteDisabled || firing || currentPlayer.bullets < 1 || !availableTargets.includes(98)}
+                              aria-pressed={selectedTargets.length === 1 && selectedTargets[0] === 98} data-testid="aim-choice-98">
+                              98
+                            </button>
+                            <button type="button" className={`aim-target-choice ${selectedTargets.length === 1 && selectedTargets[0] === 99 ? 'selected' : ''}`}
+                              onClick={() => chooseAimTargets('99')} disabled={remoteDisabled || firing || currentPlayer.bullets < 1 || !availableTargets.includes(99)}
+                              aria-pressed={selectedTargets.length === 1 && selectedTargets[0] === 99} data-testid="aim-choice-99">
+                              99
+                            </button>
+                            <button type="button" className={`aim-target-choice ${selectedTargets.length === 2 ? 'selected' : ''}`}
+                              onClick={() => chooseAimTargets('both')} disabled={remoteDisabled || firing || currentPlayer.bullets < 2 || !availableTargets.includes(98) || !availableTargets.includes(99)}
+                              aria-pressed={selectedTargets.length === 2} data-testid="aim-choice-both">
+                              Both
+                            </button>
+                          </div>
+                          <div className="aim-submit-row">
+                            <button className="aim-action aim-fire-submit" onClick={() => void fireAt()}
+                              disabled={remoteDisabled || rolling || firing || selectedTargets.length === 0 || selectedTargets.length > currentPlayer.bullets}
+                              aria-label={selectedTargets.length === 2 ? 'Fire at both snakes' : selectedTargets.length === 1 ? `Fire at snake ${selectedTargets[0]}` : 'Choose a target before firing'}
+                              data-testid="button-fire">
+                              <Crosshair size={16} /> {firing ? 'Firing…' : selectedTargets.length === 2 ? 'Fire both' : 'Fire'}
+                            </button>
+                            <button className="aim-action aim-leave" onClick={passShot}
+                              disabled={remoteDisabled || rolling || firing} data-testid="button-pass-fire">
+                              Leave
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
-                    <div className="fire-choice-copy" data-testid="fire-target-instruction" aria-live="polite">
-                      {fireAimPrompt}
-                    </div>
-                    {currentPlayer.bullets === 1 && <div className="fire-choice-copy">Only one bullet: aim at 98 or 99, not both.</div>}
-                    <div className="fire-choice-actions">
-                      <button className="secondary-action" onClick={passShot} disabled={remoteDisabled || rolling || firing} data-testid="button-pass-fire">
-                        Pass this shot
+                  ) : (
+                    <>
+                      <button className="dice-button" onClick={rollDice} disabled={remoteDisabled || rolling || !!winner} aria-label={rolling ? 'Dice rolling' : 'Roll dice'} title="Tap to roll" data-testid="button-roll">
+                        <span className={`dice-face ${rolling ? 'rolling' : ''}`} data-testid="dice-result"
+                          role="img" aria-label={`Dice showing ${diceFace ?? 1}`}><DicePips value={diceFace ?? 1} /></span>
                       </button>
-                    </div>
-                  </div>
-                )}
+                      <div className="roll-area-copy roll-area-turn-copy">
+                        <span className="mobile-turn-indicator" aria-live="polite" data-testid="mobile-turn-indicator">{mobileTurnLabel}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
               </>
             )}
             </div>
@@ -1337,7 +1377,7 @@ function GameScreen() {
                 <div className="rule-line"><span className="rule-swatch" style={{ background: '#dc8540' }} /> Ladders lift you up; snakes send you sliding.</div>
                 <div className="rule-line"><Dices size={13} /> A valid six earns another chance. Overshooting 100 does not.</div>
                 <div className="rule-line"><Sparkles size={13} /> Rooms 14, 35, 51 and 76 let you choose a Bomb, Anti-Venom, Defuser Kit or Extra Dice.</div>
-                <div className="rule-line"><Bomb size={13} /> Plant a bomb in any house, then detonate on your turn when the rival stops there. The blast sends them Home, not their inventory.</div>
+                <div className="rule-line"><Bomb size={13} /> Plant a bomb in your room: detonate now to send yourself Home, or wait for a rival to stop there. Inventory stays safe.</div>
                 <div className="rule-line"><TorchIcon size={13} /> First arrival at 100 gives a torch and returns you Home, not a crown.</div>
                 <div className="rule-line"><KeyRound size={13} color="#f0c65a" /> With your torch, land in black room 17, 44 or 67 for one key.</div>
                 <div className="rule-line"><LockKeyhole size={13} /> Reach 100 without a black-room key and return Home to try again. Torch and key progress survive blasts.</div>

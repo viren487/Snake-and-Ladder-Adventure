@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type GameSound = "dice" | "step" | "ladder" | "snake" | "bullet" | "key" | "happy" | "bomb";
+export type GameSound = "dice" | "step" | "ladder" | "snake" | "bullet" | "fire" | "key" | "happy" | "bomb";
 type PickupState = { bullets: number; crownKeyRoom: number | null };
 
 const SOUND_FILES: Record<GameSound, string> = {
@@ -9,6 +9,7 @@ const SOUND_FILES: Record<GameSound, string> = {
   ladder: new URL("./sounds/ladder.wav", import.meta.url).href,
   snake: new URL("./sounds/snake.wav", import.meta.url).href,
   bullet: new URL("./sounds/bullet.wav", import.meta.url).href,
+  fire: new URL("./sounds/gun-fire.wav", import.meta.url).href,
   key: new URL("./sounds/key.wav", import.meta.url).href,
   happy: new URL("./sounds/happy.wav", import.meta.url).href,
   bomb: new URL("./sounds/bomb-blast.wav", import.meta.url).href,
@@ -29,6 +30,7 @@ export function useGameSounds() {
       ladder: 0.5,
       snake: 0.45,
       bullet: 0.55,
+      fire: 0.8,
       key: 0.55,
       happy: 0.5,
       bomb: 0.72,

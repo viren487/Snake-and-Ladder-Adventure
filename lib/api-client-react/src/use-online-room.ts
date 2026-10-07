@@ -221,9 +221,13 @@ export function useOnlineRoom(options: Options, hooks: RoomHooks) {
     room.game.players[room.game.currentPlayerIndex].id === session.playerId;
   const canDetonate = !!session && !!room && connected && !busy && !coolingDown && room.status === "playing" &&
     room.members.length === room.maxPlayers && room.members.every((member) => member.online || room.game.winnerIds?.includes(member.id)) &&
-    !room.game.winnerIds?.includes(session.playerId) && !room.game.pendingChoice && !room.game.pendingFireForPlayerId && room.game.bombs.some((bomb) =>
-      bomb.ownerId === session.playerId && bomb.armed && room.game.players.some((player) =>
+    !room.game.winnerIds?.includes(session.playerId) && !room.game.pendingChoice && !room.game.pendingFireForPlayerId && room.game.bombs.some((bomb) => {
+      if (bomb.ownerId !== session.playerId) return false;
+      const owner = room.game.players.find((player) => player.id === session.playerId);
+      const selfDetonation = owner?.position === bomb.square;
+      return selfDetonation || (bomb.armed && room.game.players.some((player) =>
         player.id !== session.playerId && player.position === bomb.square && !room.game.winnerIds?.includes(player.id)));
+    });
   return { session, pendingAdmission, room, busy, connected, canAct, canDetonate, loadingSession, error: error ?? storageError,
     create: (name: string, maxPlayers = 2) => admit(name, undefined, maxPlayers), join: (code: string, name: string) => admit(name, code),
     action, leave, retry: () => pendingRef.current

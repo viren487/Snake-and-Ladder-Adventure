@@ -186,7 +186,7 @@ export function PowerControls({ position, detonationBombs, detonationDisabled, p
         <ul className="pc-list">
           {otherBombs.map((b) => (
             <li key={b.id} data-testid={`bomb-row-${b.id}`}>
-              House {b.square} · {b.owned ? 'yours, waiting for rival' : b.ownerName}
+              House {b.square} · {b.owned ? b.ready ? 'yours, ready to detonate' : 'yours, waiting for rival' : b.ownerName}
             </li>
           ))}
         </ul>

@@ -181,7 +181,31 @@ for (const [name, engine] of [["web", web]]) {
     assert.equal(passed.pendingChoice, null);
     assert.equal(passed.players[0].powers.antiVenom, 1);
   });
-  test(`${name}: bombs require a later landing and owner-only manual detonation`, () => {
+  test(`${name}: bomb owner can detonate immediately and send themself Home`, () => {
+    let game = at(20);
+    game.players[0].powers.bomb = 1;
+    game.players[0].hasTorch = true;
+    game.players[0].crownKeyRoom = 44;
+    game.players[0].keys = 1;
+    game.players[0].bullets = 3;
+    game.players[1].position = 20;
+    game.players[1].hasTorch = true;
+    game = engine.plantBomb(game, 20);
+    const planted = structuredClone(game);
+    assert.equal(game.bombs[0].armed, false);
+    const blasted = engine.detonateBomb(game, game.bombs[0].id);
+    assert.equal(blasted.players[0].position, 0);
+    assert.equal(blasted.players[1].position, 0);
+    assert.equal(blasted.players[0].hasTorch, true);
+    assert.equal(blasted.players[0].crownKeyRoom, 44);
+    assert.equal(blasted.players[0].keys, 1);
+    assert.equal(blasted.players[0].bullets, 3);
+    assert.equal(blasted.players[1].hasTorch, true);
+    assert.equal(blasted.bombs.length, 0);
+    assert.equal(game.players[0].position, planted.players[0].position);
+    assert.equal(game.bombs.length, 1);
+  });
+  test(`${name}: bombs arm only when a rival later lands; detonation remains owner-only`, () => {
     let game = at(20);
     game.players[0].powers.bomb = 1;
     game.players[1].position = 20;
@@ -192,16 +216,18 @@ for (const [name, engine] of [["web", web]]) {
     game.players[1].powers.extraDice = 2;
     game = engine.plantBomb(game, 20);
     const id = game.bombs[0].id;
-    assert.throws(() => engine.detonateBomb(game, id)); // Planting under a rival is not a landing.
+    const ownerId = game.players[0].id;
+    assert.throws(() => engine.detonateBomb(game, id, game.players[1].id));
     game = engine.playTurn(game, 1);
-    assert.throws(() => engine.detonateBomb(game, id)); // Rival cannot detonate owner's bomb.
+    assert.equal(game.bombs[0].armed, false); // Planting under a rival is not a new landing.
+    assert.throws(() => engine.detonateBomb(game, id, ownerId)); // The owner left before the rival landed.
     game.players[1].position = 19;
     game = engine.playTurn(game, 1);
     assert.equal(game.players[1].position, 20); // No automatic blast.
     assert.equal(game.bombs[0].armed, true);
     assert.equal(game.currentPlayerIndex, 0);
     const rivalBefore = structuredClone(game.players[1]);
-    const blasted = engine.detonateBomb(game, id);
+    const blasted = engine.detonateBomb(game, id, ownerId);
     assert.deepEqual(blasted.players[1], { ...rivalBefore, position: 0 });
     assert.equal(blasted.bombs.length, 0);
     assert.equal(blasted.currentPlayerIndex, 0);

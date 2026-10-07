@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle, Path } from 'react-native-svg';
 import Animated, {
   Easing,
@@ -11,7 +12,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import type { GameState, ShootableSnakeSquare } from '@workspace/game-core';
+import type { GameState, MysteryPowerType, ShootableSnakeSquare } from '@workspace/game-core';
 import { BOOM_SQUARE, BULLET_PICKUP_SQUARES, GUN_SQUARES, KEY_SQUARES, LADDERS, MYSTERY_BOX_SQUARES, SNAKES, SHOOTABLE_SNAKE_SQUARES, squareAt } from '@workspace/game-core';
 import { useColors } from '@/hooks/useColors';
 
@@ -26,7 +27,89 @@ type Props = {
   selectedTargets?: readonly ShootableSnakeSquare[];
   onSelectTarget?: (square: ShootableSnakeSquare) => void;
   bombBlast?: BoardBlast | null;
+  mysterySquare?: number | null;
+  mysteryCanChoose?: boolean;
+  mysteryBusy?: boolean;
+  onChooseMystery?: (power: MysteryPowerType) => void;
 };
+
+const MYSTERY_POWER_OPTIONS: {
+  power: MysteryPowerType;
+  label: string;
+  shortLabel: string;
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+}[] = [
+  { power: 'bomb', label: 'Bomb', shortLabel: 'Bomb', icon: 'bomb' },
+  { power: 'antiVenom', label: 'Anti-Venom', shortLabel: 'A/V', icon: 'shield-plus' },
+  { power: 'defuser', label: 'Defuser Kit', shortLabel: 'Kit', icon: 'wrench' },
+  { power: 'webShooter', label: 'Web Shooter', shortLabel: 'Web', icon: 'spider-web' },
+  { power: 'knife', label: 'Knife', shortLabel: 'Knife', icon: 'knife' },
+];
+
+function MysteryPowerTray({
+  square,
+  canChoose,
+  busy,
+  onChoose,
+}: {
+  square: number;
+  canChoose: boolean;
+  busy: boolean;
+  onChoose?: (power: MysteryPowerType) => void;
+}) {
+  const colors = useColors();
+  const [selected, setSelected] = React.useState<MysteryPowerType | null>(null);
+  React.useEffect(() => { setSelected(null); }, [square]);
+  const active = MYSTERY_POWER_OPTIONS.find((option) => option.power === selected);
+
+  return (
+    <View style={[styles.mysteryTray, { backgroundColor: colors.boardDark, borderColor: colors.boardFrameLight }]} testID="mystery-power-tray">
+      <Text style={[styles.mysteryTrayTitle, { color: colors.primary }]}>
+        {canChoose ? `BOX ${square} · CHOOSE ONE` : `BOX ${square} · WAITING`}
+      </Text>
+      <View style={styles.mysteryPowerRow}>
+        {MYSTERY_POWER_OPTIONS.map((option) => {
+          const isSelected = selected === option.power;
+          return (
+            <Pressable
+              key={option.power}
+              accessibilityRole="button"
+              accessibilityLabel={`Choose ${option.label}`}
+              accessibilityState={{ selected: isSelected, disabled: !canChoose || busy }}
+              disabled={!canChoose || busy}
+              onPress={() => setSelected(option.power)}
+              style={[
+                styles.mysteryPowerOption,
+                { backgroundColor: isSelected ? colors.primary : colors.card, borderColor: isSelected ? colors.accent : colors.border },
+              ]}
+              testID={`mystery-option-${option.power}`}
+            >
+              <MaterialCommunityIcons name={option.icon} size={16} color={isSelected ? colors.primaryForeground : colors.foreground} />
+              <Text style={[styles.mysteryPowerLabel, { color: isSelected ? colors.primaryForeground : colors.mutedForeground }]} numberOfLines={1}>
+                {option.shortLabel}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <View style={styles.mysteryTrayFooter}>
+        <Text style={[styles.mysterySelectedLabel, { color: colors.foreground }]} numberOfLines={1}>
+          {active?.label ?? 'Pick a power'}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={active ? `Get ${active.label}` : 'Choose a power first'}
+          disabled={!canChoose || busy || !selected}
+          onPress={() => selected && onChoose?.(selected)}
+          style={[styles.mysteryGetButton, { backgroundColor: selected ? colors.primary : colors.muted }]}
+          testID="get-mystery-power"
+        >
+          <Text style={[styles.mysteryGetLabel, { color: selected ? colors.primaryForeground : colors.mutedForeground }]}>GET</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
 
 function centerForSquare(square: number) {
   for (let row = 0; row < 10; row += 1) {
@@ -182,7 +265,16 @@ function BombBlastVisual({ blast }: { blast: BoardBlast }) {
   );
 }
 
-export function GameBoard({ game, selectedTargets = [], onSelectTarget, bombBlast = null }: Props) {
+export function GameBoard({
+  game,
+  selectedTargets = [],
+  onSelectTarget,
+  bombBlast = null,
+  mysterySquare = null,
+  mysteryCanChoose = false,
+  mysteryBusy = false,
+  onChooseMystery,
+}: Props) {
   const colors = useColors();
   const [boardSize, setBoardSize] = React.useState(0);
   const shake = useSharedValue(0);
@@ -268,19 +360,20 @@ export function GameBoard({ game, selectedTargets = [], onSelectTarget, bombBlas
                   : shade;
             const isSnakeTarget = (SHOOTABLE_SNAKE_SQUARES as readonly number[]).includes(square);
             const targetAvailable = isSnakeTarget && game.players[game.currentPlayerIndex]?.snakeStuns[square as ShootableSnakeSquare] === 0;
+            const accessibleTarget = targetAvailable && !!onSelectTarget;
             const selected = selectedTargets.includes(square as ShootableSnakeSquare);
             return (
               <Pressable
                 key={square}
-                accessibilityRole={targetAvailable ? 'button' : undefined}
-                accessibilityLabel={targetAvailable ? `Aim at snake ${square}${selected ? ', selected' : ''}` : `Square ${square}${locked ? ', black key room' : ''}`}
-                accessibilityState={targetAvailable ? { selected } : undefined}
-                disabled={!targetAvailable || !onSelectTarget}
+                accessibilityRole={accessibleTarget ? 'button' : undefined}
+                accessibilityLabel={accessibleTarget ? `Aim at snake ${square}${selected ? ', selected' : ''}` : `Square ${square}${locked ? ', black key room' : ''}`}
+                accessibilityState={accessibleTarget ? { selected } : undefined}
+                disabled={!accessibleTarget}
                 onPress={() => onSelectTarget?.(square as ShootableSnakeSquare)}
                 style={[
                   styles.cell,
                   { backgroundColor, borderColor: locked ? colors.boardFrameLight : colors.transparentBorder },
-                  targetAvailable && styles.targetCell,
+                  accessibleTarget && styles.targetCell,
                 ]}
               >
                 <Text style={[styles.squareNumber, { color: locked ? colors.foreground : colors.boardInk }]}>
@@ -365,6 +458,14 @@ export function GameBoard({ game, selectedTargets = [], onSelectTarget, bombBlas
             />
           );
         })}
+        {mysterySquare !== null && (
+          <MysteryPowerTray
+            square={mysterySquare}
+            canChoose={mysteryCanChoose}
+            busy={mysteryBusy}
+            onChoose={onChooseMystery}
+          />
+        )}
       </Animated.View>
       <View style={styles.legend}>
         <Text style={[styles.legendText, { color: colors.secondaryForeground }]}>KEY · +1 ammo · ? mystery · GUN · ! boom</Text>
@@ -394,6 +495,31 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
+  mysteryTray: {
+    position: 'absolute',
+    left: '50%',
+    top: '80%',
+    width: '50%',
+    height: '20%',
+    zIndex: 30,
+    padding: 2,
+    borderWidth: 1,
+    borderRadius: 8,
+    justifyContent: 'space-between',
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 9,
+  },
+  mysteryTrayTitle: { fontFamily: 'Nunito_700Bold', fontSize: 7, lineHeight: 9, textAlign: 'center', letterSpacing: 0.35 },
+  mysteryPowerRow: { flexDirection: 'row', gap: 1, alignItems: 'center', justifyContent: 'space-between', flex: 1 },
+  mysteryPowerOption: { flex: 1, minWidth: 0, height: '100%', maxHeight: 34, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 6, paddingHorizontal: 1 },
+  mysteryPowerLabel: { fontFamily: 'Nunito_700Bold', fontSize: 6, lineHeight: 8 },
+  mysteryTrayFooter: { minHeight: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 3 },
+  mysterySelectedLabel: { flex: 1, fontFamily: 'Nunito_700Bold', fontSize: 7, lineHeight: 9 },
+  mysteryGetButton: { minWidth: 31, height: 16, alignItems: 'center', justifyContent: 'center', borderRadius: 5, paddingHorizontal: 4 },
+  mysteryGetLabel: { fontFamily: 'Nunito_700Bold', fontSize: 7, lineHeight: 9 },
   grid: {
     ...StyleSheet.absoluteFill,
     flexDirection: 'row',

@@ -80,6 +80,7 @@ export function useOnlineGame(bindings: Bindings) {
           }
         }
         if (event.kind === "shoot") {
+          b.sounds.play("fire");
           b.setFiring(true);
           b.setShot({ from: event.from, targets: event.targets as ShootableSnakeSquare[] });
           if (!await wait(reduced ? 150 : 950)) return;
