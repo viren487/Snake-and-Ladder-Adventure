@@ -52,7 +52,7 @@ import type { RoomSnapshot } from '@workspace/game-core/online';
 import { getMrBotAction, type MrBotAction } from '@/lib/mr-bot';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { GameBoard, type BoardBlast } from '@/components/GameBoard';
-import { PowerGlyph } from '@/components/PowerGlyph';
+import { PowerArtwork } from '@/components/PowerArtwork';
 import { useColors } from '@/hooks/useColors';
 import { useGameSounds } from '@/lib/game-sounds';
 
@@ -1205,7 +1205,7 @@ export default function IndexScreen() {
             <View style={styles.row}>
               <SolidButton
                 label="Use protection"
-                icon={<PowerGlyph power={game.pendingChoice.kind === 'snake' ? 'antiVenom' : 'defuser'} size={18} />}
+                icon={<PowerArtwork power={game.pendingChoice.kind === 'snake' ? 'antiVenom' : 'defuser'} size={22} />}
                 onPress={() => currentPowerAction({ type: 'defense', use: true }, (state) => resolveDefense(state, true))}
                 colors={colors}
                 disabled={!currentPlayerIsHuman || actionDisabled || onlineMode && !online.canAct}
@@ -1231,16 +1231,16 @@ export default function IndexScreen() {
                 <SolidButton label={`Extra Dice · ${powerButtons.extraDice}`} icon={<MaterialCommunityIcons name="dice-multiple" size={15} color={colors.secondaryForeground} />} onPress={() => currentPowerAction({ type: 'extraDice' }, (state) => useExtraDice(state))} colors={colors} secondary compact disabled={turnLocked} />
               )}
               {powerButtons.webShooter > 0 && activeRivals.filter((rival) => rival.position > currentPlayer.position && rival.position - currentPlayer.position <= 3).map((rival) => (
-                <SolidButton key={`web-${rival.id}`} label={`Web · ${rival.name}`} icon={<MaterialCommunityIcons name="spider-web" size={15} color={colors.secondaryForeground} />} onPress={() => currentPowerAction({ type: 'web', targetPlayerId: rival.id }, (state) => useWebShooter(state, rival.id))} colors={colors} secondary compact disabled={turnLocked} />
+                <SolidButton key={`web-${rival.id}`} label={`Web · ${rival.name}`} icon={<PowerArtwork power="webShooter" size={18} />} onPress={() => currentPowerAction({ type: 'web', targetPlayerId: rival.id }, (state) => useWebShooter(state, rival.id))} colors={colors} secondary compact disabled={turnLocked} />
               ))}
               {powerButtons.knife > 0 && activeRivals.filter((rival) => currentPlayer.position > 0 && rival.position === currentPlayer.position).map((rival) => (
-                <SolidButton key={`knife-${rival.id}`} label={`Knife · ${rival.name}`} icon={<PowerGlyph power="knife" size={16} />} onPress={() => currentPowerAction({ type: 'knife', targetPlayerId: rival.id }, (state) => useKnife(state, rival.id))} colors={colors} secondary compact disabled={turnLocked} />
+                <SolidButton key={`knife-${rival.id}`} label={`Knife · ${rival.name}`} icon={<PowerArtwork power="knife" size={18} />} onPress={() => currentPowerAction({ type: 'knife', targetPlayerId: rival.id }, (state) => useKnife(state, rival.id))} colors={colors} secondary compact disabled={turnLocked} />
               ))}
               {readyToPlant && (
-                <SolidButton label="Plant bomb here" icon={<MaterialCommunityIcons name="bomb" size={15} color={colors.secondaryForeground} />} onPress={() => currentPowerAction({ type: 'plant', square: currentPlayer.position }, (state) => plantBomb(state, currentPlayer.position))} colors={colors} secondary compact disabled={turnLocked} />
+                <SolidButton label="Plant bomb here" icon={<PowerArtwork power="bomb" size={18} />} onPress={() => currentPowerAction({ type: 'plant', square: currentPlayer.position }, (state) => plantBomb(state, currentPlayer.position))} colors={colors} secondary compact disabled={turnLocked} />
               )}
               {!!usableBomb && (
-                <SolidButton label={`Detonate room ${usableBomb.square}`} icon={<MaterialCommunityIcons name="bomb" size={15} color={colors.primaryForeground} />} destructive onPress={() => currentPowerAction({ type: 'detonate', bombId: usableBomb.id }, (state) => detonateBomb(state, usableBomb.id, online.session?.playerId ?? usableBomb.ownerId))} colors={colors} compact disabled={rolling || online.busy || onlineMode && !online.canDetonate} testID="detonate-bomb" />
+                <SolidButton label={`Detonate room ${usableBomb.square}`} icon={<PowerArtwork power="bomb" size={18} />} destructive onPress={() => currentPowerAction({ type: 'detonate', bombId: usableBomb.id }, (state) => detonateBomb(state, usableBomb.id, online.session?.playerId ?? usableBomb.ownerId))} colors={colors} compact disabled={rolling || online.busy || onlineMode && !online.canDetonate} testID="detonate-bomb" />
               )}
             </View>
             {powerButtons.antiVenom + powerButtons.defuser + powerButtons.bomb + powerButtons.webShooter + powerButtons.knife + powerButtons.extraDice === 0 && (

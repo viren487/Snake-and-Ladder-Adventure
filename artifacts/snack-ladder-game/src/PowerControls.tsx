@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Bomb, Crosshair, Dices, List } from 'lucide-react';
+import { Bomb, Dices, List } from 'lucide-react';
 import type { PowerType } from './game-engine';
-import { PowerGlyph, type DetailedPower } from './PowerGlyph';
+import { PowerArtwork } from './PowerArtwork';
 import './PowerControls.css';
 
 export type PowerKind = PowerType;
@@ -40,11 +40,8 @@ const BLURB: Record<PowerKind, string> = {
 };
 const ORDER: PowerKind[] = ['bomb', 'antiVenom', 'defuser', 'webShooter', 'knife'];
 function PowerSymbol({ power, size }: { power: PowerKind; size: number }) {
-  if (power === 'antiVenom' || power === 'defuser' || power === 'knife') {
-    return <PowerGlyph power={power as DetailedPower} size={size} />;
-  }
-  const Icon = power === 'bomb' ? Bomb : power === 'webShooter' ? Crosshair : Dices;
-  return <Icon size={size} />;
+  if (power === 'extraDice') return <Dices size={size} />;
+  return <PowerArtwork power={power} size={size + 4} />;
 }
 
 export function PowerControls({ position, detonationBombs, detonationDisabled, playerName, powers, pending, bombs, busy, actionsEnabled, extraRollCredits, onDefense, onPlant, onDetonate, onExtraDice, rivals, onWebShoot, onKnife }: PowerControlsProps) {
@@ -77,7 +74,7 @@ export function PowerControls({ position, detonationBombs, detonationDisabled, p
       {pending && pending.kind !== 'mystery' && (
         <div role="group" aria-label={pending.kind === 'snake' ? 'Snake bite defense' : 'Bomb defense'}>
           <div className="pc-title">
-            <PowerGlyph power={pending.kind === 'snake' ? 'antiVenom' : 'defuser'} size={18} />
+            <PowerArtwork power={pending.kind === 'snake' ? 'antiVenom' : 'defuser'} size={22} />
             {pending.kind === 'snake' ? `Snake bite on ${pending.square}` : `Bomb on ${pending.square}`}
           </div>
           <p className="pc-copy">

@@ -27,13 +27,23 @@ Extra Dice is a consumable, explicitly activated on the holder's turn to bank on
 
 **How to apply:** Show saved charges separately from activated extra-roll credits. An overshooting six earns no automatic bonus; any explicitly activated Extra Dice credit still grants its promised roll.
 
-Mystery-room choices should reuse each power's inventory colors and recognizable
-art in full-name buttons. Keep the bomb and Web Shooter artwork, show Anti-Venom
-as a red syringe, Defuser as a tool over a bomb, and Knife as a real knife.
+Use the user-provided five-card artwork for Bomb, Defuser Kit, Anti-Venom, Knife
+and Web Shooter in both the power log and Mystery chooser. Keep the names as
+readable text labels; use Extra Dice's existing icon because it has no supplied
+artwork.
 
-**Why:** The user asked for mystery-box powers to be easier to recognize and their
-names to remain readable in the enlarged board tray.
+**Why:** The user supplied exact power artwork and asked to use it for the power
+log and Mystery-box powers on both clients.
 
-**How to apply:** Reuse the inventory icon components and color classes rather
-than introducing a separate mystery-only icon or palette. Preserve the bottom
-three-row placement and select-then-Get flow in both clients.
+**How to apply:** Use the same artwork mapping in the Mystery chooser and power
+log, with the full power name visible outside the thumbnail.
+
+When a Mystery box opens, show all five powers in the bottom-right area covering
+the board's bottom three rows. Selecting a power reveals GET directly under that
+selected tile; pressing it awards that choice.
+
+**Why:** The user specified the three-row board area and asked for GET to sit
+beneath whichever power is selected.
+
+**How to apply:** Keep the image, text label and selected-only GET button together
+in each tile on both web and native mobile.

@@ -15,7 +15,7 @@ import Animated, {
 import type { GameState, MysteryPowerType, ShootableSnakeSquare } from '@workspace/game-core';
 import { BOOM_SQUARE, BULLET_PICKUP_SQUARES, GUN_SQUARES, KEY_SQUARES, LADDERS, MYSTERY_BOX_SQUARES, SNAKES, SHOOTABLE_SNAKE_SQUARES, squareAt } from '@workspace/game-core';
 import { useColors } from '@/hooks/useColors';
-import { PowerGlyph } from '@/components/PowerGlyph';
+import { PowerArtwork } from '@/components/PowerArtwork';
 
 export type BoardBlast = {
   id: number;
@@ -54,26 +54,13 @@ const MYSTERY_POWER_OPTIONS: {
   power: MysteryPowerType;
   label: string;
   blurb: string;
-  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 }[] = [
-  { power: 'bomb', label: 'Bomb', blurb: 'Plant in your current room', icon: 'bomb' },
-  { power: 'antiVenom', label: 'Anti-Venom', blurb: 'Blocks one snake bite', icon: 'shield-plus' },
-  { power: 'defuser', label: 'Defuser Kit', blurb: 'Disarms one bomb', icon: 'wrench' },
-  { power: 'webShooter', label: 'Web Shooter', blurb: 'Pull a rival back three rooms', icon: 'spider-web' },
-  { power: 'knife', label: 'Knife', blurb: 'Strikes a rival in your room', icon: 'knife' },
+  { power: 'bomb', label: 'Bomb', blurb: 'Plant in your current room' },
+  { power: 'antiVenom', label: 'Anti-Venom', blurb: 'Blocks one snake bite' },
+  { power: 'defuser', label: 'Defuser Kit', blurb: 'Disarms one bomb' },
+  { power: 'webShooter', label: 'Web Shooter', blurb: 'Pull a rival back three rooms' },
+  { power: 'knife', label: 'Knife', blurb: 'Strikes a rival in your room' },
 ];
-
-function PowerChoiceIcon({ power, icon, color, size }: {
-  power: MysteryPowerType;
-  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
-  color: string;
-  size: number;
-}) {
-  if (power === 'antiVenom' || power === 'defuser' || power === 'knife') {
-    return <PowerGlyph power={power} size={size} />;
-  }
-  return <MaterialCommunityIcons name={icon} size={size} color={color} />;
-}
 
 function MysteryPowerTray({
   square,
@@ -91,12 +78,11 @@ function MysteryPowerTray({
   const colors = useColors();
   const [selected, setSelected] = React.useState<MysteryPowerType | null>(null);
   React.useEffect(() => { setSelected(null); }, [square]);
-  const active = MYSTERY_POWER_OPTIONS.find((option) => option.power === selected);
-  const labelSize = Math.max(7.5, Math.min(10, boardSize / 44));
-  const iconSize = Math.min(22, Math.max(13, Math.round(labelSize * 1.9)));
+  const labelSize = Math.max(7, Math.min(10, boardSize / 44));
+  const iconSize = Math.min(20, Math.max(11, Math.round(boardSize / 24)));
   const accents: Record<MysteryPowerType, string> = {
     bomb: '#ffad78',
-    antiVenom: '#ff9eac',
+    antiVenom: '#9cf28c',
     defuser: '#a9c5ff',
     webShooter: '#9defff',
     knife: '#dcb5ff',
@@ -104,48 +90,47 @@ function MysteryPowerTray({
 
   return (
     <View style={[styles.mysteryTray, { backgroundColor: colors.boardDark, borderColor: colors.boardFrameLight }]} testID="mystery-power-tray">
-      <Text style={[styles.mysteryTrayTitle, { color: colors.primary, fontSize: labelSize, lineHeight: labelSize + 2 }]}>
+      <Text style={[styles.mysteryTrayTitle, { color: colors.primary, fontSize: labelSize, lineHeight: labelSize + 1 }]}>
         {canChoose ? `BOX ${square} · CHOOSE ONE` : `BOX ${square} · WAITING`}
       </Text>
       <View style={styles.mysteryPowerGrid}>
         {MYSTERY_POWER_OPTIONS.map((option) => {
           const isSelected = selected === option.power;
           return (
-            <Pressable
-              key={option.power}
-              accessibilityRole="button"
-              accessibilityLabel={`Choose ${option.label}`}
-              accessibilityState={{ selected: isSelected, disabled: !canChoose || busy }}
-              disabled={!canChoose || busy}
-              onPress={() => setSelected(option.power)}
-              style={[
-                styles.mysteryPowerOption,
-                { backgroundColor: isSelected ? colors.primary : colors.card, borderColor: isSelected ? colors.accent : accents[option.power] },
-              ]}
-              testID={`mystery-option-${option.power}`}
-            >
-              <PowerChoiceIcon power={option.power} icon={option.icon} color={isSelected ? colors.primaryForeground : colors.foreground} size={iconSize} />
-              <Text style={[styles.mysteryPowerLabel, { color: isSelected ? colors.primaryForeground : colors.foreground, fontSize: labelSize, lineHeight: labelSize + 1 }]} numberOfLines={2}>
-                {option.label}
-              </Text>
-            </Pressable>
+            <View key={option.power} style={styles.mysteryPowerSlot}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Choose ${option.label}`}
+                accessibilityHint={option.blurb}
+                accessibilityState={{ selected: isSelected, disabled: !canChoose || busy }}
+                disabled={!canChoose || busy}
+                onPress={() => setSelected(option.power)}
+                style={[
+                  styles.mysteryPowerOption,
+                  { backgroundColor: isSelected ? colors.primary : colors.card, borderColor: isSelected ? colors.accent : accents[option.power] },
+                ]}
+                testID={`mystery-option-${option.power}`}
+              >
+                <PowerArtwork power={option.power} size={iconSize} />
+                <Text style={[styles.mysteryPowerLabel, { color: isSelected ? colors.primaryForeground : colors.foreground, fontSize: labelSize, lineHeight: labelSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                  {option.label}
+                </Text>
+              </Pressable>
+              {isSelected && (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Get ${option.label}`}
+                  disabled={!canChoose || busy}
+                  onPress={() => onChoose?.(option.power)}
+                  style={[styles.mysteryGetButton, { backgroundColor: colors.primary, height: Math.max(10, labelSize + 3) }]}
+                  testID="get-mystery-power"
+                >
+                  <Text style={[styles.mysteryGetLabel, { color: colors.primaryForeground, fontSize: Math.max(6.5, labelSize - 1) }]}>GET</Text>
+                </Pressable>
+              )}
+            </View>
           );
         })}
-      </View>
-      <View style={styles.mysteryTrayFooter}>
-        <Text style={[styles.mysterySelectedLabel, { color: colors.foreground, fontSize: Math.max(6.5, labelSize - 1), lineHeight: labelSize }]} numberOfLines={2}>
-          {active ? `${active.label} · ${active.blurb}` : 'Tap a power, then Get'}
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={active ? `Get ${active.label}` : 'Choose a power first'}
-          disabled={!canChoose || busy || !selected}
-          onPress={() => selected && onChoose?.(selected)}
-          style={[styles.mysteryGetButton, { backgroundColor: selected ? colors.primary : colors.muted }]}
-          testID="get-mystery-power"
-        >
-          <Text style={[styles.mysteryGetLabel, { color: selected ? colors.primaryForeground : colors.mutedForeground }]}>GET</Text>
-        </Pressable>
       </View>
     </View>
   );
@@ -671,7 +656,7 @@ const styles = StyleSheet.create({
     width: '50%',
     height: '30%',
     zIndex: 30,
-    padding: 4,
+    padding: 3,
     borderWidth: 1,
     borderRadius: 8,
     justifyContent: 'flex-start',
@@ -683,12 +668,11 @@ const styles = StyleSheet.create({
     elevation: 9,
   },
   mysteryTrayTitle: { fontFamily: 'Nunito_700Bold', fontSize: 8, lineHeight: 10, textAlign: 'center', letterSpacing: 0.35 },
-  mysteryPowerGrid: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignContent: 'space-between', justifyContent: 'space-between', gap: 2 },
-  mysteryPowerOption: { width: '32%', height: '48%', minWidth: 0, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 6, paddingHorizontal: 1, gap: 0 },
+  mysteryPowerGrid: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignContent: 'space-between', justifyContent: 'space-around', gap: 2 },
+  mysteryPowerSlot: { width: '32%', height: '48%', minWidth: 0, alignItems: 'stretch', justifyContent: 'flex-start', gap: 1 },
+  mysteryPowerOption: { flex: 1, width: '100%', minHeight: 0, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 6, paddingHorizontal: 1, gap: 0, overflow: 'hidden' },
   mysteryPowerLabel: { fontFamily: 'Nunito_700Bold', fontSize: 6.5, lineHeight: 8, textAlign: 'center', flexShrink: 1 },
-  mysteryTrayFooter: { minHeight: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 3 },
-  mysterySelectedLabel: { flex: 1, fontFamily: 'Nunito_700Bold', fontSize: 6.5, lineHeight: 8 },
-  mysteryGetButton: { minWidth: 34, height: 20, alignItems: 'center', justifyContent: 'center', borderRadius: 5, paddingHorizontal: 5 },
+  mysteryGetButton: { width: '100%', minHeight: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 5, paddingHorizontal: 2 },
   mysteryGetLabel: { fontFamily: 'Nunito_700Bold', fontSize: 7, lineHeight: 9 },
   grid: {
     ...StyleSheet.absoluteFill,

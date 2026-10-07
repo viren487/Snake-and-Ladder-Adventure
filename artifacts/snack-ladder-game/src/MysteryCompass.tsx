@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { Bomb, Crosshair } from 'lucide-react';
 import type { MysteryPowerType } from './game-engine';
-import { PowerGlyph } from './PowerGlyph';
+import { PowerArtwork } from './PowerArtwork';
 import './MysteryCompass.css';
 
 type Power = MysteryPowerType;
@@ -20,41 +19,31 @@ const DIRS: { power: Power; cls: string; label: string; blurb: string }[] = [
   { power: 'knife', cls: 'pc-ico-knife', label: 'Knife', blurb: 'Strike a rival sharing your room' },
 ];
 
-function PowerIcon({ power }: { power: Power }) {
-  if (power === 'bomb') return <Bomb size={19} />;
-  if (power === 'webShooter') return <Crosshair size={19} />;
-  return <PowerGlyph power={power} size={19} />;
-}
-
 export default function MysteryCompass({ square, canChoose, busy, onChoose }: MysteryCompassProps) {
   const [sel, setSel] = useState<Power | null>(null);
-  const active = DIRS.find((d) => d.power === sel);
   const readOnly = !canChoose;
 
   return (
     <div className="mc-card" data-testid="mystery-compass" role="group" aria-label={`Mystery room ${square} power choice`}>
-      <div className="mc-heading">MYSTERY {square} · CHOOSE ONE</div>
+      <div className="mc-heading">MYSTERY {square} · {readOnly ? 'WAITING' : 'CHOOSE ONE'}</div>
       <div className="mc-choices">
         {DIRS.map(({ power, cls, label, blurb }) => (
-          <button key={power} type="button" className={`mc-btn ${cls}`} data-testid={`choose-power-${power}`}
-            aria-pressed={sel === power} disabled={readOnly || busy} aria-label={`Choose ${label}`} title={blurb}
-            onClick={() => setSel(power)}>
-            <span className="mc-power-orb" data-testid={`mystery-power-icon-${power}`} aria-hidden="true">
-              <PowerIcon power={power} />
-            </span>
-            <span className="mc-label">{label}</span>
-          </button>
+          <div key={power} className={`mc-choice-slot ${sel === power ? 'selected' : ''}`}>
+            <button type="button" className={`mc-btn ${cls}`} data-testid={`choose-power-${power}`}
+              aria-pressed={sel === power} disabled={readOnly || busy} aria-label={`Choose ${label}`} title={blurb}
+              onClick={() => setSel(power)}>
+              <PowerArtwork power={power} size={25} className="mc-art" />
+              <span className="mc-label">{label}</span>
+            </button>
+            {sel === power && (
+              <button type="button" className="mc-get" data-testid="get-mystery-power"
+                aria-label={`Get ${label}. ${blurb}`} disabled={readOnly || busy}
+                onClick={() => onChoose(power)}>
+                GET
+              </button>
+            )}
+          </div>
         ))}
-      </div>
-      <div className="mc-footer">
-        <div className="mc-info" aria-live="polite">
-          {readOnly ? 'Waiting for player' : active ? <><b>{active.label}</b> · {active.blurb}</> : 'Tap a power, then Get'}
-        </div>
-        <button type="button" className="mc-get" data-testid="get-mystery-power" aria-label={active ? `Get ${active.label}` : 'Choose a power first'}
-          disabled={readOnly || busy || !sel}
-          onClick={() => sel && onChoose(sel)}>
-          GET
-        </button>
       </div>
     </div>
   );
