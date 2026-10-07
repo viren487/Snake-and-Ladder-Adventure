@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle, Path } from 'react-native-svg';
 import Animated, {
@@ -15,6 +15,7 @@ import Animated, {
 import type { GameState, MysteryPowerType, ShootableSnakeSquare } from '@workspace/game-core';
 import { BOOM_SQUARE, BULLET_PICKUP_SQUARES, GUN_SQUARES, KEY_SQUARES, LADDERS, MYSTERY_BOX_SQUARES, SNAKES, SHOOTABLE_SNAKE_SQUARES, squareAt } from '@workspace/game-core';
 import { useColors } from '@/hooks/useColors';
+import { PowerGlyph } from '@/components/PowerGlyph';
 
 export type BoardBlast = {
   id: number;
@@ -33,26 +34,56 @@ type Props = {
   onChooseMystery?: (power: MysteryPowerType) => void;
 };
 
+function useReducedMotionSetting() {
+  const [reduceMotion, setReduceMotion] = React.useState(false);
+  React.useEffect(() => {
+    let active = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((value) => {
+      if (active) setReduceMotion(value);
+    });
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, []);
+  return reduceMotion;
+}
+
 const MYSTERY_POWER_OPTIONS: {
   power: MysteryPowerType;
   label: string;
-  shortLabel: string;
+  blurb: string;
   icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 }[] = [
-  { power: 'bomb', label: 'Bomb', shortLabel: 'Bomb', icon: 'bomb' },
-  { power: 'antiVenom', label: 'Anti-Venom', shortLabel: 'A/V', icon: 'shield-plus' },
-  { power: 'defuser', label: 'Defuser Kit', shortLabel: 'Kit', icon: 'wrench' },
-  { power: 'webShooter', label: 'Web Shooter', shortLabel: 'Web', icon: 'spider-web' },
-  { power: 'knife', label: 'Knife', shortLabel: 'Knife', icon: 'knife' },
+  { power: 'bomb', label: 'Bomb', blurb: 'Plant in your current room', icon: 'bomb' },
+  { power: 'antiVenom', label: 'Anti-Venom', blurb: 'Blocks one snake bite', icon: 'shield-plus' },
+  { power: 'defuser', label: 'Defuser Kit', blurb: 'Disarms one bomb', icon: 'wrench' },
+  { power: 'webShooter', label: 'Web Shooter', blurb: 'Pull a rival back three rooms', icon: 'spider-web' },
+  { power: 'knife', label: 'Knife', blurb: 'Strikes a rival in your room', icon: 'knife' },
 ];
+
+function PowerChoiceIcon({ power, icon, color, size }: {
+  power: MysteryPowerType;
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+  color: string;
+  size: number;
+}) {
+  if (power === 'antiVenom' || power === 'defuser' || power === 'knife') {
+    return <PowerGlyph power={power} size={size} />;
+  }
+  return <MaterialCommunityIcons name={icon} size={size} color={color} />;
+}
 
 function MysteryPowerTray({
   square,
+  boardSize,
   canChoose,
   busy,
   onChoose,
 }: {
   square: number;
+  boardSize: number;
   canChoose: boolean;
   busy: boolean;
   onChoose?: (power: MysteryPowerType) => void;
@@ -61,13 +92,22 @@ function MysteryPowerTray({
   const [selected, setSelected] = React.useState<MysteryPowerType | null>(null);
   React.useEffect(() => { setSelected(null); }, [square]);
   const active = MYSTERY_POWER_OPTIONS.find((option) => option.power === selected);
+  const labelSize = Math.max(7.5, Math.min(10, boardSize / 44));
+  const iconSize = Math.min(22, Math.max(13, Math.round(labelSize * 1.9)));
+  const accents: Record<MysteryPowerType, string> = {
+    bomb: '#ffad78',
+    antiVenom: '#ff9eac',
+    defuser: '#a9c5ff',
+    webShooter: '#9defff',
+    knife: '#dcb5ff',
+  };
 
   return (
     <View style={[styles.mysteryTray, { backgroundColor: colors.boardDark, borderColor: colors.boardFrameLight }]} testID="mystery-power-tray">
-      <Text style={[styles.mysteryTrayTitle, { color: colors.primary }]}>
+      <Text style={[styles.mysteryTrayTitle, { color: colors.primary, fontSize: labelSize, lineHeight: labelSize + 2 }]}>
         {canChoose ? `BOX ${square} · CHOOSE ONE` : `BOX ${square} · WAITING`}
       </Text>
-      <View style={styles.mysteryPowerRow}>
+      <View style={styles.mysteryPowerGrid}>
         {MYSTERY_POWER_OPTIONS.map((option) => {
           const isSelected = selected === option.power;
           return (
@@ -80,21 +120,21 @@ function MysteryPowerTray({
               onPress={() => setSelected(option.power)}
               style={[
                 styles.mysteryPowerOption,
-                { backgroundColor: isSelected ? colors.primary : colors.card, borderColor: isSelected ? colors.accent : colors.border },
+                { backgroundColor: isSelected ? colors.primary : colors.card, borderColor: isSelected ? colors.accent : accents[option.power] },
               ]}
               testID={`mystery-option-${option.power}`}
             >
-              <MaterialCommunityIcons name={option.icon} size={16} color={isSelected ? colors.primaryForeground : colors.foreground} />
-              <Text style={[styles.mysteryPowerLabel, { color: isSelected ? colors.primaryForeground : colors.mutedForeground }]} numberOfLines={1}>
-                {option.shortLabel}
+              <PowerChoiceIcon power={option.power} icon={option.icon} color={isSelected ? colors.primaryForeground : colors.foreground} size={iconSize} />
+              <Text style={[styles.mysteryPowerLabel, { color: isSelected ? colors.primaryForeground : colors.foreground, fontSize: labelSize, lineHeight: labelSize + 1 }]} numberOfLines={2}>
+                {option.label}
               </Text>
             </Pressable>
           );
         })}
       </View>
       <View style={styles.mysteryTrayFooter}>
-        <Text style={[styles.mysterySelectedLabel, { color: colors.foreground }]} numberOfLines={1}>
-          {active?.label ?? 'Pick a power'}
+        <Text style={[styles.mysterySelectedLabel, { color: colors.foreground, fontSize: Math.max(6.5, labelSize - 1), lineHeight: labelSize }]} numberOfLines={2}>
+          {active ? `${active.label} · ${active.blurb}` : 'Tap a power, then Get'}
         </Text>
         <Pressable
           accessibilityRole="button"
@@ -123,7 +163,6 @@ function centerForSquare(square: number) {
 }
 
 function tileMarker(square: number) {
-  if ((KEY_SQUARES as readonly number[]).includes(square)) return 'KEY';
   if ((BULLET_PICKUP_SQUARES as readonly number[]).includes(square)) return '+1';
   if ((MYSTERY_BOX_SQUARES as readonly number[]).includes(square)) return '?';
   if ((GUN_SQUARES as readonly number[]).includes(square)) return 'GUN';
@@ -143,28 +182,61 @@ function tokenColor(color: string, colors: ReturnType<typeof useColors>) {
   }
 }
 
-function PandaToken({ color }: { color: string }) {
+function CarriedItem({ kind }: { kind: 'torch' | 'key' }) {
+  const reduceMotion = useReducedMotionSetting();
+  const scale = useSharedValue(0.45);
+  React.useEffect(() => {
+    if (reduceMotion) {
+      scale.value = 1;
+      return;
+    }
+    scale.value = withSequence(
+      withTiming(1.2, { duration: 150, easing: Easing.out(Easing.cubic) }),
+      withTiming(1, { duration: 130, easing: Easing.out(Easing.cubic) }),
+    );
+  }, [kind, reduceMotion, scale]);
+  const motionStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(scale.value, [0.45, 0.8, 1], [0, 1, 1]),
+    transform: [{ scale: scale.value }],
+  }));
+  return (
+    <Animated.View style={[styles.carriedItem, motionStyle]} pointerEvents="none" testID={`carried-${kind}`}>
+      <MaterialCommunityIcons
+        name={kind === 'torch' ? 'flashlight' : 'key-variant'}
+        size={kind === 'torch' ? 12 : 13}
+        color={kind === 'torch' ? '#ffe49b' : '#ffd35b'}
+      />
+    </Animated.View>
+  );
+}
+
+function PandaToken({ color, carriedItem }: { color: string; carriedItem?: 'torch' | 'key' | null }) {
   const colors = useColors();
   return (
-    <View style={[styles.token, { backgroundColor: tokenColor(color, colors), borderColor: colors.foreground }]}>
-      <View style={[styles.earLeft, { backgroundColor: colors.boardDark }]} />
-      <View style={[styles.earRight, { backgroundColor: colors.boardDark }]} />
-      <View style={[styles.face, { backgroundColor: colors.foreground }]}>
-        <View style={[styles.eyeLeft, { backgroundColor: colors.boardDark }]} />
-        <View style={[styles.eyeRight, { backgroundColor: colors.boardDark }]} />
+    <View style={styles.tokenWrap}>
+      <View style={[styles.token, { backgroundColor: tokenColor(color, colors), borderColor: colors.foreground }]}>
+        <View style={[styles.earLeft, { backgroundColor: colors.boardDark }]} />
+        <View style={[styles.earRight, { backgroundColor: colors.boardDark }]} />
+        <View style={[styles.face, { backgroundColor: colors.foreground }]}>
+          <View style={[styles.eyeLeft, { backgroundColor: colors.boardDark }]} />
+          <View style={[styles.eyeRight, { backgroundColor: colors.boardDark }]} />
+        </View>
       </View>
+      {carriedItem && <CarriedItem key={carriedItem} kind={carriedItem} />}
     </View>
   );
 }
 
 function HomecomingPanda({
   color,
+  carriedItem,
   fromSquare,
   boardSize,
   delay,
   animationId,
 }: {
   color: string;
+  carriedItem?: 'torch' | 'key' | null;
   fromSquare: number;
   boardSize: number;
   delay: number;
@@ -199,7 +271,7 @@ function HomecomingPanda({
 
   return (
     <Animated.View pointerEvents="none" style={[styles.homecomingPanda, motionStyle]}>
-      <PandaToken color={color} />
+      <PandaToken color={color} carriedItem={carriedItem} />
     </Animated.View>
   );
 }
@@ -222,6 +294,64 @@ function BlastRing({
   });
 
   return <Animated.View pointerEvents="none" style={[styles.blastRing, { borderColor: color }, ringStyle]} />;
+}
+
+function TorchRoomGlow() {
+  const reduceMotion = useReducedMotionSetting();
+  const progress = useSharedValue(0);
+  React.useEffect(() => {
+    if (reduceMotion) {
+      progress.value = 1;
+      return;
+    }
+    progress.value = withTiming(1, { duration: 1050, easing: Easing.out(Easing.cubic) });
+  }, [progress, reduceMotion]);
+  const lightStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.34, 1], [0, 0.62, 0.16]),
+    transform: [{ scale: interpolate(progress.value, [0, 1], [0.08, 1.28]) }],
+  }));
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[StyleSheet.absoluteFill, styles.torchRoomGlow, lightStyle]}
+    />
+  );
+}
+
+function KeyPickupAnimation({ square }: { square: number }) {
+  const reduceMotion = useReducedMotionSetting();
+  const progress = useSharedValue(0);
+  const { row, column } = centerForSquare(square);
+  React.useEffect(() => {
+    if (reduceMotion) {
+      progress.value = 1;
+      return;
+    }
+    progress.value = withTiming(1, { duration: 1050, easing: Easing.out(Easing.cubic) });
+  }, [progress, reduceMotion, square]);
+  const motionStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.12, 0.72, 1], [0, 1, 1, 0]),
+    transform: [
+      { translateX: -17 },
+      { translateY: -17 },
+      { translateY: interpolate(progress.value, [0, 1], [5, -30]) },
+      { scale: interpolate(progress.value, [0, 0.24, 1], [0.35, 1.2, 0.6]) },
+      { rotate: `${interpolate(progress.value, [0, 0.5, 1], [-35, 9, 25])}deg` },
+    ],
+  }));
+  if (reduceMotion) return null;
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[styles.keyPickupAnimation, { left: `${column * 10 + 5}%`, top: `${row * 10 + 5}%` }, motionStyle]}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      testID="key-pickup-animation"
+    >
+      <MaterialCommunityIcons name="key-variant" size={27} color="#ffe080" />
+      <MaterialCommunityIcons name="auto-fix" size={18} color="#fff9d9" style={styles.keyPickupSparkle} />
+    </Animated.View>
+  );
 }
 
 function BombBlastVisual({ blast }: { blast: BoardBlast }) {
@@ -277,6 +407,26 @@ export function GameBoard({
 }: Props) {
   const colors = useColors();
   const [boardSize, setBoardSize] = React.useState(0);
+  const [keyPickup, setKeyPickup] = React.useState<{ playerId: string; square: number } | null>(null);
+  const previousKeyRooms = React.useRef(new Map(game.players.map((player) => [player.id, player.crownKeyRoom])));
+  React.useEffect(() => {
+    let newlyCollected: { playerId: string; square: number } | null = null;
+    const nextKeyRooms = new Map<string, number | null>();
+    game.players.forEach((player) => {
+      const previous = previousKeyRooms.current.get(player.id);
+      if (newlyCollected === null && previous === null && player.crownKeyRoom !== null) {
+        newlyCollected = { playerId: player.id, square: player.crownKeyRoom };
+      }
+      nextKeyRooms.set(player.id, player.crownKeyRoom);
+    });
+    previousKeyRooms.current = nextKeyRooms;
+    if (newlyCollected) setKeyPickup(newlyCollected);
+  }, [game.players]);
+  React.useEffect(() => {
+    if (!keyPickup) return;
+    const timer = setTimeout(() => setKeyPickup(null), 1200);
+    return () => clearTimeout(timer);
+  }, [keyPickup]);
   const shake = useSharedValue(0);
   const shakeStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: shake.value }],
@@ -362,11 +512,18 @@ export function GameBoard({
             const targetAvailable = isSnakeTarget && game.players[game.currentPlayerIndex]?.snakeStuns[square as ShootableSnakeSquare] === 0;
             const accessibleTarget = targetAvailable && !!onSelectTarget;
             const selected = selectedTargets.includes(square as ShootableSnakeSquare);
+            const roomCarrier = locked
+              ? game.players.find((player) =>
+                (player.hasTorch || player.crownKeyRoom === square) && player.position === square
+              )
+              : undefined;
+            const roomLit = !!roomCarrier;
+            const keyVisible = roomLit && roomCarrier?.hasTorch === true && roomCarrier.crownKeyRoom === null;
             return (
               <Pressable
                 key={square}
                 accessibilityRole={accessibleTarget ? 'button' : undefined}
-                accessibilityLabel={accessibleTarget ? `Aim at snake ${square}${selected ? ', selected' : ''}` : `Square ${square}${locked ? ', black key room' : ''}`}
+                accessibilityLabel={accessibleTarget ? `Aim at snake ${square}${selected ? ', selected' : ''}` : `Square ${square}${locked ? roomLit ? keyVisible ? ', torch-lit; key revealed' : roomCarrier?.crownKeyRoom === square ? ', black room remains lit after key pickup' : ', black room lit by torch' : ', black room; number visible' : ''}`}
                 accessibilityState={accessibleTarget ? { selected } : undefined}
                 disabled={!accessibleTarget}
                 onPress={() => onSelectTarget?.(square as ShootableSnakeSquare)}
@@ -376,9 +533,15 @@ export function GameBoard({
                   accessibleTarget && styles.targetCell,
                 ]}
               >
-                <Text style={[styles.squareNumber, { color: locked ? colors.foreground : colors.boardInk }]}>
+                {roomLit && <TorchRoomGlow key={`room-light-${square}`} />}
+                <Text style={[styles.squareNumber, locked && styles.lockedRoomNumber, { color: locked ? colors.foreground : colors.boardInk }]}>
                   {square}
                 </Text>
+                {keyVisible && (
+                  <View style={styles.keyRoomMarker} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                    <MaterialCommunityIcons name="key-variant" size={10} color="#fff0a3" />
+                  </View>
+                )}
                 {tileMarker(square) !== '' && (
                   <Text
                     style={[
@@ -419,6 +582,7 @@ export function GameBoard({
             </React.Fragment>
           ))}
         </Svg>
+        {keyPickup && <KeyPickupAnimation key={`${keyPickup.playerId}-${keyPickup.square}`} square={keyPickup.square} />}
 
         {game.players.map((player) => {
           if (player.position <= 0) return null;
@@ -439,7 +603,10 @@ export function GameBoard({
                 },
               ]}
             >
-              <PandaToken color={player.color} />
+              <PandaToken
+                color={player.color}
+                carriedItem={player.crownKeyRoom !== null ? 'key' : player.hasTorch ? 'torch' : null}
+              />
             </View>
           );
         })}
@@ -452,6 +619,7 @@ export function GameBoard({
               key={`homecoming-${bombBlast.id}-${victim.playerId}`}
               animationId={bombBlast.id}
               color={player.color}
+              carriedItem={player.crownKeyRoom !== null ? 'key' : player.hasTorch ? 'torch' : null}
               fromSquare={victim.fromSquare}
               boardSize={boardSize}
               delay={index * 150}
@@ -461,6 +629,7 @@ export function GameBoard({
         {mysterySquare !== null && (
           <MysteryPowerTray
             square={mysterySquare}
+            boardSize={boardSize}
             canChoose={mysteryCanChoose}
             busy={mysteryBusy}
             onChoose={onChooseMystery}
@@ -498,27 +667,28 @@ const styles = StyleSheet.create({
   mysteryTray: {
     position: 'absolute',
     left: '50%',
-    top: '80%',
+    top: '70%',
     width: '50%',
-    height: '20%',
+    height: '30%',
     zIndex: 30,
-    padding: 2,
+    padding: 4,
     borderWidth: 1,
     borderRadius: 8,
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
+    gap: 2,
     overflow: 'hidden',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.3,
     shadowRadius: 5,
     elevation: 9,
   },
-  mysteryTrayTitle: { fontFamily: 'Nunito_700Bold', fontSize: 7, lineHeight: 9, textAlign: 'center', letterSpacing: 0.35 },
-  mysteryPowerRow: { flexDirection: 'row', gap: 1, alignItems: 'center', justifyContent: 'space-between', flex: 1 },
-  mysteryPowerOption: { flex: 1, minWidth: 0, height: '100%', maxHeight: 34, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 6, paddingHorizontal: 1 },
-  mysteryPowerLabel: { fontFamily: 'Nunito_700Bold', fontSize: 6, lineHeight: 8 },
-  mysteryTrayFooter: { minHeight: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 3 },
-  mysterySelectedLabel: { flex: 1, fontFamily: 'Nunito_700Bold', fontSize: 7, lineHeight: 9 },
-  mysteryGetButton: { minWidth: 31, height: 16, alignItems: 'center', justifyContent: 'center', borderRadius: 5, paddingHorizontal: 4 },
+  mysteryTrayTitle: { fontFamily: 'Nunito_700Bold', fontSize: 8, lineHeight: 10, textAlign: 'center', letterSpacing: 0.35 },
+  mysteryPowerGrid: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignContent: 'space-between', justifyContent: 'space-between', gap: 2 },
+  mysteryPowerOption: { width: '32%', height: '48%', minWidth: 0, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 6, paddingHorizontal: 1, gap: 0 },
+  mysteryPowerLabel: { fontFamily: 'Nunito_700Bold', fontSize: 6.5, lineHeight: 8, textAlign: 'center', flexShrink: 1 },
+  mysteryTrayFooter: { minHeight: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 3 },
+  mysterySelectedLabel: { flex: 1, fontFamily: 'Nunito_700Bold', fontSize: 6.5, lineHeight: 8 },
+  mysteryGetButton: { minWidth: 34, height: 20, alignItems: 'center', justifyContent: 'center', borderRadius: 5, paddingHorizontal: 5 },
   mysteryGetLabel: { fontFamily: 'Nunito_700Bold', fontSize: 7, lineHeight: 9 },
   grid: {
     ...StyleSheet.absoluteFill,
@@ -542,6 +712,37 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 12,
   },
+  lockedRoomNumber: { zIndex: 2 },
+  torchRoomGlow: {
+    backgroundColor: '#f2ad31',
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#ffe18a',
+    zIndex: 1,
+  },
+  keyRoomMarker: {
+    position: 'absolute',
+    right: 2,
+    bottom: 1,
+    width: 13,
+    height: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#ffe18a',
+    backgroundColor: '#69451c',
+    zIndex: 3,
+  },
+  keyPickupAnimation: {
+    position: 'absolute',
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 28,
+  },
+  keyPickupSparkle: { position: 'absolute', right: -4, top: -5 },
   marker: {
     alignSelf: 'flex-end',
     fontFamily: 'Nunito_700Bold',
@@ -598,6 +799,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+  },
+  tokenWrap: { width: 24, height: 26, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  carriedItem: {
+    position: 'absolute',
+    right: -2,
+    top: 0,
+    width: 13,
+    height: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#fff0b1',
+    backgroundColor: '#342a27',
+    zIndex: 4,
   },
   face: {
     width: 12,

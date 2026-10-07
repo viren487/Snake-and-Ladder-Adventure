@@ -44,10 +44,23 @@ Only an exact landing collects the key; preserve the existing torch-first quest.
 
 Collecting a black-room key consumes the player's carried torch. The key proves
 the torch stage is complete, so the quest line should keep Torch earned after
-the torch disappears from the player. Render the carried torch as 🔦.
+the torch disappears from the player. Show a flashlight icon while the torch is
+carried; after key pickup, replace it with the carried-key icon.
 
-**Why:** The user explicitly asked for the flashlight emoji and for the torch to
-be removed from the player immediately after they collect a key.
+**Why:** The user explicitly asked for the torch to disappear from the player's
+hand after key collection and the key to take its place.
 
 **How to apply:** On exact key pickup, clear the carried-torch state without
 clearing the key; infer the earned torch stage from the retained key.
+
+Black-room numbers remain visible against the dark tiles. A torch-holder's
+arrival gradually reveals the room and key; exact key collection gets a short
+pickup animation before the key is shown in the panda's hand. Respect reduced
+motion without changing quest state or pickup timing.
+
+**Why:** The user requested numbered black rooms, a gradual torch reveal, and a
+clear animated handoff from torch to key on both web and native mobile.
+
+**How to apply:** Keep room lighting and the visible key tied to a torch-holder's
+arrival, collect only on an exact landing, and render carried items from each
+player's saved quest state.

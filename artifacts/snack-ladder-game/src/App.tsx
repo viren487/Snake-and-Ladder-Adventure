@@ -477,16 +477,21 @@ function Board({
     const gun = (GUN_SQUARES as readonly number[]).includes(number);
     const boom = number === BOOM_SQUARE;
     const tone = gate ? 'locked' : bullet ? 'bullet-square' : number % 3 === 0 ? 'blue' : (row + col) % 2 === 0 ? 'green' : 'cream';
-    const roomLit = gate && (
-      game.players.some((player) => player.hasTorch && player.position === number) ||
-      (walking?.position === number && game.players.some((player) => player.id === walking.playerId && player.hasTorch))
-    );
-    const keyVisible = roomLit && activePlayer.hasTorch && activePlayer.crownKeyRoom === null;
+    const roomCarrier = game.players.find((player) =>
+      (player.hasTorch || player.crownKeyRoom === number) && player.position === number
+    ) ??
+      (walking?.position === number
+        ? game.players.find((player) => player.id === walking.playerId && player.hasTorch)
+        : undefined);
+    const roomLit = gate && !!roomCarrier;
+    const keyVisible = roomLit && roomCarrier?.hasTorch === true && roomCarrier.crownKeyRoom === null;
     const roomDescription = !roomLit
       ? 'completely dark black room; carry a torch and land exactly here to reveal the key'
       : keyVisible
         ? 'torch-lit black room; the key is revealed; land exactly here to collect it'
-        : 'black room lit by a torch';
+        : roomCarrier?.crownKeyRoom === number
+          ? 'black room remains lit after the key was collected'
+          : 'black room lit by a torch';
     return (
       <div className={`board-cell ${tone} ${gate || bullet ? 'special' : ''} ${gate ? roomLit ? 'key-room-lit' : 'key-room-dark' : ''}`} key={number} data-testid={`board-square-${number}`} aria-label={`Square ${number}${gate ? `, ${roomDescription}` : ''}${bullet ? ', bullet pickup on landing' : ''}${mysteryBox ? ', mystery box' : ''}${gun ? ', gun' : ''}${boom ? ', boom trap' : ''}`}>
         <span className="cell-number" data-testid={`square-number-${number}`}>{number}</span>
@@ -495,7 +500,7 @@ function Board({
         {gun && <GunIcon />}
         {boom && <BoomIcon />}
         {gate && <>
-          <span className="lock-caption">{!roomLit ? 'DARK ROOM' : keyVisible ? 'KEY REVEALED' : 'TORCH LIGHT'}</span>
+          <span className="lock-caption">{!roomLit ? 'DARK ROOM' : keyVisible ? 'KEY REVEALED' : roomCarrier?.crownKeyRoom === number ? 'KEY CLAIMED' : 'TORCH LIGHT'}</span>
           <KeyRound className={`locked-glyph ${keyVisible ? 'key-revealed-glyph' : 'key-dark-glyph'}`} strokeWidth={2.2} data-testid={`key-room-${number}`} />
         </>}
       </div>
@@ -520,6 +525,20 @@ function Board({
     <div className="board-wrap" data-testid="game-board">
       <div className={`board-inner ${walking?.effect === 'boom' ? 'board-inner-blast' : ''}`}>
         <div className="board-grid">{cells}</div>
+        {pickupNotice?.kind === 'key' && 'room' in pickupNotice && (
+          <div
+            className="key-pickup-visual"
+            style={{
+              left: `${centerOf(pickupNotice.room).x / 10}%`,
+              top: `${centerOf(pickupNotice.room).y / 10}%`,
+            }}
+            aria-hidden="true"
+            data-testid="key-pickup-animation"
+          >
+            <KeyRound size={23} />
+            <Sparkles size={22} />
+          </div>
+        )}
         <svg className="board-svg" viewBox="0 0 1000 1000" aria-label="Photorealistic snakes and ladders">
           {SNAKES.map(snake => (
             <SnakeArt
@@ -636,7 +655,19 @@ function Board({
                 hopping={hopping}
                 specialMove={movement === 'ladder' || movement === 'snake' || movement === 'boom' || movement === 'bamboo' ? movement : null}
               />
-              {(player.hasTorch || movement === 'bamboo') && <TorchIcon className="panda-carried-torch" size={19} />}
+              {(player.hasTorch || movement === 'bamboo') && (
+                <span aria-hidden="true" data-testid={`carried-torch-${player.id}`}>
+                  <TorchIcon className="panda-carried-torch" size={19} />
+                </span>
+              )}
+              {player.crownKeyRoom !== null && (
+                <KeyRound
+                  className="panda-carried-key"
+                  size={17}
+                  aria-hidden="true"
+                  data-testid={`carried-key-${player.id}`}
+                />
+              )}
               {(movement === 'ladder' || movement === 'snake') && (
                 <span className={`move-caption move-caption-${movement}`} aria-hidden="true">
                   {movement === 'ladder' ? 'Up we go!' : 'Wheee!'}

@@ -1,0 +1,41 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500;700;800&family=Fredoka:wght@400;500;600;700&family=Nunito:wght@500;600;700;800;900&display=swap');
+
+:root {
+  --background: 225 34% 11%;
+  --foreground: 44 50% 94%;
+  --border: 35 29% 28%;
+  --card: 224 29% 15%;
+  --card-foreground: 44 50% 94%;
+  --primary: 43 95% 58%;
+  --primary-foreground: 225 34% 12%;
+  --secondary: 218 41% 24%;
+  --secondary-foreground: 44 50% 94%;
+  --muted: 222 24% 20%;
+  --muted-foreground: 218 17% 68%;
+  --accent: 155 44% 49%;
+  --accent-foreground: 225 34% 12%;
+  --input: 222 24% 25%;
+  --ring: 43 95% 58%;
+  --app-font-sans: 'Nunito', sans-serif;
+  --app-font-serif: 'Fredoka', sans-serif;
+  --app-font-mono: 'DM Mono', monospace;
+  --radius: .85rem;
+}
+
+.dark {
+  --background: 225 34% 11%;
+  --foreground: 44 50% 94%;
+  --border: 35 29% 28%;
+  --card: 224 29% 15%;
+  --card-foreground: 44 50% 94%;
+  --primary: 43 95% 58%;
+  --primary-foreground: 225 34% 12%;
+  --secondary: 218 41% 24%;
+  --secondary-foreground: 44 50% 94%;
+  --muted: 222 24% 20%;
+  --muted-foreground: 218 17% 68%;
+  --accent: 155 44% 49%;
+  --accent-foreground: 225 34% 12%;
+  --input: 222 24% 25%;
+  --ring: 43 95% 58%;
+}

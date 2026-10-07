@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Bomb, Crosshair, Dices, ShieldPlus, Sword, Wrench, List } from 'lucide-react';
+import { Bomb, Crosshair, Dices, List } from 'lucide-react';
 import type { PowerType } from './game-engine';
+import { PowerGlyph, type DetailedPower } from './PowerGlyph';
 import './PowerControls.css';
 
 export type PowerKind = PowerType;
@@ -38,9 +39,13 @@ const BLURB: Record<PowerKind, string> = {
   extraDice: 'Bank one extra roll',
 };
 const ORDER: PowerKind[] = ['bomb', 'antiVenom', 'defuser', 'webShooter', 'knife'];
-const ICONS: Record<PowerKind, typeof Bomb> = {
-  bomb: Bomb, antiVenom: ShieldPlus, defuser: Wrench, webShooter: Crosshair, knife: Sword, extraDice: Dices,
-};
+function PowerSymbol({ power, size }: { power: PowerKind; size: number }) {
+  if (power === 'antiVenom' || power === 'defuser' || power === 'knife') {
+    return <PowerGlyph power={power as DetailedPower} size={size} />;
+  }
+  const Icon = power === 'bomb' ? Bomb : power === 'webShooter' ? Crosshair : Dices;
+  return <Icon size={size} />;
+}
 
 export function PowerControls({ position, detonationBombs, detonationDisabled, playerName, powers, pending, bombs, busy, actionsEnabled, extraRollCredits, onDefense, onPlant, onDetonate, onExtraDice, rivals, onWebShoot, onKnife }: PowerControlsProps) {
   const [plantOpen, setPlantOpen] = useState(false);
@@ -72,7 +77,7 @@ export function PowerControls({ position, detonationBombs, detonationDisabled, p
       {pending && pending.kind !== 'mystery' && (
         <div role="group" aria-label={pending.kind === 'snake' ? 'Snake bite defense' : 'Bomb defense'}>
           <div className="pc-title">
-            {pending.kind === 'snake' ? <ShieldPlus size={18} /> : <Wrench size={18} />}
+            <PowerGlyph power={pending.kind === 'snake' ? 'antiVenom' : 'defuser'} size={18} />
             {pending.kind === 'snake' ? `Snake bite on ${pending.square}` : `Bomb on ${pending.square}`}
           </div>
           <p className="pc-copy">
@@ -97,21 +102,20 @@ export function PowerControls({ position, detonationBombs, detonationDisabled, p
 
       <div className="pc-bar" role="group" aria-label="Power stash">
         {visibleOrder.map((p) => {
-          const Icon = ICONS[p];
           const label = `${LABELS[p]}: ${powers[p]}`;
           const badge = <span className={`pc-badge ${powers[p] ? '' : 'zero'}`} data-testid={`power-count-${p}`} aria-label={`${LABELS[p]} count`}>{powers[p]}</span>;
           if (p === 'bomb') return (
             <button key={p} type="button" className="pc-ico pc-ico-bomb" data-testid="power-toggle-bomb" title={`${label}. Plant a bomb`}
               aria-label={`${label}. Plant a bomb`} aria-expanded={plantOpen}
               disabled={busy || (!plantOpen && !canPlant)} onClick={() => { setTargetPower(null); setPlantOpen((o) => !o); }}>
-              <Icon size={20} />{badge}
+              <PowerSymbol power={p} size={20} />{badge}
             </button>
           );
           if (p === 'extraDice') return (
             <button key={p} type="button" className={`pc-ico pc-ico-extraDice ${extraRollCredits > 0 ? 'on' : ''}`} data-testid="use-extra-dice"
               title={`${label}. Use Extra Dice: bank one extra roll`} aria-label={`Use Extra Dice, ${powers[p]} left`}
               disabled={!inventoryOk || powers[p] < 1} onClick={onExtraDice}>
-              <Icon size={20} />{badge}
+              <PowerSymbol power={p} size={20} />{badge}
             </button>
           );
           if (p === 'webShooter' || p === 'knife') return (
@@ -119,14 +123,14 @@ export function PowerControls({ position, detonationBombs, detonationDisabled, p
               title={`${label}: ${BLURB[p]}`} aria-label={`${label}: ${powers[p]} available`}
               aria-expanded={targetPower === p} disabled={!inventoryOk || powers[p] < 1}
               onClick={() => { setInfo(null); setTargetPower((active) => active === p ? null : p); }}>
-              <Icon size={20} />{badge}
+              <PowerSymbol power={p} size={20} />{badge}
             </button>
           );
           return (
             <button key={p} type="button" className={`pc-ico pc-ico-${p}`} title={`${label}. ${BLURB[p]}; used from a hazard prompt`}
               aria-label={`${label}. Used from a hazard prompt`} aria-pressed={info === p}
               onClick={() => { setTargetPower(null); setInfo((c) => (c === p ? null : p)); }}>
-              <Icon size={20} />{badge}
+              <PowerSymbol power={p} size={20} />{badge}
             </button>
           );
         })}

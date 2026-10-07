@@ -12,7 +12,7 @@
 .pc-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .pc-ico{position:relative;width:44px;height:44px;display:grid;place-items:center;border:1px solid #687086;border-radius:12px;background:#2d3547;color:#ffe6a7;cursor:pointer;transition:background .15s,filter .15s,transform .15s}
 .pc-ico-bomb{border-color:#ffc08d;background:linear-gradient(145deg,#fa9860,#c54d58);color:#fff8df;box-shadow:0 3px 0 #843743,0 5px 11px #100b1880,inset 0 1px #fff7d055}
-.pc-ico-antiVenom{border-color:#a7efb6;background:linear-gradient(145deg,#57cb91,#24775c);color:#f0fff5;box-shadow:0 3px 0 #1a543f,0 5px 11px #100b1880,inset 0 1px #f5fffa55}
+.pc-ico-antiVenom{border-color:#ffb5c0;background:linear-gradient(145deg,#ef6b79,#a82548);color:#fff7f8;box-shadow:0 3px 0 #752238,0 5px 11px #100b1880,inset 0 1px #fff3f455}
 .pc-ico-defuser{border-color:#a9c5ff;background:linear-gradient(145deg,#7199f4,#4253ae);color:#f4f6ff;box-shadow:0 3px 0 #303d7c,0 5px 11px #100b1880,inset 0 1px #fff7d055}
 .pc-ico-webShooter{border-color:#a9f1ff;background:linear-gradient(145deg,#56d5e7,#2579ad);color:#effdff;box-shadow:0 3px 0 #195b83,0 5px 11px #100b1880,inset 0 1px #f4ffff66}
 .pc-ico-knife{border-color:#dfb4ff;background:linear-gradient(145deg,#bb83f0,#7449ac);color:#fff6ff;box-shadow:0 3px 0 #50337b,0 5px 11px #100b1880,inset 0 1px #fff7ff55}

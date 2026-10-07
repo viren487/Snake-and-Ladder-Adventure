@@ -13,7 +13,7 @@ Mystery boxes in rooms 14, 35, 51 and 76 supply powers that players choose and c
 
 **Why:** The user described selectable, manually used powers, restricted planting to the current room, and later asked for an immediate owner-triggered blast option after planting, including self-detonation.
 
-**How to apply:** Put the five mystery choices in a compact one-row tray at the board's bottom-right, over squares 6–15, on both clients. Selection previews a power; Get awards it. Enforce bomb location, ownership, and self-detonation rules in both clients and the authoritative online server; preserve defensive choices before a rival-triggered blast.
+**How to apply:** Put the five mystery choices in the board's bottom-right, within the lower three rows, on both clients. Use a three-column, two-row picker with full names and a short effect description; selection previews a power, then Get awards it. Enforce bomb location, ownership, and self-detonation rules in both clients and the authoritative online server; preserve defensive choices before a rival-triggered blast.
 
 The fourth power is Extra Dice. A planted bomb's blast sends the rival Home, preserving torch/key progress and other inventory.
 
@@ -27,11 +27,13 @@ Extra Dice is a consumable, explicitly activated on the holder's turn to bank on
 
 **How to apply:** Show saved charges separately from activated extra-roll credits. An overshooting six earns no automatic bonus; any explicitly activated Extra Dice credit still grants its promised roll.
 
-Mystery-room choices should reuse each power's inventory icon and color inside a
-compact button that stays legible in the bottom-right one-row tray.
+Mystery-room choices should reuse each power's inventory colors and recognizable
+art in full-name buttons. Keep the bomb and Web Shooter artwork, show Anti-Venom
+as a red syringe, Defuser as a tool over a bomb, and Knife as a real knife.
 
-**Why:** The user asked for mystery-box icons to match the inventory and fit
-inside adjusted round badges.
+**Why:** The user asked for mystery-box powers to be easier to recognize and their
+names to remain readable in the enlarged board tray.
 
 **How to apply:** Reuse the inventory icon components and color classes rather
-than introducing a separate mystery-only icon or palette.
+than introducing a separate mystery-only icon or palette. Preserve the bottom
+three-row placement and select-then-Get flow in both clients.
