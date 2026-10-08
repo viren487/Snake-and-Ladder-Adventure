@@ -13,6 +13,7 @@ const BADGE_COLORS: Record<DetailedPower, { fill: string; stroke: string }> = {
 export function PowerGlyph({
   power,
   size = 20,
+  className,
   ...props
 }: SVGProps<SVGSVGElement> & { power: DetailedPower; size?: number }) {
   return (
@@ -21,7 +22,7 @@ export function PowerGlyph({
       height={size}
       viewBox="0 0 24 24"
       fill="none"
-      className={`power-glyph ${props.className ?? ''}`.trim()}
+      className={`power-glyph ${className ?? ''}`.trim()}
       aria-hidden="true"
       focusable="false"
       {...props}

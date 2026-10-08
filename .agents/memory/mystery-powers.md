@@ -27,16 +27,15 @@ Extra Dice is a consumable, explicitly activated on the holder's turn to bank on
 
 **How to apply:** Show saved charges separately from activated extra-roll credits. An overshooting six earns no automatic bonus; any explicitly activated Extra Dice credit still grants its promised roll.
 
-Use the user-provided five-card artwork for Bomb, Defuser Kit, Anti-Venom, Knife
-and Web Shooter in both the power log and Mystery chooser. Keep the names as
-readable text labels; use Extra Dice's existing icon because it has no supplied
-artwork.
+Use round, in-game vector symbols for Bomb, Defuser Kit, Anti-Venom, Knife and
+Web Shooter in both the power log and Mystery chooser. The user's reference art
+is inspiration only: do not use its photo cards or crop them into the game.
 
-**Why:** The user supplied exact power artwork and asked to use it for the power
-log and Mystery-box powers on both clients.
+**Why:** The user clarified that the power visuals must look like round game
+symbols, not photo thumbnails, while staying inspired by the supplied art.
 
-**How to apply:** Use the same artwork mapping in the Mystery chooser and power
-log, with the full power name visible outside the thumbnail.
+**How to apply:** Reuse the same simple vector glyphs in the Mystery chooser,
+power log and power-use controls. Keep each power name visible as text.
 
 When a Mystery box opens, show all five powers in the bottom-right area covering
 the board's bottom three rows. Selecting a power reveals GET directly under that
@@ -45,5 +44,5 @@ selected tile; pressing it awards that choice.
 **Why:** The user specified the three-row board area and asked for GET to sit
 beneath whichever power is selected.
 
-**How to apply:** Keep the image, text label and selected-only GET button together
-in each tile on both web and native mobile.
+**How to apply:** Keep the round symbol, text label and selected-only GET button
+together in each tile on both web and native mobile.

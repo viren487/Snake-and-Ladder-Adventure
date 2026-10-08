@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { MysteryPowerType } from './game-engine';
-import { PowerArtwork } from './PowerArtwork';
+import { PowerGlyph } from './PowerGlyph';
 import './MysteryCompass.css';
 
 type Power = MysteryPowerType;
@@ -32,7 +32,9 @@ export default function MysteryCompass({ square, canChoose, busy, onChoose }: My
             <button type="button" className={`mc-btn ${cls}`} data-testid={`choose-power-${power}`}
               aria-pressed={sel === power} disabled={readOnly || busy} aria-label={`Choose ${label}`} title={blurb}
               onClick={() => setSel(power)}>
-              <PowerArtwork power={power} size={25} className="mc-art" />
+              <span className="mc-power-orb" data-testid={`mystery-power-icon-${power}`} aria-hidden="true">
+                <PowerGlyph power={power} size={24} />
+              </span>
               <span className="mc-label">{label}</span>
             </button>
             {sel === power && (

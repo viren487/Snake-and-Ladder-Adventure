@@ -15,7 +15,7 @@ import Animated, {
 import type { GameState, MysteryPowerType, ShootableSnakeSquare } from '@workspace/game-core';
 import { BOOM_SQUARE, BULLET_PICKUP_SQUARES, GUN_SQUARES, KEY_SQUARES, LADDERS, MYSTERY_BOX_SQUARES, SNAKES, SHOOTABLE_SNAKE_SQUARES, squareAt } from '@workspace/game-core';
 import { useColors } from '@/hooks/useColors';
-import { PowerArtwork } from '@/components/PowerArtwork';
+import { PowerGlyph } from '@/components/PowerGlyph';
 
 export type BoardBlast = {
   id: number;
@@ -111,7 +111,7 @@ function MysteryPowerTray({
                 ]}
                 testID={`mystery-option-${option.power}`}
               >
-                <PowerArtwork power={option.power} size={iconSize} />
+                <PowerGlyph power={option.power} size={iconSize} />
                 <Text style={[styles.mysteryPowerLabel, { color: isSelected ? colors.primaryForeground : colors.foreground, fontSize: labelSize, lineHeight: labelSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                   {option.label}
                 </Text>
