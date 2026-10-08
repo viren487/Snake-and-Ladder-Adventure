@@ -27,15 +27,18 @@ Extra Dice is a consumable, explicitly activated on the holder's turn to bank on
 
 **How to apply:** Show saved charges separately from activated extra-roll credits. An overshooting six earns no automatic bonus; any explicitly activated Extra Dice credit still grants its promised roll.
 
-Use round, in-game vector symbols for Bomb, Defuser Kit, Anti-Venom, Knife and
-Web Shooter in both the power log and Mystery chooser. The user's reference art
-is inspiration only: do not use its photo cards or crop them into the game.
+Use large, high-contrast vector symbols directly on the colored power tiles for
+Bomb, Defuser Kit, Anti-Venom, Knife and Web Shooter. Do not put the symbols in
+an extra circular badge or use/crop the reference photo cards. Make the
+Anti-Venom syringe and Knife blade-and-handle silhouettes immediately clear.
 
-**Why:** The user clarified that the power visuals must look like round game
-symbols, not photo thumbnails, while staying inspired by the supplied art.
+**Why:** The user clarified that the reference should inspire game icons, then
+asked to remove the small circle backing and make the syringe and knife easier
+to recognize.
 
-**How to apply:** Reuse the same simple vector glyphs in the Mystery chooser,
-power log and power-use controls. Keep each power name visible as text.
+**How to apply:** Reuse the same clear vector glyphs in the Mystery chooser,
+power log and power-use controls. Let each glyph fill its colored rounded-square
+tile, and keep the power name visible as text.
 
 When a Mystery box opens, show all five powers in the bottom-right area covering
 the board's bottom three rows. Selecting a power reveals GET directly under that
@@ -44,5 +47,5 @@ selected tile; pressing it awards that choice.
 **Why:** The user specified the three-row board area and asked for GET to sit
 beneath whichever power is selected.
 
-**How to apply:** Keep the round symbol, text label and selected-only GET button
+**How to apply:** Keep the large tile symbol, text label and selected-only GET button
 together in each tile on both web and native mobile.
