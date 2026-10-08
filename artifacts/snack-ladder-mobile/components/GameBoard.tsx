@@ -79,7 +79,7 @@ function MysteryPowerTray({
   const [selected, setSelected] = React.useState<MysteryPowerType | null>(null);
   React.useEffect(() => { setSelected(null); }, [square]);
   const labelSize = Math.max(7, Math.min(10, boardSize / 44));
-  const iconSize = Math.min(20, Math.max(11, Math.round(boardSize / 24)));
+  const iconSize = Math.min(26, Math.max(18, Math.round(boardSize / 14)));
   const accents: Record<MysteryPowerType, string> = {
     bomb: '#ffad78',
     antiVenom: '#9cf28c',

@@ -2,14 +2,6 @@ import type { SVGProps } from 'react';
 
 export type DetailedPower = 'bomb' | 'antiVenom' | 'defuser' | 'webShooter' | 'knife';
 
-const BADGE_COLORS: Record<DetailedPower, { fill: string; stroke: string }> = {
-  bomb: { fill: '#772c36', stroke: '#ffab8e' },
-  antiVenom: { fill: '#24683a', stroke: '#a8f6a1' },
-  defuser: { fill: '#2b4479', stroke: '#a9c5ff' },
-  webShooter: { fill: '#164a68', stroke: '#80e8ff' },
-  knife: { fill: '#573876', stroke: '#dfb4ff' },
-};
-
 export function PowerGlyph({
   power,
   size = 20,
@@ -27,7 +19,6 @@ export function PowerGlyph({
       focusable="false"
       {...props}
     >
-      <circle cx="12" cy="12" r="11.2" fill={BADGE_COLORS[power].fill} stroke={BADGE_COLORS[power].stroke} strokeWidth="1.1" />
       {power === 'bomb' && (
         <g strokeLinecap="round" strokeLinejoin="round">
           <path d="M10.4 7.4 11 5.5q.2-1.4 1.8-1.6l1.8-.2" stroke="#ffd38a" strokeWidth="1.5" />
@@ -41,12 +32,16 @@ export function PowerGlyph({
       )}
       {power === 'antiVenom' && (
         <g strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4.6 15.7c-1.3-1.8.1-3.4 1.7-2.7 1.2.5-.1 2.1-1.4 1.8-1.4-.3-1.7 1.4-.5 2.4" fill="none" stroke="#c6fa91" strokeWidth="1.2" />
-          <path d="m7.1 15.9 7.8-7.8 3.1 3.1-7.8 7.8H7.1z" fill="#fff4f2" stroke="#a9132d" strokeWidth="1.6" />
-          <path d="m9.5 15.2 4.4-4.4 2.3 2.3-4.4 4.4H9.5z" fill="#ef4057" stroke="#b81935" strokeWidth="1" />
-          <path d="m12.7 10.3 3.1 3.1m-1-7.3 4.1 4.1m-2.2-6 5.3 5.3m-10.4 9.5-3.2 3.2m-2.5-2.4 4.8-4.8" stroke="#86162b" strokeWidth="1.7" />
-          <path d="m6.2 18.8 1.4 1.4-2 2-1.4-1.4z" fill="#ef4057" stroke="#86162b" strokeWidth="1" />
-          <path d="m14.2 8.8 1.4 1.4m-3.1.2 1.4 1.4" stroke="#fff" strokeWidth=".9" />
+          <path d="M3 15.5c1.1-1.9 3.7-.9 3.3.7-.3 1.1-1.9 1.2-2.5.5-.8 1.8.5 3.4 2.5 2.9" fill="none" stroke="#42a938" strokeWidth="1.8" />
+          <path d="M12 2.7v3.2M8.4 2.7h7.2" stroke="#6e1927" strokeWidth="2" />
+          <g transform="rotate(-45 12 12)">
+            <rect x="8" y="5.8" width="8" height="13.7" rx="1.2" fill="#fff7f3" stroke="#812235" strokeWidth="1.5" />
+            <path d="M9.5 12.4h5v5.5h-5z" fill="#ef4057" stroke="#b51e37" strokeWidth=".8" />
+            <path d="M9.5 11h5m-5 3h5m-5 3h5" stroke="#96243a" strokeWidth=".8" />
+            <path d="M7.2 19.5h9.6" stroke="#812235" strokeWidth="2" />
+            <path d="M9.8 19.5v2l2.2 2 2.2-2v-2" fill="#e8f2ff" stroke="#812235" strokeWidth="1.1" />
+            <path d="M12 23.4v2.8" stroke="#b9e7ff" strokeWidth="1.6" />
+          </g>
         </g>
       )}
       {power === 'defuser' && (
@@ -61,11 +56,11 @@ export function PowerGlyph({
       )}
       {power === 'knife' && (
         <g strokeLinecap="round" strokeLinejoin="round">
-          <path d="m7.7 16.2 10.6-12q1.4-1.6 2.7-.3t-.3 2.7l-12 10.6z" fill="#f4f8ff" stroke="#41315a" strokeWidth="1.5" />
-          <path d="m8.7 15.2 9.7-9.7" stroke="#9caec8" strokeWidth="1.2" />
-          <path d="m5.8 14.3 4 4-4.3 4.3q-.8.8-1.6 0l-2.4-2.4q-.8-.8 0-1.6z" fill="#512b42" stroke="#261d2b" strokeWidth="1.5" />
-          <path d="m7.9 13.2 3.7 3.7" stroke="#d8b37b" strokeWidth="2" />
-          <path d="m3 19.5 2.1 2.1m.3-4.6 1.6 1.6" stroke="#d9a5a5" strokeWidth=".8" />
+          <path d="M2.2 4.3 18 12l-6 6.7z" fill="#dceaff" stroke="#28354a" strokeWidth="1.3" />
+          <path d="m3.4 4.9 13.1 6.5m-8 1 6.8 3.1" stroke="#fff" strokeWidth="1.2" />
+          <path d="m13.8 16.5 4.1-4.2 3.4 3.4-4.1 4.1z" fill="#f0b94e" stroke="#573748" strokeWidth="1.2" />
+          <path d="m17.1 19.1 3.5-3.5 2.1 2.1-2.4 4.2q-.6 1-1.5.4l-2-1.5q-.8-.7.3-1.7z" fill="#3c2c42" stroke="#211b2a" strokeWidth="1.3" />
+          <path d="m18.3 20 2.5-2.5m-1.1 4.1 1.8-1.8" stroke="#d7bd99" strokeWidth=".8" />
         </g>
       )}
       {power === 'webShooter' && (

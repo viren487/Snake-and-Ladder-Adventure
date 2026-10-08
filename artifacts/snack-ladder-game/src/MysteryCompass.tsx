@@ -32,8 +32,8 @@ export default function MysteryCompass({ square, canChoose, busy, onChoose }: My
             <button type="button" className={`mc-btn ${cls}`} data-testid={`choose-power-${power}`}
               aria-pressed={sel === power} disabled={readOnly || busy} aria-label={`Choose ${label}`} title={blurb}
               onClick={() => setSel(power)}>
-              <span className="mc-power-orb" data-testid={`mystery-power-icon-${power}`} aria-hidden="true">
-                <PowerGlyph power={power} size={24} />
+              <span className="mc-power-icon" data-testid={`mystery-power-icon-${power}`} aria-hidden="true">
+                <PowerGlyph power={power} size={42} />
               </span>
               <span className="mc-label">{label}</span>
             </button>
